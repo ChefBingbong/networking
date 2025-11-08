@@ -1,55 +1,10 @@
 // src/run.ts
-import net from "net";
-import type { PeerInfo } from "../src/transport/types";
-import { createNode } from "./createPeer";
+import type { PeerNode } from "../src/node/node";
+import type { BootStrapNode } from "../src/node/bootstrap";
 
-const ROLE = (process.env.ROLE || "peer") as "peer" | "bootstrap";
-const HOST = process.env.HOST || "127.0.0.1";
-const PORT = parseInt(
-	process.env.PORT || (ROLE === "bootstrap" ? "4000" : "0"),
-);
-const ID = process.env.ID || `${ROLE}-${Math.floor(Math.random() * 1e6)}`;
-
-const TRANSPORTS = (process.env.TRANSPORTS || "tcp")
-	.split(",")
-	.map((s) => s.trim()) as ("tcp" | "udp")[];
-
-const BOOTSTRAP_HOST = process.env.BOOTSTRAP_HOST || "127.0.0.1";
-const BOOTSTRAP_PORT = parseInt(process.env.BOOTSTRAP_PORT || "4000");
-const BOOTSTRAP: PeerInfo = {
-	id: "bootstrap",
-	host: BOOTSTRAP_HOST,
-	port: BOOTSTRAP_PORT,
-};
-
-(async () => {
-	const node = createNode({
-		role: ROLE,
-		id: ID,
-		host: HOST,
-		port: PORT,
-		transports: TRANSPORTS,
-	});
-
-	await node.startListening(TRANSPORTS);
-	const bound = node["ctx"].port;
+export function startCLI(node: PeerNode) {
 	console.log(
-		`[${ID}] listening on ${HOST}:${bound} via [${TRANSPORTS.join(", ")}]`,
-	);
-
-	if (ROLE === "peer") {
-		// Choose a transport to bootstrap on (first available)
-		const bootKey = TRANSPORTS[0];
-		console.log(
-			`[${ID}] dialing bootstrap (${bootKey}) ${BOOTSTRAP.host}:${BOOTSTRAP.port}`,
-		);
-		console.log(bootKey);
-		await node.connectBootstrap(BOOTSTRAP, bootKey);
-	}
-
-	// --- CLI (separate from class) ---
-	console.log(
-		`\nCommands:\n  peers\n  ping <peerId> [tcp|udp]\n  msg <peerId> <text> [tcp|udp]\n  help\n`,
+		`\nCommands:\n  peers\n  ping <peerId>\n  msg <peerId> <text>\n  help\n`,
 	);
 	const stdin = process.stdin;
 	stdin.setEncoding("utf8");
@@ -58,58 +13,40 @@ const BOOTSTRAP: PeerInfo = {
 		if (!cmd) return;
 
 		if (cmd === "peers") {
-			const peers = [...node["ctx"].peers.keys()].join(", ") || "(none)";
-			console.log("Peers:", peers);
+			console.log("Peers:", [...node.info.peers.keys()].join(", ") || "(none)");
 			return;
 		}
 
 		if (cmd === "ping" && a) {
-			const key =
-				rest[rest.length - 1] === "tcp" || rest[rest.length - 1] === "udp"
-					? (rest.pop() as "tcp" | "udp")
-					: TRANSPORTS[0];
 			try {
-				console.log(a, key);
-				// run.ts — after dialing in the 'ping' command
-				const mc = await node.dialPeer(a, key);
-				console.log(
-					`[${ID}] ${key} connection to ${a} upgraded; opening stream...`,
-				);
-				const sid = mc.openStream((msg) => {
-					console.log(`[${ID}] ping reply from ${a} (${key}):`, msg);
-					mc.closeStream(sid);
-				});
-				mc.writeStream(sid, { t: "PING", ts: Date.now() });
+				const mc = await node.ensureConn(a);
+				// const sid = mc.openStream((msg) => {
+				// 	console.log(`[${node.info.id}] ping reply from ${a}:`, msg);
+				// 	mc.closeStream(sid);
+				// });
+				mc.send({ t: "PING", payload: { id: a } });
 			} catch (e) {
 				console.log("ping error:", e);
 			}
 			return;
 		}
 
-		if (cmd === "msg" && a) {
-			const maybeKey = rest[rest.length - 1];
-			const key =
-				maybeKey === "tcp" || maybeKey === "udp"
-					? (rest.pop() as "tcp" | "udp")
-					: TRANSPORTS[0];
-			const text = rest.join(" ");
-			try {
-				const mc = await node.dialPeer(a, key);
-				mc.send({ t: "MSG", from: ID, to: a, payload: { text } });
-			} catch (e) {
-				console.log("msg error:", e);
-			}
-			return;
-		}
+		// if (cmd === "msg" && a) {
+		// 	const text = rest.join(" ");
+		// 	try {
+		// 		const mc = await ensureConn(a);
+		// 		mc.send({ t: "MSG", from: node.info.id, to: a, payload: { text } });
+		// 	} catch (e) {
+		// 		console.log("msg error:", e);
+		// 	}
+		// 	return;
+		// }
 
 		if (cmd === "help") {
-			console.log("peers | ping <id> [tcp|udp] | msg <id> <text> [tcp|udp]");
+			console.log("peers | ping <id> | msg <id> <text>");
 			return;
 		}
 
 		console.log("unknown command; try 'help'");
 	});
-})().catch((e) => {
-	console.error(`[${ID}] fatal error:`, e);
-	process.exit(1);
-});
+}

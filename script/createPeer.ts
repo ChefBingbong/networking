@@ -1,24 +1,18 @@
-// src/createNode.ts
-import { NodeCore, type NodeRole } from "../src/nodeCore";
-import { TcpTransport } from "../src/transport/tcp";
-import { UdpTransport } from "../src/transport/udp";
+import debug from "debug";
+import { createNode } from "../src//node/createNode";
+import { startCLI } from "./cli";
 
-export type CreateNodeOpts = {
-	role: NodeRole;
-	id: string;
-	host: string;
-	port: number;
-	transports: ("tcp" | "udp")[];
-};
+debug.enable("p2p*");
 
-export function createNode(opts: CreateNodeOpts): NodeCore {
-	const node = new NodeCore(opts.role, opts.host, opts.port, opts.id);
+const PORT = parseInt(process.env.PORT || "0", 10); // 0 picks a free port
+const ID = process.env.ID || `node-${Math.floor(Math.random() * 1e6)}`;
 
-	// Register requested transports
-	for (const t of opts.transports) {
-		if (t === "tcp") node.registerTransports(new TcpTransport());
-		if (t === "udp") node.registerTransports(new UdpTransport());
-	}
+const node = await createNode({
+	nodeTypes: "peer",
+	host: "127.0.0.1",
+	port: PORT,
+	id: ID,
+	start: true,
+});
 
-	return node;
-}
+startCLI(node);
