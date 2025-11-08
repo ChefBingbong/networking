@@ -7,13 +7,19 @@
 		"format": "biome format . --write"
 	},
 	"devDependencies": {
-		"@types/bun": "latest"
+		"@types/bun": "latest",
+		"tsx": "^4.20.6"
 	},
 	"peerDependencies": {
 		"typescript": "^5"
 	},
 	"dependencies": {
 		"@biomejs/biome": "^2.3.4",
-		"strict-event-emitter-types": "^2.0.0"
+		"@noble/curves": "1.4.0",
+		"@peculiar/webcrypto": "^1.5.0",
+		"@peculiar/x509": "^1.14.0",
+		"strict-event-emitter-types": "^2.0.0",
+		"uint8arraylist": "^2.4.8",
+		"uint8arrays": "^5.1.0"
 	}
 }

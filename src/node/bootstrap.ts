@@ -3,37 +3,52 @@ import { ECDH } from "crypto";
 import { Transport } from "./transport";
 import type { NodeContext } from "../transport";
 import type { MuxedConnection } from "./connection";
-import type { Frame } from "../protocol";
-import type { PeerInfo } from "./node";
+import { wait, type Frame } from "../protocol";
+import type { NodeOptions, PeerInfo } from "./node";
 import debug from "debug";
-import { sleep } from "bun";
+import {
+	computeSecp256k1PublicKey,
+	generateSecp256k1KeyPrivPubPair,
+	generateSecp256k1PrivateKey,
+	type PeerKeyPair,
+} from "../secp256k1/utils";
+import {
+	Secp256k1PrivateKey,
+	Secp256k1PublicKey,
+} from "../secp256k1/secp256k1";
+import { Encrypter } from "./connection-encrypter";
+import EventEmitter from "events";
+import type { NetworkEventEmitter } from "./events";
 
 const log = debug("p2p:node");
 
-export class BootStrapNode {
+export class BootStrapNode extends (EventEmitter as {
+	new (): NetworkEventEmitter;
+}) {
 	public info: NodeContext;
-	private keyPair: ECDH;
 	private transport: Transport; // Assume Transport is defined elsewhere
 	private lastSeen: Map<string, number> = new Map();
 	private connections: Map<string, MuxedConnection> = new Map();
 
-	constructor(nodeInfo: PeerInfo) {
+	private keyPair: PeerKeyPair;
+	constructor(nodeInfo: PeerInfo, opts?: NodeOptions) {
+		super();
 		this.info = {
 			...nodeInfo,
 			isBootstrap: false,
 			peers: new Map<string, PeerInfo>(),
 		};
-		this.keyPair = KeyPair.generate().keyPair;
-		this.transport = new Transport(this.info);
+		this.keyPair = generateSecp256k1KeyPrivPubPair();
+		this.transport = new Transport(this.info, this.keyPair);
 	}
 
 	public start() {
-		this.transport.listen(this.info, async(mc, remote) => {
+		this.transport.listen(this.info, async (mc, remote) => {
 			log(
 				`[${this.info.id}] New connection from ${remote.remoteAddress}:${remote.localPort}`,
 			);
 			// Handle the new connection (mc)
-            // await this.transport.performUpgrade(this.info, mc, false)
+			// await this.transport.performUpgrade(this.info, mc, false)
 			mc.setOnFrame((f) => this.onFrame(mc, f));
 		});
 
@@ -64,7 +79,7 @@ export class BootStrapNode {
 
 	private async monitorStaleConnections() {
 		while (true) {
-			await sleep(30000);
+			await wait(30000);
 			const now = Date.now();
 
 			this.lastSeen.entries().forEach(([k, v]) => {

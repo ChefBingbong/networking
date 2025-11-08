@@ -11,10 +11,10 @@ export type FrameHandler = (f: Frame) => void;
 const log = debug("p2p:muxer");
 
 export class MuxedConnection extends (EventEmitter as {
-    new (): NetworkEventEmitter;
+	new (): NetworkEventEmitter;
 }) {
 	public socket: net.Socket;
-    private target: PeerInfo
+	private target: PeerInfo;
 
 	private ctx: PeerInfo;
 	private partial: Buffer = Buffer.alloc(0) as Buffer;
@@ -23,23 +23,44 @@ export class MuxedConnection extends (EventEmitter as {
 	constructor(ctx: PeerInfo, sock: net.Socket) {
 		super();
 		this.ctx = ctx;
-        this.target = {
-        id: "unknown",
-        host: sock.remoteAddress ?? "",
-        port: sock.remotePort ?? 0,
-      };
+		this.target = {
+			id: "unknown",
+			host: sock.remoteAddress ?? "",
+			port: sock.remotePort ?? 0,
+		};
 		this.socket = sock;
 		sock.on("data", (chunk) => this.onData(chunk as Buffer));
 		sock.on("close", () => this.onClose());
 
-        // Lifecycle logs (mc itself will emit 'disconnect' on socket close)
-      sock.once("close", (hadErr) => {
-        log(`[${ctx.id}] inbound socket closed (${hadErr ? "error" : "clean"}) from ${this.target.host}:${this.target.port}`);
-      });
-      sock.on("error", (err) => {
-        log(`[${ctx.id}] inbound socket error from ${this.target.host}:${this.target.port}: ${err?.message || err}`);
-      });
+		// Lifecycle logs (mc itself will emit 'disconnect' on socket close)
+		sock.once("close", (hadErr) => {
+			log(
+				`[${ctx.id}] inbound socket closed (${hadErr ? "error" : "clean"}) from ${this.target.host}:${this.target.port}`,
+			);
+		});
+		sock.on("error", (err) => {
+			log(
+				`[${ctx.id}] inbound socket error from ${this.target.host}:${this.target.port}: ${err?.message || err}`,
+			);
+		});
+	}
 
+	setSocket(sock: net.Socket) {
+		this.socket = sock;
+		sock.on("data", (chunk) => this.onData(chunk as Buffer));
+		sock.on("close", () => this.onClose());
+
+		// Lifecycle logs (mc itself will emit 'disconnect' on socket close)
+		sock.once("close", (hadErr) => {
+			// log(
+			// 	`[${ctx.id}] inbound socket closed (${hadErr ? "error" : "clean"}) from ${this.target.host}:${this.target.port}`,
+			// );
+		});
+		sock.on("error", (err) => {
+			// log(
+			// 	`[${ctx.id}] inbound socket error from ${this.target.host}:${this.target.port}: ${err?.message || err}`,
+			// );
+		});
 	}
 
 	private sendRaw(frame: Frame) {
