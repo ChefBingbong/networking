@@ -1,7 +1,11 @@
 // tcp-client.ts
 import net from "node:net";
 import tls from "node:tls";
-import { generateBoundCertificate, verifyPeerCertificate } from "./cert.js";
+import {
+	generateBoundCertificate,
+	verifyPeerCertificate,
+} from "../src/node/cert";
+import { generateSecp256k1KeyPrivPubPair } from "../src/secp256k1/utils";
 
 if (typeof process.versions.bun !== "undefined") {
 	console.error(
@@ -10,7 +14,9 @@ if (typeof process.versions.bun !== "undefined") {
 	process.exit(1);
 }
 
-const { certPEM, keyPEM, nodeKey } = await generateBoundCertificate();
+const { certPEM, keyPEM, nodeKey } = await generateBoundCertificate(
+	generateSecp256k1KeyPrivPubPair().privateKey,
+);
 console.log(
 	"[TCP] client node pub:",
 	Buffer.from(nodeKey.publicCompressed).toString("hex"),

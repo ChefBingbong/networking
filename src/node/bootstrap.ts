@@ -1,30 +1,27 @@
-// src/node/bootstrapNode.ts
 import debug from "debug";
 import EventEmitter from "events";
-import type { NetworkEventEmitter } from "./events";
-import type { NodeContext } from "../transport";
-import type { MuxedConnection } from "./connection";
-import { Transport } from "./transport/transport";
-
-import { mkPeerList, mkPeerJoin, mkPeerLeave } from "../packet/packets";
 import { startTicker } from "../packet/encode";
+import { mkPeerJoin, mkPeerLeave, mkPeerList } from "../packet/packets";
+import { type Packet, PacketType } from "../packet/types";
 import {
 	generateSecp256k1KeyPrivPubPair,
 	type PeerKeyPair,
 } from "../secp256k1/utils";
-import { PacketType, type Packet, type PeerInfo } from "../packet/types";
-import type { Frame } from "../protocol";
+import type { PeerInfo } from "../session/nodeInfo";
+import type { MuxedConnection } from "./connection";
+import type { NetworkEventEmitter } from "./events";
+import { Transport } from "./transport/transport";
 
 const log = debug("p2p:bootstrap");
 
 export class BootStrapNode extends (EventEmitter as {
 	new (): NetworkEventEmitter;
 }) {
-	public info: NodeContext;
+	public info: PeerInfo;
 	private transport: Transport;
 	private connections = new Map<string, MuxedConnection>();
 	private lastSeen = new Map<string, number>();
-	private peers = new Map<string, PeerInfo>();
+	private peers = new Map<string, any>();
 	private keyPair: PeerKeyPair;
 
 	constructor(nodeInfo: PeerInfo) {
@@ -46,7 +43,10 @@ export class BootStrapNode extends (EventEmitter as {
 		listener.server?.on("close", stopEvict);
 	}
 
-	private onInboundFrame = async (mc: MuxedConnection, pkt: Packet | Frame) => {
+	private onInboundFrame = async (
+		mc: MuxedConnection,
+		pkt: Packet | Packet,
+	) => {
 		switch (pkt.t) {
 			case PacketType.PEER_JOIN: {
 				const p = pkt.payload;

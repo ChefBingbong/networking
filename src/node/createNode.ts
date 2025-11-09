@@ -1,3 +1,5 @@
+import { generateSecp256k1KeyPrivPubPair } from "../secp256k1/utils";
+import { peerIdFromPrivateKey } from "../session/peer-id";
 import { BootStrapNode } from "./bootstrap";
 import { PeerNode } from "./node";
 
@@ -11,8 +13,8 @@ type NodeOptions = {
 };
 
 export async function createNode(options: NodeOptions) {
-	// options.privateKey ??= await generateKeyPair("Ed25519");
-
+	const privateKey = generateSecp256k1KeyPrivPubPair();
+	const nodeInfo = { name: "test-p2p", version: "0.0.0" };
 	const shouldStartAutomatically = (node: PeerNode | BootStrapNode) => {
 		if (options.start) node.start();
 		return node;
@@ -24,6 +26,9 @@ export async function createNode(options: NodeOptions) {
 				host: options.host,
 				port: options.port,
 				id: options.id,
+				privateKey: privateKey.privateKey,
+				peerId: peerIdFromPrivateKey(privateKey.privateKey),
+				nodeInfo,
 			});
 			return shouldStartAutomatically(node);
 		}
@@ -32,6 +37,9 @@ export async function createNode(options: NodeOptions) {
 				host: options.host,
 				port: options.port,
 				id: options.id,
+				privateKey: privateKey.privateKey,
+				peerId: peerIdFromPrivateKey(privateKey.privateKey),
+				nodeInfo,
 			});
 			return shouldStartAutomatically(node);
 		}

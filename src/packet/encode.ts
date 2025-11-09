@@ -1,4 +1,4 @@
-import { PacketType, type PacketBase } from "./types";
+import { type Packet, type PacketBase } from "./types";
 
 export function encodeFrame(obj: PacketBase): Buffer {
 	const body = Buffer.from(JSON.stringify(obj), "utf8");
@@ -9,7 +9,7 @@ export function encodeFrame(obj: PacketBase): Buffer {
 
 export function decodeFrames(
 	buf: Buffer,
-	onFrame: (f: PacketBase) => void,
+	onFrame: (f: Packet) => void,
 ): Buffer {
 	let off = 0;
 	while (buf.length - off >= 4) {

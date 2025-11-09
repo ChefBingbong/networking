@@ -1,13 +1,7 @@
-/* eslint-disable import/export */
-/* eslint-disable complexity */
-/* eslint-disable @typescript-eslint/no-namespace */
-/* eslint-disable @typescript-eslint/no-unnecessary-boolean-literal-compare */
-/* eslint-disable @typescript-eslint/no-empty-interface */
-
 import {
 	type Codec,
-	decodeMessage,
 	type DecodeOptions,
+	decodeMessage,
 	encodeMessage,
 	enumeration,
 	message,

@@ -1,18 +1,15 @@
 // cert.mjs
-import * as x509 from "@peculiar/x509";
-import crypto from "node:crypto";
+
 import { secp256k1 as secp } from "@noble/curves/secp256k1";
 import { sha256 } from "@noble/hashes/sha256";
-import {
-	computeSecp256k1PublicKey,
-	generateSecp256k1PrivateKey,
-} from "../secp256k1/utils";
+import * as x509 from "@peculiar/x509";
+import crypto from "node:crypto";
 import { toString as uint8ArrayToString } from "uint8arrays/to-string";
 import type { Secp256k1PrivateKey } from "../secp256k1/secp256k1";
 
 const NODE_BINDING_OID = "1.3.6.1.4.1.55555.1.1";
 
-function tlvBinding(pubCompressed, sig64) {
+function tlvBinding(pubCompressed: Uint8Array, sig64: Uint8Array) {
 	const len = 1 + 2 + pubCompressed.length + 1 + 2 + sig64.length;
 	const out = new Uint8Array(len);
 	let i = 0;
@@ -142,7 +139,7 @@ export async function verifyPeerCertificate(
 	// Parse TLV
 	const u8 = new Uint8Array(ext.value);
 	let i = 0;
-	const rd16 = () => (u8[i++] << 8) | u8[i++];
+	const rd16 = () => (u8[i++]! << 8) | u8[i++]!;
 
 	if (u8[i++] !== 0x01) throw new Error("binding: missing pub tag");
 	const pubLen = rd16();

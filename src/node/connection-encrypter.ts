@@ -1,14 +1,14 @@
 // encrypter.ts (unchanged)
+
+import debug from "debug";
+import type { Socket } from "node:net";
 import {
 	TLSSocket,
 	type TLSSocketOptions,
 	connect as tlsConnect,
 } from "node:tls";
-import type { Socket } from "node:net";
-import debug from "debug";
-import { generateBoundCertificate, verifyPeerCertificate } from "./cert";
 import type { Secp256k1PrivateKey } from "../secp256k1/secp256k1";
-import type { MuxedConnection } from "./connection";
+import { generateBoundCertificate, verifyPeerCertificate } from "./cert";
 
 const log = debug("p2p:encrypter");
 

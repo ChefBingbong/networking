@@ -1,15 +1,15 @@
+import { CID } from "multiformats";
+import type { Digest } from "multiformats/hashes/digest.js";
+import { identity } from "multiformats/hashes/identity";
+import { equals as uint8ArrayEquals } from "uint8arrays/equals";
+import { hashAndSign, hashAndVerify } from "./index.js";
+import * as pb from "./keys";
 import {
-	validateSecp256k1PublicKey,
 	compressSecp256k1PublicKey,
 	computeSecp256k1PublicKey,
 	validateSecp256k1PrivateKey,
+	validateSecp256k1PublicKey,
 } from "./utils.js";
-import { hashAndVerify, hashAndSign } from "./index.js";
-import { equals as uint8ArrayEquals } from "uint8arrays/equals";
-import { CID } from "multiformats";
-import { identity } from "multiformats/hashes/identity";
-import * as pb from "./keys";
-import type { Digest } from "multiformats/dist/src/hashes/digest.js";
 
 export function publicKeyToProtobuf(key: Secp256k1PublicKey): Uint8Array {
 	return pb.PublicKey.encode({

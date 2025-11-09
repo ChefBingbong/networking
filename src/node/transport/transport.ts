@@ -1,18 +1,10 @@
-// src/transport.ts
-import net, { type AddressInfo, type Server, type Socket } from "net";
 import debug from "debug";
-import {
-	MuxedConnection,
-	type ConnectionHandler,
-	type FrameHandler,
-} from "../connection";
-import type { NodeContext, TransportOpts } from "../../transport";
-import type { PeerInfo } from "../node";
-import { PROTOCOL_VERSION, type Frame } from "../../protocol";
-import { Encrypter } from "../connection-encrypter";
-import type { TLSSocket } from "tls";
+import net, { type Server } from "net";
 import type { PeerKeyPair } from "../../secp256k1/utils";
+import type { PeerInfo, PeerRemote } from "../../session/nodeInfo";
 import { safeError, safeResult, safeSyncTry, safeTry } from "../../utils/safe";
+import { type ConnectionHandler, MuxedConnection } from "../connection";
+import { Encrypter } from "../connection-encrypter";
 import { TransportListener } from "./transport-listener";
 
 const log = debug("p2p:transport");
@@ -27,7 +19,7 @@ export class Transport {
 		this.encrypter = new Encrypter(keyPair.privateKey);
 	}
 
-	async dial(ctx: NodeContext, target: PeerInfo, timeoutMs = 10_000) {
+	async dial(ctx: PeerInfo, target: PeerRemote, timeoutMs = 10_000) {
 		const [sockErr, sock] = safeSyncTry(() =>
 			net.createConnection({
 				host: target.host,

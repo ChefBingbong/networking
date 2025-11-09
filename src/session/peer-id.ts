@@ -1,11 +1,11 @@
-import type { MultihashDigest } from "multiformats/dist/src";
+import type { MultihashDigest } from "multiformats";
+import { base58btc } from "multiformats/bases/base58";
+import { equals as uint8ArrayEquals } from "uint8arrays/equals";
 import type {
 	Secp256k1PrivateKey,
 	Secp256k1PublicKey,
 } from "../secp256k1/secp256k1";
 import type { PeerId, PeerIdType } from "./nodeInfo";
-import { base58btc } from "multiformats/dist/src/bases/base58";
-import { equals as uint8ArrayEquals } from "uint8arrays/equals";
 
 const inspect = Symbol.for("nodejs.util.inspect.custom");
 

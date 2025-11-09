@@ -1,44 +1,27 @@
-import { Transport } from "./transport/transport";
-import type { NodeContext } from "../transport";
-import type { MuxedConnection } from "./connection";
-import { wait, type Frame } from "../protocol";
 import debug from "debug";
-// import { sleep } from "bun";
 import { EventEmitter } from "events";
-import type { NetworkEventEmitter } from "./events";
+import { wait } from "../packet/encode";
+import type { Packet } from "../packet/types";
 import {
-	computeSecp256k1PublicKey,
-	generateSecp256k1KeyPair,
 	generateSecp256k1KeyPrivPubPair,
-	generateSecp256k1PrivateKey,
 	type PeerKeyPair,
 } from "../secp256k1/utils";
-import { Secp256k1PrivateKey } from "../secp256k1/secp256k1";
-import { Encrypter } from "./connection-encrypter";
-import type { NodeInfo, PeerId } from "../session/nodeInfo";
-import { safeError } from "../utils/safe";
-import { isBoxedPrimitive } from "util/types";
-import type { Packet, PacketBase } from "../packet/types";
+import type { PeerInfo, PeerRemote } from "../session/nodeInfo";
+import { safeError, safeResult } from "../utils/safe";
+import type { MuxedConnection } from "./connection";
+import type { NetworkEventEmitter } from "./events";
+import { Transport } from "./transport/transport";
 
 const log = debug("p2p:node");
-
-export type PeerInfo = {
-	privateKey: Secp256k1PrivateKey;
-	peerId: PeerId;
-	nodeInfo: NodeInfo;
-	host: string;
-	port: number;
-};
-export type NodeOptions = { keyPair: Secp256k1PrivateKey };
 
 export class PeerNode extends (EventEmitter as {
 	new (): NetworkEventEmitter;
 }) {
-	public info: NodeContext;
+	public info: PeerInfo;
 	private transport: Transport;
 	private connections: Map<string, MuxedConnection> = new Map();
 	private keyPair: PeerKeyPair;
-	private peers: Map<string, PeerInfo> = new Map();
+	public peers: Map<string, PeerRemote> = new Map();
 
 	constructor(nodeInfo: PeerInfo) {
 		super();
@@ -71,10 +54,10 @@ export class PeerNode extends (EventEmitter as {
 
 	public async ensureConn(id: string) {
 		const connection = this.connections.get(id);
-		if (connection) return connection;
+		if (connection) return safeResult(connection);
 
 		const peerId = this.peers.get(id);
-		if (!peerId) throw new Error(`unknown peer ${id}`);
+		if (!peerId) return safeResult(undefined);
 
 		const [error, mc] = await this.transport.dial(this.info, peerId);
 		if (error) return safeError(error);
@@ -82,10 +65,11 @@ export class PeerNode extends (EventEmitter as {
 		this.connections.set(id, mc);
 		mc.setOnFrame((f) => this.onFrame(mc, f));
 		mc.socket.once("close", () => this.peers.delete(id));
-		return mc;
+
+		return safeResult(mc);
 	}
 
-	private onFrame = async (mc: MuxedConnection, f: Packet | Frame) => {
+	private onFrame = async (mc: MuxedConnection, f: Packet) => {
 		if (f.t === "PING") {
 			mc.send({ t: "PONG", payload: { id: this.info.id } });
 		} else if (f.t === "MSG") {
@@ -95,7 +79,7 @@ export class PeerNode extends (EventEmitter as {
 		}
 	};
 
-	private onBootstrapFrame = (f: Frame) => {
+	private onBootstrapFrame = (f: Packet) => {
 		console.log(f);
 		if (f.t === "PEER_LIST") {
 			const payload = f.payload as { peers: PeerInfo[] };

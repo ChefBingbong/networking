@@ -1,18 +1,9 @@
-// src/transport.ts
-import net, { type AddressInfo, type Server, type Socket } from "net";
 import debug from "debug";
-import {
-	MuxedConnection,
-	type ConnectionHandler,
-	type FrameHandler,
-} from "../connection";
-import type { NodeContext, TransportOpts } from "../../transport";
-import type { PeerInfo } from "../node";
-import { PROTOCOL_VERSION, type Frame } from "../../protocol";
+import net, { type AddressInfo, type Server, type Socket } from "net";
+import type { PeerInfo } from "../../session/nodeInfo";
+import { safeError, safeTry } from "../../utils/safe";
+import { type ConnectionHandler, MuxedConnection } from "../connection";
 import { Encrypter } from "../connection-encrypter";
-import type { TLSSocket } from "tls";
-import type { PeerKeyPair } from "../../secp256k1/utils";
-import { safeError, safeResult, safeTry } from "../../utils/safe";
 
 const log = debug("p2p:transport");
 

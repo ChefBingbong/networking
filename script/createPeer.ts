@@ -15,4 +15,4 @@ const node = await createNode({
 	start: true,
 });
 
-startCLI(node);
+startCLI(node as any);

@@ -1,6 +1,4 @@
-// src/run.ts
 import type { PeerNode } from "../src/node/node";
-import type { BootStrapNode } from "../src/node/bootstrap";
 
 export function startCLI(node: PeerNode) {
 	console.log(
@@ -13,13 +11,18 @@ export function startCLI(node: PeerNode) {
 		if (!cmd) return;
 
 		if (cmd === "peers") {
-			console.log("Peers:", [...node.info.peers.keys()].join(", ") || "(none)");
+			console.log("Peers:", [...node.peers.keys()].join(", ") || "(none)");
 			return;
 		}
 
 		if (cmd === "ping" && a) {
 			try {
-				const mc = await node.ensureConn(a);
+				const [error, mc] = await node.ensureConn(a);
+				if (error) {
+					console.log("ping error:", error);
+					return;
+				}
+				if (!mc) return;
 				// const sid = mc.openStream((msg) => {
 				// 	console.log(`[${node.info.id}] ping reply from ${a}:`, msg);
 				// 	mc.closeStream(sid);

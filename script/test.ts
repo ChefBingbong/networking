@@ -1,7 +1,12 @@
-// tcp-server.ts
+// tcp-client.ts
 import net from "node:net";
 import tls from "node:tls";
-import { generateBoundCertificate, verifyPeerCertificate } from "./cert.js";
+import {
+	generateBoundCertificate,
+	verifyPeerCertificate,
+} from "../src/node/cert";
+import { generateSecp256k1KeyPrivPubPair } from "../src/secp256k1/utils";
+
 if (typeof process.versions.bun !== "undefined") {
 	console.error(
 		"This STARTTLS wrap pattern requires Node.js. Use `node` to run.",
@@ -9,9 +14,15 @@ if (typeof process.versions.bun !== "undefined") {
 	process.exit(1);
 }
 
-const { certPEM, keyPEM } = await generateBoundCertificate();
-console.log("[TCP] server listening on 8001");
-
+const { certPEM, keyPEM } = await generateBoundCertificate(
+	generateSecp256k1KeyPrivPubPair().privateKey,
+);
+if (typeof process.versions.bun !== "undefined") {
+	console.error(
+		"This STARTTLS wrap pattern requires Node.js. Use `node` to run.",
+	);
+	process.exit(1);
+}
 const server = net.createServer((raw) => {
 	raw.setNoDelay(true);
 	raw.setKeepAlive(true, 10_000);
