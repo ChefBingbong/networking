@@ -1,110 +1,98 @@
-import { KeyPair } from "../crypto";
-import { ECDH } from "crypto";
-import { Transport } from "./transport";
-import type { NodeContext } from "../transport";
-import type { MuxedConnection } from "./connection";
-import { wait, type Frame } from "../protocol";
-import type { NodeOptions, PeerInfo } from "./node";
+// src/node/bootstrapNode.ts
 import debug from "debug";
-import {
-	computeSecp256k1PublicKey,
-	generateSecp256k1KeyPrivPubPair,
-	generateSecp256k1PrivateKey,
-	type PeerKeyPair,
-} from "../secp256k1/utils";
-import {
-	Secp256k1PrivateKey,
-	Secp256k1PublicKey,
-} from "../secp256k1/secp256k1";
-import { Encrypter } from "./connection-encrypter";
 import EventEmitter from "events";
 import type { NetworkEventEmitter } from "./events";
+import type { NodeContext } from "../transport";
+import type { MuxedConnection } from "./connection";
+import { Transport } from "./transport/transport";
 
-const log = debug("p2p:node");
+import { mkPeerList, mkPeerJoin, mkPeerLeave } from "../packet/packets";
+import { startTicker } from "../packet/encode";
+import {
+	generateSecp256k1KeyPrivPubPair,
+	type PeerKeyPair,
+} from "../secp256k1/utils";
+import { PacketType, type Packet, type PeerInfo } from "../packet/types";
+import type { Frame } from "../protocol";
+
+const log = debug("p2p:bootstrap");
 
 export class BootStrapNode extends (EventEmitter as {
 	new (): NetworkEventEmitter;
 }) {
 	public info: NodeContext;
-	private transport: Transport; // Assume Transport is defined elsewhere
-	private lastSeen: Map<string, number> = new Map();
-	private connections: Map<string, MuxedConnection> = new Map();
-
+	private transport: Transport;
+	private connections = new Map<string, MuxedConnection>();
+	private lastSeen = new Map<string, number>();
+	private peers = new Map<string, PeerInfo>();
 	private keyPair: PeerKeyPair;
-	constructor(nodeInfo: PeerInfo, opts?: NodeOptions) {
+
+	constructor(nodeInfo: PeerInfo) {
 		super();
-		this.info = {
-			...nodeInfo,
-			isBootstrap: false,
-			peers: new Map<string, PeerInfo>(),
-		};
+		this.info = nodeInfo;
 		this.keyPair = generateSecp256k1KeyPrivPubPair();
-		this.transport = new Transport(this.info, this.keyPair);
+		this.transport = new Transport(this.keyPair);
 	}
 
-	public start() {
-		this.transport.listen(this.info, async (mc, remote) => {
-			log(
-				`[${this.info.id}] New connection from ${remote.remoteAddress}:${remote.localPort}`,
-			);
-			// Handle the new connection (mc)
-			// await this.transport.performUpgrade(this.info, mc, false)
-			mc.setOnFrame((f) => this.onFrame(mc, f));
-		});
+	public async start() {
+		const listener = this.transport.createListener(
+			this.info,
+			this.onInboundFrame,
+		);
+		const listenErr = await listener.listen(this.info);
+		if (listenErr) return log("listen failed:", listenErr);
 
-		this.monitorStaleConnections();
-		// attempt to connect to known bootstrap nodes or peers here
+		const stopEvict = startTicker(() => this.evictStale(75_000), 15_000);
+		listener.server?.on("close", stopEvict);
 	}
 
-	private onFrame(mc: MuxedConnection, f: Frame) {
-		console.log(f);
-		if (f.t === "PEER_JOIN") {
-			const { id, host, port } = f.payload as PeerInfo;
-			this.info.peers.set(id, { id, host, port });
-			this.connections.set(id, mc);
-			this.lastSeen.set(id, Date.now());
-			log(`[bootstrap] ${id} joined (${host}:${port})`);
+	private onInboundFrame = async (mc: MuxedConnection, pkt: Packet | Frame) => {
+		switch (pkt.t) {
+			case PacketType.PEER_JOIN: {
+				const p = pkt.payload;
+				this.peers.set(p.id, p);
+				this.connections.set(p.id, mc);
+				this.lastSeen.set(p.id, Date.now());
 
-			this.send(mc, {
-				t: "PEER_LIST",
-				payload: { peers: [...this.info.peers.values()] },
-			});
-			this.broadcast({ t: "PEER_JOIN", payload: f.payload });
-		} else if (f.t === "HEARTBEAT") {
-			const payload = f.payload as PeerInfo;
-			this.lastSeen.set(payload.id, Date.now());
-			log(`[${this.info.id}] ${f.from}: ${Date.now()}`);
+				mc.send(mkPeerList([...this.peers.values()]));
+				this.broadcast(mkPeerJoin(p), p.id);
+
+				log(`[bootstrap] ${p.id} joined (${p.host}:${p.port})`);
+				break;
+			}
+			case PacketType.HEARTBEAT: {
+				const { id } = pkt.payload;
+				this.lastSeen.set(id, Date.now());
+				log(`[bootstrap] heartbeat from ${id}`);
+				break;
+			}
+			default:
+				break;
+		}
+	};
+
+	private evictStale(maxAgeMs: number) {
+		const now = Date.now();
+		for (const [id, last] of this.lastSeen) {
+			if (now - last > maxAgeMs) {
+				const conn = this.connections.get(id);
+				const p = this.peers.get(id);
+				if (p) this.broadcast(mkPeerLeave(id), id);
+				conn?.socket.destroy();
+				this.connections.delete(id);
+				this.peers.delete(id);
+				this.lastSeen.delete(id);
+				log(`[bootstrap] evicted ${id} (missed heartbeats)`);
+			}
 		}
 	}
 
-	private async monitorStaleConnections() {
-		while (true) {
-			await wait(30000);
-			const now = Date.now();
-
-			this.lastSeen.entries().forEach(([k, v]) => {
-				console.log(now, v);
-				if (now > v + 30000) {
-					const mc = this.connections.get(k)!;
-					const ctx = this.info.peers.get(k)!;
-					this.broadcast({ t: "PEER_LEAVE", payload: ctx });
-					log(`[bootstrap] connection to ${ctx.id} terminated`);
-					this.connections.delete(k);
-					this.info.peers.delete(k);
-					this.lastSeen.delete(k);
-					mc?.socket.destroy();
-				}
-			});
+	private broadcast(pkt: Packet, excludeId?: string) {
+		for (const [id, mc] of this.connections) {
+			if (id === excludeId) continue;
+			try {
+				mc.send(pkt);
+			} catch {}
 		}
-	}
-
-	public broadcast(frame: Frame) {
-		console.log(this.connections.keys().toArray());
-		this.connections.values().forEach((mc) => {
-			this.send(mc, frame);
-		});
-	}
-	private send(mc: MuxedConnection, frame: Frame) {
-		mc.send(frame);
 	}
 }

@@ -7,6 +7,10 @@ import type { NodeContext, PeerInfo } from "../transport";
 import type { NetworkEventEmitter } from "./events";
 import debug from "debug";
 
+export type ConnectionHandler = (
+	mc: MuxedConnection,
+	f: Frame,
+) => Promise<void>;
 export type FrameHandler = (f: Frame) => void;
 const log = debug("p2p:muxer");
 

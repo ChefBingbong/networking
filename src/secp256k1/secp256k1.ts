@@ -6,7 +6,17 @@ import {
 } from "./utils.js";
 import { hashAndVerify, hashAndSign } from "./index.js";
 import { equals as uint8ArrayEquals } from "uint8arrays/equals";
+import { CID } from "multiformats";
+import { identity } from "multiformats/hashes/identity";
+import * as pb from "./keys";
+import type { Digest } from "multiformats/dist/src/hashes/digest.js";
 
+export function publicKeyToProtobuf(key: Secp256k1PublicKey): Uint8Array {
+	return pb.PublicKey.encode({
+		Type: pb.KeyType[key.type],
+		Data: key.raw,
+	});
+}
 export class Secp256k1PublicKey {
 	public readonly type = "secp256k1";
 	public readonly raw: Uint8Array;
@@ -23,6 +33,18 @@ export class Secp256k1PublicKey {
 		}
 
 		return uint8ArrayEquals(this.raw, key.raw);
+	}
+
+	toMultihash(): Digest<0x0, number> {
+		return identity.digest(publicKeyToProtobuf(this));
+	}
+
+	toCID(): CID<unknown, 114, 0x0, 1> {
+		return CID.createV1(114, this.toMultihash());
+	}
+
+	toString() {
+		return Buffer.from(this.raw).toString("hex");
 	}
 
 	verify(data: Uint8Array, sig: Uint8Array): boolean {

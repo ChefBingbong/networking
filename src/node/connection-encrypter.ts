@@ -18,7 +18,7 @@ export class Encrypter {
 	async encrypt(raw: Socket, isServer: boolean) {
 		const creds = await generateBoundCertificate(this.keyPair);
 		const baseOpts: TLSSocketOptions = {
-			cert: creds.keyPEM,
+			cert: creds.certPEM,
 			key: creds.keyPEM,
 			minVersion: "TLSv1.3",
 			maxVersion: "TLSv1.3",
