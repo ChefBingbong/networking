@@ -1,34 +1,34 @@
-// transport/transport-listener.ts
-
 import debug from "debug";
 import net, { type AddressInfo, type Server, type Socket } from "net";
 import type { PeerInfo } from "../../session/nodeInfo";
 import { safeError, safeTry } from "../../utils/safe";
-import type { Connection } from "../connection";
-import { SocketMultiaddrConnection } from "../multi-addr-connection";
-import type { Upgrader } from "../upgrader";
-export type ConnectionHandler = (conn: Connection) => void | Promise<void>;
+import { type ConnectionHandler, MuxedConnection } from "../connection";
+import { Encrypter } from "../connection-encrypter";
 
 const log = debug("p2p:transport");
 
 export class TransportListener {
 	public server: Server;
+	private encrypter: Encrypter;
 	peerContext: PeerInfo;
 	private addr: string = "unknown";
-	private connectionHandler: ConnectionHandler;
-	private upgrader: Upgrader;
+	private sockets: Set<Socket> = new Set();
+	private frameHandler: ConnectionHandler;
+	private useEncryption: boolean;
 
 	constructor(
 		ctx: PeerInfo,
-		upgrader: Upgrader,
-		connectionHandler: ConnectionHandler,
+		encrypter: Encrypter,
+		frameHandler: ConnectionHandler,
+		useEncryption: boolean,
 	) {
 		this.peerContext = ctx;
-		this.upgrader = upgrader;
-		this.connectionHandler = connectionHandler;
+		this.encrypter = encrypter;
+		this.frameHandler = frameHandler;
+		this.useEncryption = useEncryption;
 		this.server = net.createServer(this.onSocket);
 		this.server
-			.on("listening", () => {
+			.on("listening,", () => {
 				const address = this.server.address();
 
 				if (address == null) {
@@ -54,37 +54,24 @@ export class TransportListener {
 		sock.setKeepAlive(true, 10_000);
 
 		try {
-			const address = sock.remoteAddress ?? "0.0.0.0";
-			const port = sock.remotePort ?? 0;
-			const remoteAddr = `/ip4/${address}/tcp/${port}`;
+			let socketToUse = sock;
 
-			const maConn = new SocketMultiaddrConnection({
-				socket: sock,
-				remoteAddr,
-				log,
-			});
-
-			// 🔒 🔀 Upgrade inbound connection (TLS + mux, or plaintext+mux if Upgrader.encrypt=false)
-			const upgraded = await this.upgrader.upgradeInbound(maConn, {
-				muxed: true,
-				direction: "inbound",
-				remotePeer: { id: address, host: "127.0.0.1", port },
-				// Upgrader decides encrypt=true for "normal" inbound connections
-				// or you can add an `encrypt` flag here if you want special plaintext listeners.
-			});
-
-			const connection = upgraded as Connection;
-
-			// hand the fully upgraded connection to the rest of the system
-			// ConnectionHandler is now `(conn: Connection) => void | Promise<void>`
-			await this.connectionHandler(connection);
-
-			const emitter = connection as any;
-			if (typeof emitter.once === "function") {
-				emitter.once("close", () => {
-					log("[node] connection closed");
-				});
+			const [encryptionError, result] = await safeTry(() =>
+				this.encrypter.encrypt(sock, true),
+			);
+			if (encryptionError) {
+				log(`TLS encryption failed: ${encryptionError}`);
+				sock.destroy();
+				return;
 			}
+
+			socketToUse = result.socket;
+			const connection = new MuxedConnection(this.peerContext, socketToUse);
+			connection.setOnFrame((f) => this.frameHandler(connection, f));
+
+			socketToUse.once("close", () => {
+				log(`[node] socket closed`);
+			});
 		} catch (err) {
 			log(`Error handling socket: ${err}`);
 			sock.destroy();
@@ -94,7 +81,7 @@ export class TransportListener {
 	async listen(ctx: PeerInfo) {
 		if (this.server.listening) return;
 
-		const [error] = await this.resume(ctx);
+		const [error, _] = await this.resume(ctx);
 		log("listening on %s", this.server.address());
 		if (error) return safeError(error);
 	}

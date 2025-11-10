@@ -1,4 +1,3 @@
-import type { Stream } from "@libp2p/interface-connection";
 import debug from "debug";
 import { EventEmitter } from "events";
 import {
@@ -6,7 +5,7 @@ import {
 	Rendezvous,
 } from "../discovery/rendevous/rendevous";
 import type { SignedAdvert } from "../discovery/rendevous/types";
-import { decodeFrames, encodeFrame, wait } from "../packet/encode";
+import { wait } from "../packet/encode";
 import { mkBroadcastAdvert } from "../packet/packets";
 import type { Packet } from "../packet/types";
 import {
@@ -15,11 +14,10 @@ import {
 } from "../secp256k1/utils";
 import type { PeerInfo, PeerRemote } from "../session/nodeInfo";
 import { safeError, safeResult } from "../utils/safe";
-import type { Connection } from "./connection";
+import type { MuxedConnection } from "./connection";
 import type { NetworkEventEmitter } from "./events";
 import type { TransportListener } from "./transport";
 import { Transport } from "./transport/transport";
-import { NodeUpgrader } from "./upgrader";
 
 const log = debug("p2p:node");
 
@@ -38,7 +36,7 @@ export class PeerNode extends (EventEmitter as {
 	public info: PeerInfo;
 	private transport: Transport;
 	private rendezvous: Rendezvous;
-	public connections: Map<string, Connection> = new Map();
+	public connections: Map<string, MuxedConnection> = new Map();
 	private keyPair: PeerKeyPair;
 	public peers: Map<string, PeerRemote> = new Map(); // minimal addr book
 	public advert: SignedAdvert;
@@ -53,21 +51,10 @@ export class PeerNode extends (EventEmitter as {
 		super();
 		this.info = nodeInfo;
 		this.keyPair = generateSecp256k1KeyPrivPubPair();
-
-		const upgrader = new NodeUpgrader(
-			this.keyPair.privateKey,
-			debug("p2p:upgrader"),
-		);
-
-		this.transport = new Transport(this.keyPair, upgrader);
+		this.transport = new Transport(this.keyPair);
 		this.rendezvous = new Rendezvous(DEFAULT_RENDEZVOUS_CONFIG, this.info);
 		this.advert = this.rendezvous.createAdvert();
-
-		// Listener now gets fully-upgraded Connections, not frames
-		this.listener = this.transport.createListener(
-			this.info,
-			this.onIncomingConnection,
-		);
+		this.listener = this.transport.createListener(this.info, this.onFrame);
 	}
 
 	public async start() {
@@ -140,83 +127,6 @@ export class PeerNode extends (EventEmitter as {
 		this.peers.set(nodeId, { id: nodeId, host, port });
 	}
 
-	// --- NEW: generic packet sender over a stream ---
-	private async sendPacket(
-		conn: Connection,
-		packet: Packet,
-		protocol = "/p2p/main/1.0.0",
-	) {
-		const stream = await this.transport.upgrader.createStream(conn, [protocol]);
-		const encoded = encodeFrame(packet);
-
-		await stream.sink(
-			(async function* () {
-				yield encoded;
-			})(),
-		);
-
-		// // one-shot stream, close it
-		// if (typeof (stream as any)?.close === "function") {
-		// 	await (stream as any)?.close?.();
-		// }
-	}
-
-	// --- NEW: handle incoming streams & decode frames ---
-	private async handleStream(conn: Connection, stream: Stream) {
-		let partial = Buffer.alloc(0);
-
-		try {
-			for await (const chunk of stream.source) {
-				const buf =
-					chunk instanceof Uint8Array
-						? Buffer.from(chunk)
-						: Buffer.from(
-								// Uint8ArrayList or other types
-								(chunk as any).subarray
-									? (chunk as any).subarray()
-									: new Uint8Array(chunk as any),
-							);
-
-				partial = Buffer.concat([partial, buf]);
-				partial = decodeFrames(partial, (pkt: Packet) => {
-					// fire-and-forget per-packet handler
-					this.onPacket(conn, pkt).catch((e) => log("onPacket error:", e));
-				});
-			}
-		} catch (e) {
-			log("handleStream error:", e);
-		}
-	}
-
-	// --- NEW: when a fully-upgraded connection arrives from the listener ---
-	private onIncomingConnection = async (conn: Connection) => {
-		// If the upgrader sets conn.remotePeer, you can use it as an id
-		const remoteId =
-			(conn.remotePeer as any)?.toString?.() ?? conn.remoteAddr.toString();
-
-		this.connections.set(remoteId, conn);
-
-		// if your MuxedConnection emits "stream:open" events, hook them:
-		const anyConn = conn as any;
-		if (typeof anyConn.on === "function") {
-			anyConn.on("stream:open", (stream: Stream) => {
-				this.handleStream(conn, stream).catch((e) =>
-					log("handleStream error:", e),
-				);
-			});
-
-			anyConn.once("close", () => {
-				const kp = this.knownPeers.get(remoteId);
-				if (kp) {
-					kp.online = false;
-					this.knownPeers.set(remoteId, kp);
-				}
-				this.connections.delete(remoteId);
-				log(`🧹 Disconnected from ${remoteId}`);
-			});
-		}
-	};
-
 	// Broadcast own advert to known or candidate peers, skipping already-advertised & valid peers
 	private async broadcastAdvert() {
 		const packet = mkBroadcastAdvert(JSON.stringify(this.advert));
@@ -224,7 +134,7 @@ export class PeerNode extends (EventEmitter as {
 		// choose candidate list: known peers first; otherwise rendezvous candidates
 		let peerList = Array.from(this.peers.values());
 		if (peerList.length === 0) {
-			peerList = this.rendezvous.deriveCandidateAddresses(4000, 10);
+			peerList = this.rendezvous.deriveCandidateAddresses(4000, 50);
 		}
 
 		for (const peer of peerList) {
@@ -234,23 +144,14 @@ export class PeerNode extends (EventEmitter as {
 
 			// skip if we've already sent advert to this peer recently AND that peer is online & advert still valid
 			const kp = this.knownPeers.get(peer.id);
-			if (
-				kp &&
-				kp.online &&
-				kp.expiresAt &&
-				Date.now() / 1000 < kp.expiresAt &&
-				this.discoveredSent.has(peer.id)
-			) {
-				continue;
+			if (kp && kp.online && kp.expiresAt && Date.now() / 1000 < kp.expiresAt) {
+				// we have fresh info for them; skip re-sending
+				if (this.discoveredSent.has(peer.id)) continue;
 			}
 
-			const [err, conn] = await this.transport.dial(
-				this.info,
-				peer,
-				5000,
-				true, // encrypt+upgrade
-			);
-			if (err || !conn) {
+			const key = `${peer.host}:${peer.port}`;
+			const [err, mc] = await this.transport.dial(this.info, peer, 5000, true);
+			if (err) {
 				// failed dial: mark offline if we had them known
 				if (peer.id && this.knownPeers.has(peer.id)) {
 					const ex = this.knownPeers.get(peer.id)!;
@@ -271,12 +172,9 @@ export class PeerNode extends (EventEmitter as {
 			} catch {}
 
 			this.discoveredSent.add(peer.id);
-
-			// send advert over a single-use stream
-			await this.sendPacket(conn, packet, "/p2p/advert/1.0.0");
-
-			// ephemeral advert connection – close it
-			await conn.close().catch(() => {});
+			mc.send(packet);
+			// don't keep ephemeral advert connections open long
+			mc.onClose();
 		}
 
 		log(`📢 Advert broadcasted from ${this.info.id}`);
@@ -347,9 +245,9 @@ export class PeerNode extends (EventEmitter as {
 			// avoid duplicate connection attempts
 			if (this.connections.has(peer.id)) continue;
 
-			const [err, conn] = await this.transport.dial(this.info, peer);
-			if (err || !conn) {
-				log(`❌ Failed to dial peer ${peer.id}: ${err?.message}`);
+			const [err, mc] = await this.transport.dial(this.info, peer);
+			if (err) {
+				log(`❌ Failed to dial peer ${peer.id}: ${err.message}`);
 				// mark offline in knownPeers if present
 				const kp = this.knownPeers.get(peer.id);
 				if (kp) {
@@ -367,21 +265,25 @@ export class PeerNode extends (EventEmitter as {
 				this.adverts.get(peer.id)?.advert?.expires_at,
 			);
 
-			this.connections.set(peer.id, conn);
+			this.connections.set(peer.id, mc);
+			mc.setOnFrame((f) => this.onFrame(mc, f));
+			mc.socket.once("close", () => {
+				this.connections.delete(peer.id);
+				// mark offline
+				const kp = this.knownPeers.get(peer.id);
+				if (kp) {
+					kp.online = false;
+					this.knownPeers.set(peer.id, kp);
+				}
+				log(`🧹 Disconnected from ${peer.id}`);
+			});
 
-			// hook stream events / close event
-			await this.onIncomingConnection(conn);
-
-			// Upon connection, exchange peer lists over a stream
-			await this.sendPacket(
-				conn,
-				{
-					t: "PEER_LIST",
-					from: this.info.id,
-					payload: { peers: Array.from(this.peers.values()) },
-				} as Packet,
-				"/p2p/peer-list/1.0.0",
-			);
+			// Upon connection, exchange peer lists
+			mc.send({
+				t: "PEER_LIST",
+				from: this.info.id,
+				payload: { peers: Array.from(this.peers.values()) },
+			});
 
 			log(`✅ Connected to peer ${peer.id} (${peer.host}:${peer.port})`);
 		}
@@ -394,31 +296,21 @@ export class PeerNode extends (EventEmitter as {
 		const peerId = this.peers.get(id);
 		if (!peerId) return safeResult(undefined);
 
-		const [error, conn] = await this.transport.dial(this.info, peerId);
-		if (error || !conn) return safeError(error ?? new Error("no connection"));
+		const [error, mc] = await this.transport.dial(this.info, peerId);
+		if (error) return safeError(error);
 
-		this.connections.set(id, conn);
-		await this.onIncomingConnection(conn);
+		this.connections.set(id, mc);
+		mc.setOnFrame((f) => this.onFrame(mc, f));
+		mc.socket.once("close", () => this.peers.delete(id));
 
-		return safeResult(conn);
+		return safeResult(mc);
 	}
 
-	// --- Core packet handler (now packets come from streams) ---
-	private onPacket = async (conn: Connection, f: Packet) => {
+	// --- Core packet handler ---
+	private onFrame = async (mc: MuxedConnection, f: Packet) => {
 		if (f.t === "PING") {
-			log(`[${this.info.id}] <- PING from ${f.payload?.id}`);
-
-			const srcId = f.payload?.id;
-			if (srcId && !this.connections.has(srcId)) {
-				this.connections.set(srcId, conn);
-			}
-
-			await this.sendPacket(
-				conn,
-				{ t: "PONG", payload: { id: this.info.id } } as Packet,
-				"/p2p/ping/1.0.0",
-			);
-		} else if (f.t === "PONG") {
+			mc.send({ t: "PONG", payload: { id: this.info.id } });
+		} else if (f.t === "MSG") {
 			console.log(`[${this.info.id}] <${f.from}>: ${f.payload?.text}`);
 		} else if (f.t === "BROADCAST_ADVERT" || f.t === "DISCOVERY_RESPONSE") {
 			try {

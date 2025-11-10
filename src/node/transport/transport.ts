@@ -1,31 +1,25 @@
-// transport/transport.ts
-
 import debug from "debug";
 import net, { type Server } from "net";
 import type { PeerKeyPair } from "../../secp256k1/utils";
 import type { PeerInfo, PeerRemote } from "../../session/nodeInfo";
 import { safeError, safeResult, safeSyncTry, safeTry } from "../../utils/safe";
 import { type ConnectionHandler, MuxedConnection } from "../connection";
-import {
-	type MultiaddrConnection,
-	SocketMultiaddrConnection,
-} from "../multi-addr-connection";
-import type { Upgrader } from "../upgrader";
+import { Encrypter } from "../connection-encrypter";
 import { TransportListener } from "./transport-listener";
 
 const log = debug("p2p:transport");
 
 export class Transport {
 	public server: Server | undefined;
+	private encrypter: Encrypter;
 	private keyPair: PeerKeyPair;
-	public upgrader: Upgrader;
 
-	// cache keyed by host:port -> upgraded Connection (MuxedConnection)
+	// simple connection cache keyed by host:port -> MuxedConnection
 	private connCache: Map<string, MuxedConnection> = new Map();
 
-	constructor(keyPair: PeerKeyPair, upgrader: Upgrader) {
+	constructor(keyPair: PeerKeyPair) {
 		this.keyPair = keyPair;
-		this.upgrader = upgrader;
+		this.encrypter = new Encrypter(keyPair.privateKey);
 	}
 
 	private cacheKey(target: PeerRemote) {
@@ -40,9 +34,10 @@ export class Transport {
 	) {
 		const key = this.cacheKey(target);
 
-		// Reuse upgraded connection if still alive
+		// reuse an existing connection if healthy
 		const cached = this.connCache.get(key);
 		if (cached && !cached.socket.destroyed) {
+			// return cached connection immediately
 			return safeResult(cached as any);
 		}
 
@@ -91,56 +86,47 @@ export class Transport {
 			return safeError(connectionError);
 		}
 
-		// Wrap raw socket in MultiaddrConnection
-		const remoteAddr = `/ip4/${target.host}/tcp/${target.port}`;
-		const maConn: MultiaddrConnection = new SocketMultiaddrConnection({
-			socket: sock,
-			remoteAddr,
-			log,
-		});
-
-		// decide if we should encrypt this connection:
-		// - true  => TLS + mux
-		// - false => plaintext + mux (e.g. for adverts/ephemeral)
-		const encrypt = Boolean(shouldCreateConnection);
-
-		// 🔒/🔓 Normal upgraded connection: Upgrader does TLS and/or mux
-		const [upgradeError, upgraded] = await safeTry(() =>
-			this.upgrader.upgradeOutbound(maConn, {
-				muxed: true,
-				direction: "outbound",
-				remotePeer: target,
-				// encrypt,
-			}),
-		);
-
-		if (upgradeError) {
-			log(
-				`Failed to upgrade outbound connection to ${target.id}: ${upgradeError}`,
+		// 🔒 Normal encrypted connection
+		if (shouldCreateConnection) {
+			const [encryptionError, result] = await safeTry(() =>
+				this.encrypter.encrypt(sock, false),
 			);
-			try {
-				maConn.abort(upgradeError);
-			} catch {}
-			return safeError(upgradeError);
-		}
 
-		const conn = upgraded;
+			if (encryptionError) {
+				log(
+					`Failed to encrypt TLS connection to ${target.id}: ${encryptionError}`,
+				);
+				return safeError(encryptionError);
+			}
 
-		// cache and evict on close
-		this.connCache.set(key, maConn);
-
-		// Connection is expected to be an EventEmitter in your impl
-		const emitter = conn as any;
-		if (typeof emitter.once === "function") {
-			emitter.once("close", () => {
+			const mc = new MuxedConnection(ctx, result.socket);
+			// cache and cleanup on close
+			this.connCache.set(key, mc);
+			mc.socket.once("close", () => {
 				this.connCache.delete(key);
 			});
+			return safeResult(mc);
 		}
 
-		return safeResult(conn as any);
+		// 📢 Advert / plaintext connection (no TLS)
+		const mc = new MuxedConnection(ctx, sock);
+		this.connCache.set(key, mc);
+		mc.socket.once("close", () => {
+			this.connCache.delete(key);
+		});
+		return safeResult(mc);
 	}
 
-	createListener(ctx: PeerInfo, frameHandler: ConnectionHandler) {
-		return new TransportListener(ctx, this.upgrader, frameHandler);
+	createListener(
+		ctx: PeerInfo,
+		frameHandler: ConnectionHandler,
+		useEncryption: boolean = true,
+	) {
+		return new TransportListener(
+			ctx,
+			this.encrypter,
+			frameHandler,
+			useEncryption,
+		);
 	}
 }

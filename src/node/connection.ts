@@ -1,201 +1,69 @@
-// src/connection/types.ts
+// src/mux.ts
 
-import type {
-	Direction,
-	NewStreamOptions,
-	Stream,
-} from "@libp2p/interface-connection";
-import type { PeerId } from "@libp2p/interface-peer-id";
-import type { Debugger as Logger } from "debug";
-import { EventEmitter } from "events";
-import type { PeerRemote } from "../session/nodeInfo";
-import type { MultiaddrConnection } from "./multi-addr-connection";
+import debug from "debug";
+import EventEmitter from "events";
+import net from "net";
+import { decodeFrames, encodeFrame } from "../packet/encode";
+import type { Packet } from "../packet/types";
+import type { PeerInfo } from "../session/nodeInfo";
+import type { NetworkEventEmitter } from "./events";
 
-// src/connection/single-stream-muxer.ts
+export type ConnectionHandler = (
+	mc: MuxedConnection,
+	f: Packet,
+) => Promise<void>;
+export type FrameHandler = (f: Packet) => void;
+const log = debug("p2p:muxer");
 
-export class SingleStreamMuxer extends EventEmitter implements StreamMuxer {
-	public protocol = "single-stream";
-	public streams: Stream[] = [];
+export class MuxedConnection extends (EventEmitter as {
+	new (): NetworkEventEmitter;
+}) {
+	public socket: net.Socket;
+	private partial: Buffer = Buffer.alloc(0) as Buffer;
+	private onFrameHandler: FrameHandler | null = null;
 
-	private readonly maConn: MultiaddrConnection;
-	private created = false;
-
-	constructor(maConn: MultiaddrConnection) {
+	constructor(ctx: PeerInfo, sock: net.Socket) {
 		super();
-		this.maConn = maConn;
-	}
+		this.socket = sock;
+		sock.on("data", (chunk) => this.onData(chunk as Buffer));
+		sock.on("close", () => this.onClose());
 
-	async newStream(
-		protocols: string[],
-		_options?: NewStreamOptions,
-	): Promise<Stream> {
-		// For now: only one stream, reused
-		// if (this.created && this.streams[0]) {
-		// 	return this.streams[0];
-		// }
-
-		const protocol = protocols[0];
-
-		// Wrap the MultiaddrConnection as a libp2p Stream
-		const stream: Stream = {
-			// duplex
-			source: this.maConn.source,
-			sink: this.maConn.sink,
-			// metadata
-			protocol,
-			// lifecycle
-			async close(options?: any) {
-				await this.maConn.close(options);
-			},
-			reset: () => {
-				this.maConn.abort(new Error("stream reset"));
-			},
-			// eslint-disable-next-line @typescript-eslint/no-empty-function
-			[Symbol.asyncIterator]: function (this: Stream) {
-				return this.source[Symbol.asyncIterator]();
-			},
-		} as any;
-
-		this.created = true;
-		this.streams = [stream];
-		this.emit("stream:open", stream);
-		return stream;
-	}
-
-	async close(): Promise<void> {
-		if (this.streams[0]) {
-			await this.streams[0].close();
-		} else {
-			await this.maConn.close();
-		}
-		this.emit("close");
-	}
-
-	abort(err: Error): void {
-		this.maConn.abort(err);
-		this.emit("close", err);
-	}
-}
-
-// src/connection/connection.ts
-
-export class MuxedConnection extends EventEmitter implements Connection {
-	public id: string;
-	public remoteAddr: string;
-	public remotePeer: PeerRemote;
-	public streams: Stream[] = [];
-	public direction: Direction;
-	public multiplexer?: string;
-	public encryption?: string;
-	public status: string = "open";
-	public log: Logger;
-
-	private readonly maConn: MultiaddrConnection;
-	private readonly muxer: StreamMuxer;
-
-	constructor(init: {
-		id: string;
-		remoteAddr: string;
-		remotePeer: PeerRemote;
-		direction: Direction;
-		maConn: MultiaddrConnection;
-		muxer: StreamMuxer;
-		multiplexer?: string;
-		encryption?: string;
-		log: Logger;
-	}) {
-		super();
-		this.id = init.id;
-		this.remoteAddr = init.remoteAddr;
-		this.remotePeer = init.remotePeer;
-		this.direction = init.direction;
-		this.maConn = init.maConn;
-		this.muxer = new SingleStreamMuxer(this.maConn);
-		this.multiplexer = init.multiplexer ?? init.muxer.protocol;
-		this.encryption = init.encryption;
-		this.log = init.log;
-
-		this.streams = this.muxer.streams;
-
-		// Track streams created/closed by the muxer and re-expose events
-		this.muxer.on("stream:open", (s: Stream) => {
-			this.streams = this.muxer.streams;
-			this.emit("stream:open", s);
+		sock.once("close", (hadErr) => {
+			log(`[${ctx.id}] inbound socket closed (${hadErr ? "error" : "clean"})`);
 		});
-
-		this.muxer.on("stream:close", (s: Stream) => {
-			this.streams = this.muxer.streams;
-			this.emit("stream:close", s);
+		sock.on("error", (err) => {
+			log(`[${ctx.id}] inbound socket error: ${err?.message || err}`);
 		});
 	}
 
-	async newStream(
-		protocols: string | string[],
-		options?: NewStreamOptions,
-	): Promise<Stream> {
-		const protos = Array.isArray(protocols) ? protocols : [protocols];
-		const stream = await this.muxer.newStream(["tcp"], options);
-		this.streams = this.muxer.streams;
-		return stream;
+	private sendRaw(frame: any) {
+		this.socket.write(encodeFrame(frame));
 	}
 
-	async close(options?: any): Promise<void> {
-		if (this.status === "closed" || this.status === "closing") return;
-
-		this.status = "closing";
-		this.log("closing connection %s", this.id);
-
-		await this.muxer.close();
-		await this.maConn.close(options);
-
-		this.status = "closed";
-		this.emit("close");
+	send(frame: any) {
+		this.sendRaw(frame);
 	}
 
-	abort(err: Error): void {
-		if (this.status === "closed" || this.status === "closing") return;
-
-		this.status = "closing";
-		this.log("aborting connection %s: %s", this.id, err.message);
-
-		try {
-			this.muxer.abort(err);
-		} catch {}
-
-		this.maConn.abort(err);
-		this.status = "closed";
-		this.emit("close", err);
+	setOnFrame(fn: FrameHandler) {
+		this.onFrameHandler = fn;
 	}
-}
 
-export interface Connection {
-	id: string;
-	remoteAddr: string;
-	remotePeer: PeerId;
-	streams: Stream[];
-	direction: Direction;
-	multiplexer?: string;
-	encryption?: string;
-	status: string;
-	newStream(
-		protocols: string | string[],
-		options?: NewStreamOptions,
-	): Promise<Stream>;
-	close(options?: any): Promise<void>;
-	abort(err: Error): void;
-	log: Logger;
-}
+	private onData(chunk: Buffer) {
+		this.partial = Buffer.concat([
+			this.partial as Buffer,
+			chunk as Buffer,
+		]) as unknown as Buffer;
 
-/**
- * Minimal muxer interface we’ll plug into the Connection.
- * Later you can swap this with mplex/yamux as long as it respects this shape.
- */
-export interface StreamMuxer extends EventEmitter {
-	protocol: string;
-	streams: Stream[];
+		this.partial = decodeFrames(this.partial, (outer) => {
+			this.dispatch(outer);
+		});
+	}
 
-	newStream(protocols: string[], options?: NewStreamOptions): Promise<Stream>;
+	private dispatch(f: Packet) {
+		this.onFrameHandler?.(f);
+	}
 
-	close(): Promise<void>;
-	abort(err: Error): void;
+	public onClose() {
+		this.socket.end();
+	}
 }
