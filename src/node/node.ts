@@ -1,3 +1,4 @@
+import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import { EventEmitter } from "events";
 import {
@@ -8,11 +9,9 @@ import type { SignedAdvert } from "../discovery/rendevous/types";
 import { wait } from "../packet/encode";
 import { mkBroadcastAdvert } from "../packet/packets";
 import type { Packet } from "../packet/types";
-import {
-	generateSecp256k1KeyPrivPubPair,
-	type PeerKeyPair,
-} from "../secp256k1/utils";
-import type { PeerInfo, PeerRemote } from "../session/nodeInfo";
+import type { Secp256k1PrivateKey } from "../secp256k1/secp256k1";
+import { type PeerId, type PeerInfo } from "../session/nodeInfo";
+import { peerIdFromPrivateKey } from "../session/peer-id";
 import { safeError, safeResult } from "../utils/safe";
 import type { MuxedConnection } from "./connection";
 import type { TransportListener } from "./transport";
@@ -21,9 +20,7 @@ import { Transport } from "./transport/transport";
 const log = debug("p2p:node");
 
 interface KnownPeer {
-	id: string;
-	host: string;
-	port: number;
+	addr: Multiaddr;
 	lastSeen: number;
 	expiresAt?: number;
 	online: boolean;
@@ -31,44 +28,55 @@ interface KnownPeer {
 
 export class PeerNode extends EventEmitter {
 	public info: PeerInfo;
-	private keyPair: PeerKeyPair;
 	private transport: Transport;
 	private rendezvous: Rendezvous;
 
-	private connections: Map<string, MuxedConnection> = new Map();
-	private peers: Map<string, PeerRemote> = new Map();
-	private adverts: Map<string, SignedAdvert> = new Map();
-	private knownPeers: Map<string, KnownPeer> = new Map();
+	private connections = new Map<string, MuxedConnection>();
+	private peers = new Set<Multiaddr>();
+	private adverts = new Map<string, SignedAdvert>();
+	private knownPeers = new Map<string, KnownPeer>();
 
-	private sentAdverts: Set<string> = new Set();
+	private privateKey: Secp256k1PrivateKey;
+	private sentAdverts = new Set<string>();
 
+	public peerId: PeerId;
+	public address: Multiaddr;
 	private listener: TransportListener;
 	private advert: SignedAdvert;
 
-	constructor(nodeInfo: PeerInfo) {
+	constructor(nodeOptions: PeerInfo) {
 		super();
-		this.info = nodeInfo;
-		this.keyPair = generateSecp256k1KeyPrivPubPair();
-		this.transport = new Transport(this.keyPair);
-		this.rendezvous = new Rendezvous(DEFAULT_RENDEZVOUS_CONFIG, this.info);
+		this.privateKey = nodeOptions.privateKey;
+		this.transport = new Transport(this.privateKey);
+		this.peerId = peerIdFromPrivateKey(this.privateKey);
+
+		// Use multiaddr for this node
+		this.address = multiaddr(
+			`/ip4/${nodeOptions.host}/tcp/${nodeOptions.port}/p2p/${this.peerId.toString()}`,
+		);
+
+		this.rendezvous = new Rendezvous(DEFAULT_RENDEZVOUS_CONFIG, {
+			peerId: this.peerId,
+			privateKey: this.privateKey,
+			publicKey: this.privateKey.publicKey,
+			address: this.address,
+		});
+
 		this.advert = this.rendezvous.createAdvert();
-		this.listener = this.transport.createListener(this.info, this.onFrame);
+		this.listener = this.transport.createListener(this.onFrame, true);
+		this.info = nodeOptions;
 	}
 
-	// --- Startup ---
+	// === Startup ===
 	public async start() {
-		const listenError = await this.listener.listen(this.info);
-		if (listenError) {
-			log("Failed to start listener:", listenError);
-			return;
-		}
+		await this.listener.listen(this.address);
 
-		log(`🚀 Peer started at ${this.info.host}:${this.info.port}`);
+		log(`🚀 Peer started at ${this.address.toString()}`);
 		this.runAdvertLoop();
 		this.runDiscoveryLoop();
 	}
 
-	// --- Periodic Advert Loop ---
+	// === Periodic Advert Loop ===
 	private async runAdvertLoop() {
 		while (true) {
 			try {
@@ -80,7 +88,7 @@ export class PeerNode extends EventEmitter {
 		}
 	}
 
-	// --- Periodic Discovery Loop ---
+	// === Periodic Discovery Loop ===
 	private async runDiscoveryLoop() {
 		while (true) {
 			try {
@@ -92,7 +100,7 @@ export class PeerNode extends EventEmitter {
 		}
 	}
 
-	// --- Advert Broadcasting ---
+	// === Broadcast Advert ===
 	private async broadcastAdvert() {
 		const advertPacket = mkBroadcastAdvert(JSON.stringify(this.advert));
 
@@ -101,101 +109,100 @@ export class PeerNode extends EventEmitter {
 			candidatePeers = this.rendezvous.deriveCandidateAddresses(4000, 15);
 		}
 
-		for (const peer of candidatePeers) {
-			if (peer.host === this.info.host && peer.port === this.info.port)
-				continue;
+		for (const peerId of candidatePeers) {
+			if (!peerId || peerId === this.address) continue;
 
-			const knownPeer = this.knownPeers.get(peer.id);
+			const key = peerId.toString();
+			const known = this.knownPeers.get(key);
 			if (
-				knownPeer?.online &&
-				knownPeer.expiresAt &&
-				Date.now() / 1000 < knownPeer.expiresAt &&
-				this.sentAdverts.has(peer.id)
+				known?.online &&
+				known.expiresAt &&
+				Date.now() / 1000 < known.expiresAt &&
+				this.sentAdverts.has(key)
 			) {
 				continue;
 			}
 
-			const [error, conn] = await this.transport.dial(
-				this.info,
-				peer,
-				5000,
-				true,
-			);
+			const [error, conn] = await this.transport.dial(peerId, 5000, true);
 			if (error) {
-				this.markPeerOffline(peer.id);
+				this.markPeerOffline(key);
 				continue;
 			}
 
-			this.markPeerOnline(
-				peer.id,
-				peer.host,
-				peer.port,
-				this.advert.advert.expires_at,
-			);
-			this.sentAdverts.add(peer.id);
+			this.markPeerOnline(peerId, this.advert.advert.expires_at);
+			this.sentAdverts.add(key);
 			conn.send(advertPacket);
 
-			conn.once("close", () => this.connections.delete(peer.id));
-			log(`📢 Advert sent to ${peer.id}`);
+			conn.once("close", () => this.connections.delete(key));
+			log(`📢 Advert sent to ${key}`);
 		}
 	}
 
-	// --- Discovery Logic ---
+	// === Discovery Logic ===
 	private async discoverPeers(maxNewConnections = 5) {
 		this.cleanupExpiredPeers();
 
-		const candidates: PeerRemote[] = [];
+		const newPeers: Multiaddr[] = [];
 		for (const advert of this.adverts.values()) {
-			const nodeId = advert.advert.node_id;
-			if (nodeId === this.info.id) continue;
-			if (this.connections.has(nodeId)) continue;
+			const peerAddrs = advert.advert.addr;
+			if (peerAddrs === this.address.toString()) continue;
+			if (this.connections.has(peerAddrs)) continue;
 
-			const [host, portStr] = advert.advert.addr.split(":");
-			const port = Number(portStr);
-			if (!host || !port) continue;
+			const addrStr = advert.advert.addr;
+			if (!addrStr) continue;
 
-			const knownPeer = this.knownPeers.get(nodeId);
-			const isRecent =
-				knownPeer?.online &&
-				knownPeer.expiresAt &&
-				Date.now() / 1000 < knownPeer.expiresAt;
-			if (isRecent && this.sentAdverts.has(nodeId)) continue;
-
-			candidates.push({ id: nodeId, host, port });
-		}
-
-		for (const peer of candidates.slice(0, maxNewConnections)) {
-			const [error, conn] = await this.transport.dial(this.info, peer);
-			if (error) {
-				this.markPeerOffline(peer.id);
+			let addr: Multiaddr;
+			try {
+				addr = multiaddr(addrStr);
+			} catch {
 				continue;
 			}
 
-			this.markPeerOnline(peer.id, peer.host, peer.port);
-			this.connections.set(peer.id, conn);
+			const known = this.knownPeers.get(peerAddrs);
+			const isRecent =
+				known?.online && known.expiresAt && Date.now() / 1000 < known.expiresAt;
+			if (isRecent && this.sentAdverts.has(peerAddrs)) continue;
+
+			newPeers.push(addr);
+		}
+
+		for (const peerAddr of newPeers.slice(0, maxNewConnections)) {
+			const [error, conn] = await this.transport.dial(peerAddr, 5000, true);
+			if (error) {
+				this.markPeerOffline(peerAddr.toString());
+				continue;
+			}
+
+			this.markPeerOnline(peerAddr);
+			this.connections.set(peerAddr.toString(), conn);
 
 			conn.on("frame", (frame: Packet) => this.onFrame(conn, frame));
-			conn.once("close", () => this.markPeerOffline(peer.id));
+			conn.once("close", () => this.markPeerOffline(peerAddr.toString()));
 
+			// Send known peers
 			conn.send({
 				t: "PEER_LIST",
-				from: this.info.id,
-				payload: { peers: Array.from(this.peers.values()) },
+				from: this.peerId.toString(),
+				payload: {
+					peers: Array.from(this.peers.values()).map((a) => a.toString()),
+				},
 			});
 
-			log(`✅ Connected to ${peer.id} (${peer.host}:${peer.port})`);
+			log(`✅ Connected to ${peerAddr.toString()}`);
 		}
 	}
 
-	// --- Packet Handler ---
+	// === Frame Handler ===
 	private onFrame = async (conn: MuxedConnection, frame: Packet) => {
 		switch (frame.t) {
 			case "PING":
-				conn.send({ t: "PONG", payload: { id: this.info.id } });
+				conn.send({ t: "PONG", payload: { id: this.peerId.toString() } });
 				break;
 
 			case "MSG":
-				log(`[${this.info.id}] <${frame.from}>: ${frame.payload?.text}`);
+				log(
+					`[${this.peerId.toString()}] <${frame.from}>: ${frame.payload?.text}`,
+				);
 				break;
 
 			case "BROADCAST_ADVERT":
@@ -209,52 +216,58 @@ export class PeerNode extends EventEmitter {
 				break;
 
 			case "PEER_LIST": {
-				const peers = frame.payload.peers as PeerRemote[];
+				const peers = frame.payload.peers.map((a) => multiaddr(a));
 				this.integratePeerList(peers);
 				break;
 			}
 		}
 	};
 
-	// --- Handle Incoming Adverts ---
+	// === Handle Incoming Advert ===
 	private async handleIncomingAdvert(advert: SignedAdvert) {
-		const nodeId = advert?.advert?.node_id;
-		const addr = advert?.advert?.addr;
-		if (!nodeId || !addr || nodeId === this.info.id) return;
+		const addrStr = advert?.advert?.addr;
+		if (!addrStr || addrStr === this.peerId.toString()) return;
 
-		const [host, portStr] = addr.split(":");
-		const port = Number(portStr);
-		if (!host || !port) return;
+		let addr: Multiaddr;
+		try {
+			addr = multiaddr(addrStr);
+		} catch {
+			return;
+		}
 
-		this.peers.set(nodeId, { id: nodeId, host, port });
-		this.adverts.set(nodeId, advert);
-		this.markPeerOnline(nodeId, host, port, advert.advert.expires_at);
+		this.peers.add(multiaddr(addrStr));
+		this.adverts.set(addrStr, advert);
+		this.markPeerOnline(multiaddr(addrStr), advert.advert.expires_at);
 
-		log(`🗂 Stored advert from ${nodeId} (${host}:${port})`);
+		log(`🗂 Stored advert from ${addr.toString()}`);
 	}
 
-	// --- Peer List Integration ---
-	private integratePeerList(peers: PeerRemote[]) {
-		for (const peer of peers) {
-			if (peer.id === this.info.id) continue;
-			if (!this.peers.has(peer.id)) {
-				this.peers.set(peer.id, peer);
-				log(`🌐 Discovered new peer ${peer.id}`);
-				this.ensureConnection(peer.id).catch((e) =>
+	// === Integrate Peer List ===
+	private integratePeerList(peers: Multiaddr[]) {
+		for (const addr of peers) {
+			const peerId = addr.toString();
+			if (!peerId || peerId === this.address.toString()) continue;
+
+			const key = peerId.toString();
+			if (!this.peers.has(multiaddr(addr))) {
+				this.peers.add(addr);
+				log(`🌐 Discovered new peer ${key}`);
+				this.ensureConnection(key).catch((e) =>
 					log("ensureConnection error:", e),
 				);
 			}
 		}
 	}
 
-	// --- Connection Ensure ---
+	// === Ensure Connection ===
 	private async ensureConnection(peerId: string) {
 		if (this.connections.has(peerId))
 			return safeResult(this.connections.get(peerId));
-		const peer = this.peers.get(peerId);
-		if (!peer) return safeResult(undefined);
 
-		const [error, conn] = await this.transport.dial(this.info, peer);
+		const addr = this.peers.values().find((a) => a.toString() === peerId);
+		if (!addr) return safeResult(undefined);
+
+		const [error, conn] = await this.transport.dial(addr, 5000, true);
 		if (error) return safeError(error);
 
 		this.connections.set(peerId, conn);
@@ -264,23 +277,16 @@ export class PeerNode extends EventEmitter {
 		return safeResult(conn);
 	}
 
-	// --- Helpers ---
-	private markPeerOnline(
-		id: string,
-		host: string,
-		port: number,
-		expiresAt?: number,
-	) {
+	// === Peer Tracking ===
+	private markPeerOnline(addr: Multiaddr, expiresAt?: number) {
 		const now = Date.now() / 1000;
-		this.knownPeers.set(id, {
-			id,
-			host,
-			port,
+		this.knownPeers.set(addr.toString(), {
+			addr,
 			lastSeen: now,
 			expiresAt,
 			online: true,
 		});
-		this.peers.set(id, { id, host, port });
+		this.peers.add(addr);
 	}
 
 	private markPeerOffline(id: string) {
@@ -297,7 +303,7 @@ export class PeerNode extends EventEmitter {
 			if (peer.expiresAt && peer.expiresAt < now) {
 				this.sentAdverts.delete(id);
 				this.knownPeers.delete(id);
-				this.peers.delete(id);
+				this.peers.delete(multiaddr(id));
 			}
 		}
 	}

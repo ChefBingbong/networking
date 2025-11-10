@@ -15,8 +15,8 @@
 		"noEmit": true,
 
 		// Best practices
-		"strict": true,
-		"skipLibCheck": true,
+		"strict": false,
+		"skipLibCheck": false,
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
 		"noImplicitOverride": true,

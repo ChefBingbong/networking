@@ -1,6 +1,6 @@
 export interface Advert {
 	version: number;
-	node_id: string;
+	publicKey: string;
 	addr: string;
 	epoch: number;
 	slot: string | undefined;

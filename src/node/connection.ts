@@ -1,11 +1,11 @@
 // src/mux.ts
 
+import type { Multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import EventEmitter from "events";
 import net from "net";
 import { decodeFrames, encodeFrame } from "../packet/encode";
 import type { Packet } from "../packet/types";
-import type { PeerInfo } from "../session/nodeInfo";
 import type { NetworkEventEmitter } from "./events";
 
 export type ConnectionHandler = (
@@ -22,17 +22,17 @@ export class MuxedConnection extends (EventEmitter as {
 	private partial: Buffer = Buffer.alloc(0) as Buffer;
 	private onFrameHandler: FrameHandler | null = null;
 
-	constructor(ctx: PeerInfo, sock: net.Socket) {
+	constructor(addr: Multiaddr | undefined, sock: net.Socket) {
 		super();
 		this.socket = sock;
 		sock.on("data", (chunk) => this.onData(chunk as Buffer));
 		sock.on("close", () => this.onClose());
 
 		sock.once("close", (hadErr) => {
-			log(`[${ctx.id}] inbound socket closed (${hadErr ? "error" : "clean"})`);
+			log(`[${addr}] inbound socket closed (${hadErr ? "error" : "clean"})`);
 		});
 		sock.on("error", (err) => {
-			log(`[${ctx.id}] inbound socket error: ${err?.message || err}`);
+			log(`[${addr}] inbound socket error: ${err?.message || err}`);
 		});
 	}
 

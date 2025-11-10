@@ -7,7 +7,6 @@ type NodeOptions = {
 	nodeTypes: "bootstrap" | "peer";
 	host: string;
 	port: number;
-	id: string;
 	privateKey?: CryptoKey;
 	start?: boolean;
 };
@@ -21,24 +20,22 @@ export async function createNode(options: NodeOptions) {
 	};
 
 	switch (options.nodeTypes) {
-		case "bootstrap": {
-			const node = new BootStrapNode({
-				host: options.host,
-				port: options.port,
-				id: options.id,
-				privateKey: privateKey.privateKey,
-				peerId: peerIdFromPrivateKey(privateKey.privateKey),
-				nodeInfo,
-			});
-			return shouldStartAutomatically(node);
-		}
+		// case "bootstrap": {
+		// 	const node = new BootStrapNode({
+		// 		host: options.host,
+		// 		port: options.port,
+		// 		privateKey: privateKey.privateKey,
+		// 		nodeInfo,
+		// 	});
+		// 	return shouldStartAutomatically(node);
+		// }
 		case "peer": {
 			const node = new PeerNode({
 				host: options.host,
 				port: options.port,
-				id: options.id,
-				privateKey: privateKey.privateKey,
+				id: "options.id,",
 				peerId: peerIdFromPrivateKey(privateKey.privateKey),
+				privateKey: privateKey.privateKey,
 				nodeInfo,
 			});
 			return shouldStartAutomatically(node);

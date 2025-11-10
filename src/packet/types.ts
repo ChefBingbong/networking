@@ -1,4 +1,6 @@
-export type PeerInfo = { id: string; host: string; port: number };
+import type { Multiaddr } from "@multiformats/multiaddr";
+
+export type PeerInfo = Multiaddr;
 
 export enum PacketType {
 	HELLO = "HELLO",

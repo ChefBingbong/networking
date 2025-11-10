@@ -1,8 +1,10 @@
+import type { Multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
-import net, { type Server } from "net";
-import type { PeerKeyPair } from "../../secp256k1/utils";
-import type { PeerInfo, PeerRemote } from "../../session/nodeInfo";
+import type { TcpSocketConnectOpts } from "net";
+import net, { type Server } from "node:net";
+import type { Secp256k1PrivateKey } from "../../secp256k1/secp256k1";
 import { safeError, safeResult, safeSyncTry, safeTry } from "../../utils/safe";
+import { multiaddrToNetConfig } from "../../utils/utils";
 import { type ConnectionHandler, MuxedConnection } from "../connection";
 import { Encrypter } from "../connection-encrypter";
 import { TransportListener } from "./transport-listener";
@@ -12,27 +14,23 @@ const log = debug("p2p:transport");
 export class Transport {
 	public server: Server | undefined;
 	private encrypter: Encrypter;
-	private keyPair: PeerKeyPair;
-
-	// simple connection cache keyed by host:port -> MuxedConnection
 	private connCache: Map<string, MuxedConnection> = new Map();
 
-	constructor(keyPair: PeerKeyPair) {
-		this.keyPair = keyPair;
-		this.encrypter = new Encrypter(keyPair.privateKey);
+	constructor(privateKey: Secp256k1PrivateKey) {
+		this.encrypter = new Encrypter(privateKey);
 	}
 
-	private cacheKey(target: PeerRemote) {
-		return `${target.host}:${target.port}`;
+	private cacheKey(target: Multiaddr) {
+		return target.toString();
 	}
 
 	async dial<T extends boolean = true>(
-		ctx: PeerInfo,
-		target: PeerRemote,
+		peerId: Multiaddr,
 		timeoutMs = 10_000,
 		shouldCreateConnection: T = true as T,
 	) {
-		const key = this.cacheKey(target);
+		const netOptions = multiaddrToNetConfig(peerId) as TcpSocketConnectOpts;
+		const key = this.cacheKey(peerId);
 
 		// reuse an existing connection if healthy
 		const cached = this.connCache.get(key);
@@ -41,12 +39,7 @@ export class Transport {
 			return safeResult(cached as any);
 		}
 
-		const [sockErr, sock] = safeSyncTry(() =>
-			net.createConnection({
-				host: target.host,
-				port: target.port,
-			}),
-		);
+		const [sockErr, sock] = safeSyncTry(() => net.createConnection(netOptions));
 
 		if (sockErr) return safeError(sockErr);
 		sock.setNoDelay(true);
@@ -82,7 +75,7 @@ export class Transport {
 		});
 
 		if (connectionError) {
-			log(`Failed to connect to ${target.id}: ${connectionError}`);
+			log(`Failed to connect to ${peerId.toString()}: ${connectionError}`);
 			return safeError(connectionError);
 		}
 
@@ -94,12 +87,12 @@ export class Transport {
 
 			if (encryptionError) {
 				log(
-					`Failed to encrypt TLS connection to ${target.id}: ${encryptionError}`,
+					`Failed to encrypt TLS connection to ${peerId.toString()}: ${encryptionError}`,
 				);
 				return safeError(encryptionError);
 			}
 
-			const mc = new MuxedConnection(ctx, result.socket);
+			const mc = new MuxedConnection(peerId, result.socket);
 			// cache and cleanup on close
 			this.connCache.set(key, mc);
 			mc.socket.once("close", () => {
@@ -109,7 +102,7 @@ export class Transport {
 		}
 
 		// 📢 Advert / plaintext connection (no TLS)
-		const mc = new MuxedConnection(ctx, sock);
+		const mc = new MuxedConnection(peerId, sock);
 		this.connCache.set(key, mc);
 		mc.socket.once("close", () => {
 			this.connCache.delete(key);
@@ -118,15 +111,13 @@ export class Transport {
 	}
 
 	createListener(
-		ctx: PeerInfo,
 		frameHandler: ConnectionHandler,
 		useEncryption: boolean = true,
 	) {
-		return new TransportListener(
-			ctx,
-			this.encrypter,
+		return new TransportListener({
+			upgrader: this.encrypter,
 			frameHandler,
 			useEncryption,
-		);
+		});
 	}
 }

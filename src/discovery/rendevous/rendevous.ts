@@ -1,11 +1,13 @@
 // rendezvous.ts
+
+import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import { createHash } from "crypto";
 import { fromString as uint8ArrayFromString } from "uint8arrays/from-string";
 import type {
 	Secp256k1PrivateKey,
 	Secp256k1PublicKey,
 } from "../../secp256k1/secp256k1";
-import type { PeerInfo } from "../../session/nodeInfo";
+import type { PeerId } from "../../session/nodeInfo";
 import type { Advert, RendezvousConfig, SignedAdvert } from "./types";
 
 export const DEFAULT_RENDEZVOUS_CONFIG: RendezvousConfig = {
@@ -14,18 +16,26 @@ export const DEFAULT_RENDEZVOUS_CONFIG: RendezvousConfig = {
 	slotsPerNode: 8,
 	querySlots: 32,
 };
+type RendezvousParams = {
+	privateKey: Secp256k1PrivateKey;
+	publicKey: Secp256k1PublicKey;
+	peerId: PeerId;
+	address: Multiaddr;
+};
 
 export class Rendezvous {
 	public cfg: RendezvousConfig;
-	public nodeInfo: PeerInfo;
+	public peerId: PeerId;
 	private privateKey: Secp256k1PrivateKey;
 	private publicKey: Secp256k1PublicKey;
+	private multiaddr: Multiaddr;
 
-	constructor(cfg: RendezvousConfig, nodeInfo: PeerInfo) {
+	constructor(cfg: RendezvousConfig, params: RendezvousParams) {
 		this.cfg = cfg;
-		this.nodeInfo = nodeInfo;
-		this.privateKey = nodeInfo.privateKey;
-		this.publicKey = nodeInfo.privateKey.publicKey;
+		this.peerId = params.peerId;
+		this.privateKey = params.privateKey;
+		this.publicKey = params.publicKey;
+		this.multiaddr = params.address;
 	}
 
 	epochFor(timestamp: number = Date.now() / 1000): number {
@@ -99,8 +109,8 @@ export class Rendezvous {
 
 		const advert: Advert = {
 			version: 1,
-			node_id: this.publicKey.toString(),
-			addr: `${this.nodeInfo.host}:${this.nodeInfo.port}`,
+			publicKey: this.publicKey.toString(),
+			addr: this.multiaddr.toString(),
 			epoch,
 			// include the chosen slots list in the advert; keeps discovery easier
 			slots: chosenSlots,
@@ -119,17 +129,24 @@ export class Rendezvous {
 		basePort = 4000,
 		range = 200,
 		count = 50,
-	): { host: string; port: number; id: string }[] {
+		useSlotDerivedIds = false, // toggle mode
+	): Multiaddr[] {
 		const epoch = this.epochFor();
 		const seed = `${this.cfg.namespace}|${epoch}`;
-		const slots = this.computeQuerySlots(epoch, seed);
+		const slots = this.computeQuerySlots(epoch, seed, count);
 
-		// Lower entropy → higher overlap
-		return slots.slice(0, count).map((slot, i) => {
-			// Take fewer bits to limit spread
-			const hashNum = parseInt(slot.slice(0, 4), 16); // 16 bits instead of 24
-			const portOffset = hashNum % range; // only 200 possible ports
-			return { host: "127.0.0.1", port: basePort + portOffset, id: "  " };
+		return slots.map((slot) => {
+			const hashNum = parseInt(slot.slice(0, 4), 16); // 16 bits of entropy
+			const portOffset = hashNum % range;
+			const port = basePort + portOffset;
+
+			// Choose the identifier format
+			const peerSuffix = useSlotDerivedIds
+				? this.sha256Hex(`${this.peerId.toString()}|${slot}`).slice(0, 16)
+				: this.peerId.toString();
+
+			const addr = multiaddr(`/ip4/127.0.0.1/tcp/${port}/p2p/${peerSuffix}`);
+			return addr;
 		});
 	}
 
