@@ -75,7 +75,6 @@ export class TransportListener {
 			sock.destroy();
 			throw new Error("Server is not listening yet");
 		}
-
 		try {
 			let socketToUse = sock;
 

@@ -29,7 +29,7 @@ export function startCLI(node: PeerNode) {
 
 		if (cmd === "ping" && a) {
 			try {
-				const [error, mc] = await node.ensureConn(a);
+				const [error, mc] = await node.ensureConnection(a);
 				if (error) {
 					console.log("ping error:", error);
 					return;
