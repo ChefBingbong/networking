@@ -2,7 +2,7 @@ import type { PeerNode } from "../src/node/node";
 
 export function startCLI(node: PeerNode) {
 	console.log(
-		`\nCommands:\n  peers\n  ping <peerId>\n  msg <peerId> <text>\n  help\n`,
+		`\nCommands:\n  peers\n  ping <peerId>\n discover\n advertise\n   msg <peerId> <text>\n  help\n`,
 	);
 	const stdin = process.stdin;
 	stdin.setEncoding("utf8");
@@ -12,6 +12,18 @@ export function startCLI(node: PeerNode) {
 
 		if (cmd === "peers") {
 			console.log("Peers:", [...node.peers.keys()].join(", ") || "(none)");
+			return;
+		}
+
+		if (cmd === "connections") {
+			console.log(
+				"Peers:",
+				[...node.connections.keys()].join(", ") || "(none)",
+			);
+			return;
+		}
+		if (cmd === "adverts") {
+			console.log("Peers:", [...node.adverts.keys()].join(", ") || "(none)");
 			return;
 		}
 
@@ -28,6 +40,24 @@ export function startCLI(node: PeerNode) {
 				// 	mc.closeStream(sid);
 				// });
 				mc.send({ t: "PING", payload: { id: a } });
+			} catch (e) {
+				console.log("ping error:", e);
+			}
+			return;
+		}
+
+		if (cmd === "discover") {
+			try {
+				await node.discoverPeers();
+			} catch (e) {
+				console.log("ping error:", e);
+			}
+			return;
+		}
+
+		if (cmd === "a") {
+			try {
+				node.broadcastAdvert();
 			} catch (e) {
 				console.log("ping error:", e);
 			}

@@ -1,5 +1,4 @@
-// encrypter.ts (unchanged)
-
+import { createHash } from "crypto";
 import debug from "debug";
 import type { Socket } from "node:net";
 import {
@@ -13,8 +12,23 @@ import { generateBoundCertificate, verifyPeerCertificate } from "./cert";
 const log = debug("p2p:encrypter");
 
 export class Encrypter {
+	private trustedCache: Map<string, any> = new Map(); // fingerprint -> remoteInfo
+
 	constructor(private keyPair: Secp256k1PrivateKey) {}
 
+	private fingerprint(raw: Buffer) {
+		return createHash("sha256").update(raw).digest("hex");
+	}
+
+	/**
+	 * Encrypt (wrap) a raw socket into TLS. We always perform the TLS handshake;
+	 * however, to avoid repeated expensive verification of the peer certificate,
+	 * we cache verified peer info keyed by the certificate raw fingerprint.
+	 *
+	 * If `isServer` === true we act as server side of TLS, otherwise client.
+	 *
+	 * Returns: { socket: TLSSocket, remoteInfo } where remoteInfo is result of verifyPeerCertificate
+	 */
 	async encrypt(raw: Socket, isServer: boolean) {
 		const creds = await generateBoundCertificate(this.keyPair);
 		const baseOpts: TLSSocketOptions = {
@@ -36,7 +50,6 @@ export class Encrypter {
 			tlsSock = tlsConnect({
 				...baseOpts,
 				socket: raw,
-				servername: "127.0.0.1",
 			});
 		}
 
@@ -58,7 +71,7 @@ export class Encrypter {
 		});
 
 		try {
-			log("verifying remote certificate");
+			// If we have a cached remoteInfo for this peer certificate, use it
 			const peer = tlsSock.getPeerCertificate(true);
 			if (!peer || !peer.raw) {
 				try {
@@ -66,7 +79,24 @@ export class Encrypter {
 				} catch {}
 				throw new Error("no peer certificate presented");
 			}
+			const fp = this.fingerprint(peer.raw);
+
+			// If cached, return cached result (skip expensive verify)
+			if (this.trustedCache.has(fp)) {
+				const remoteInfo = this.trustedCache.get(fp);
+				log(
+					"remote certificate found in cache; peer node:",
+					Buffer.from(remoteInfo.nodePubCompressed).toString("hex"),
+				);
+				return { socket: tlsSock, remoteInfo };
+			}
+
+			log("verifying remote certificate");
 			const remoteInfo = await verifyPeerCertificate(peer.raw);
+			// cache it
+			try {
+				this.trustedCache.set(fp, remoteInfo);
+			} catch {}
 			log(
 				"remote certificate OK; peer node:",
 				Buffer.from(remoteInfo.nodePubCompressed).toString("hex"),

@@ -1,4 +1,4 @@
-import { PacketType, type Packet, type PeerInfo } from "./types";
+import { type Packet, PacketType, type PeerInfo } from "./types";
 
 // ── Helpers (typed factories) ──────────────────────────────────────────────
 export const mkHello = (
@@ -64,6 +64,19 @@ export const mkHeartbeat = (p: PeerInfo): Packet => ({
 	to: "HOST",
 });
 
+export const mkBroadcastAdvert = (advert: string): Packet => ({
+	t: PacketType.BROADCAST_ADVERT,
+	payload: { advert },
+});
+
+export const mkDiscoveryRequest = (slots: string[], from: string): Packet => ({
+	t: PacketType.DISCOVERY_REQUEST,
+	payload: { slots, from },
+});
+export const mkDiscoveryResponse = (advert: string): Packet => ({
+	t: PacketType.DISCOVERY_RESPONSE,
+	payload: { advert },
+});
 // ── Tiny runtime validation (no external libs) ────────────────────────────
 export function isPacket(x: any): x is Packet {
 	return x && typeof x === "object" && typeof x.t === "string";

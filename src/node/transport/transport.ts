@@ -1,25 +1,51 @@
+// transport/transport.ts
+
 import debug from "debug";
 import net, { type Server } from "net";
 import type { PeerKeyPair } from "../../secp256k1/utils";
 import type { PeerInfo, PeerRemote } from "../../session/nodeInfo";
 import { safeError, safeResult, safeSyncTry, safeTry } from "../../utils/safe";
 import { type ConnectionHandler, MuxedConnection } from "../connection";
-import { Encrypter } from "../connection-encrypter";
+import {
+	type MultiaddrConnection,
+	SocketMultiaddrConnection,
+} from "../multi-addr-connection";
+import type { Upgrader } from "../upgrader";
 import { TransportListener } from "./transport-listener";
 
 const log = debug("p2p:transport");
 
 export class Transport {
 	public server: Server | undefined;
-	private encrypter: Encrypter;
 	private keyPair: PeerKeyPair;
+	public upgrader: Upgrader;
 
-	constructor(keyPair: PeerKeyPair) {
+	// cache keyed by host:port -> upgraded Connection (MuxedConnection)
+	private connCache: Map<string, MuxedConnection> = new Map();
+
+	constructor(keyPair: PeerKeyPair, upgrader: Upgrader) {
 		this.keyPair = keyPair;
-		this.encrypter = new Encrypter(keyPair.privateKey);
+		this.upgrader = upgrader;
 	}
 
-	async dial(ctx: PeerInfo, target: PeerRemote, timeoutMs = 10_000) {
+	private cacheKey(target: PeerRemote) {
+		return `${target.host}:${target.port}`;
+	}
+
+	async dial<T extends boolean = true>(
+		ctx: PeerInfo,
+		target: PeerRemote,
+		timeoutMs = 10_000,
+		shouldCreateConnection: T = true as T,
+	) {
+		const key = this.cacheKey(target);
+
+		// Reuse upgraded connection if still alive
+		const cached = this.connCache.get(key);
+		if (cached && !cached.socket.destroyed) {
+			return safeResult(cached as any);
+		}
+
 		const [sockErr, sock] = safeSyncTry(() =>
 			net.createConnection({
 				host: target.host,
@@ -33,6 +59,12 @@ export class Transport {
 
 		const [connectionError] = await safeTry(() => {
 			return new Promise<void>((resolve, reject) => {
+				const cleanup = () => {
+					clearTimeout(timer);
+					sock.off("connect", onReady);
+					sock.off("error", onError);
+				};
+
 				const onReady = () => {
 					cleanup();
 					resolve();
@@ -40,11 +72,6 @@ export class Transport {
 				const onError = (e: Error) => {
 					cleanup();
 					reject(e);
-				};
-				const cleanup = () => {
-					clearTimeout(timer);
-					sock.off("connect" as any, onReady);
-					sock.off("error", onError);
 				};
 				const onTimeout = () => {
 					const err = new Error(`connection timeout after ${timeoutMs}ms`);
@@ -60,21 +87,60 @@ export class Transport {
 		});
 
 		if (connectionError) {
-			log(`failed to connect to ${target.id} ${connectionError}`);
+			log(`Failed to connect to ${target.id}: ${connectionError}`);
 			return safeError(connectionError);
 		}
 
-		const [encryptionError, result] = await safeTry(() =>
-			this.encrypter.encrypt(sock, false),
+		// Wrap raw socket in MultiaddrConnection
+		const remoteAddr = `/ip4/${target.host}/tcp/${target.port}`;
+		const maConn: MultiaddrConnection = new SocketMultiaddrConnection({
+			socket: sock,
+			remoteAddr,
+			log,
+		});
+
+		// decide if we should encrypt this connection:
+		// - true  => TLS + mux
+		// - false => plaintext + mux (e.g. for adverts/ephemeral)
+		const encrypt = Boolean(shouldCreateConnection);
+
+		// 🔒/🔓 Normal upgraded connection: Upgrader does TLS and/or mux
+		const [upgradeError, upgraded] = await safeTry(() =>
+			this.upgrader.upgradeOutbound(maConn, {
+				muxed: true,
+				direction: "outbound",
+				remotePeer: target,
+				// encrypt,
+			}),
 		);
 
-		if (result) return safeResult(new MuxedConnection(ctx, result.socket));
+		if (upgradeError) {
+			log(
+				`Failed to upgrade outbound connection to ${target.id}: ${upgradeError}`,
+			);
+			try {
+				maConn.abort(upgradeError);
+			} catch {}
+			return safeError(upgradeError);
+		}
 
-		log(`failed to encrypt tls ${target.id} ${encryptionError}`);
-		return safeResult(new MuxedConnection(ctx, sock));
+		const conn = upgraded;
+
+		// cache and evict on close
+		this.connCache.set(key, maConn);
+
+		// Connection is expected to be an EventEmitter in your impl
+		const emitter = conn as any;
+		if (typeof emitter.once === "function") {
+			emitter.once("close", () => {
+				this.connCache.delete(key);
+			});
+		}
+
+		return safeResult(conn as any);
 	}
 
 	createListener(ctx: PeerInfo, frameHandler: ConnectionHandler) {
-		return new TransportListener(ctx, this.encrypter, frameHandler);
+		return new TransportListener(ctx, this.upgrader, frameHandler);
 	}
 }
