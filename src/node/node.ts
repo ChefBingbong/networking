@@ -15,37 +15,35 @@ import {
 import type { PeerInfo, PeerRemote } from "../session/nodeInfo";
 import { safeError, safeResult } from "../utils/safe";
 import type { MuxedConnection } from "./connection";
-import type { NetworkEventEmitter } from "./events";
 import type { TransportListener } from "./transport";
 import { Transport } from "./transport/transport";
 
 const log = debug("p2p:node");
 
-type KnownPeer = {
+interface KnownPeer {
 	id: string;
 	host: string;
 	port: number;
-	lastSeen: number; // epoch seconds
-	expiresAt?: number; // epoch seconds
+	lastSeen: number;
+	expiresAt?: number;
 	online: boolean;
-};
+}
 
-export class PeerNode extends (EventEmitter as {
-	new (): NetworkEventEmitter;
-}) {
+export class PeerNode extends EventEmitter {
 	public info: PeerInfo;
+	private keyPair: PeerKeyPair;
 	private transport: Transport;
 	private rendezvous: Rendezvous;
-	public connections: Map<string, MuxedConnection> = new Map();
-	private keyPair: PeerKeyPair;
-	public peers: Map<string, PeerRemote> = new Map(); // minimal addr book
-	public advert: SignedAdvert;
-	public adverts: Map<string, SignedAdvert> = new Map();
 
-	// local caches
-	public listener: TransportListener;
+	private connections: Map<string, MuxedConnection> = new Map();
+	private peers: Map<string, PeerRemote> = new Map();
+	private adverts: Map<string, SignedAdvert> = new Map();
 	private knownPeers: Map<string, KnownPeer> = new Map();
-	private discoveredSent: Set<string> = new Set(); // peers we've already advertised to (recently)
+
+	private sentAdverts: Set<string> = new Set();
+
+	private listener: TransportListener;
+	private advert: SignedAdvert;
 
 	constructor(nodeInfo: PeerInfo) {
 		super();
@@ -57,15 +55,15 @@ export class PeerNode extends (EventEmitter as {
 		this.listener = this.transport.createListener(this.info, this.onFrame);
 	}
 
+	// --- Startup ---
 	public async start() {
 		const listenError = await this.listener.listen(this.info);
 		if (listenError) {
 			log("Failed to start listener:", listenError);
 			return;
 		}
-		log(`🚀 Node started at ${this.info.host}:${this.info.port}`);
 
-		// Start periodic advertisement + discovery loops
+		log(`🚀 Peer started at ${this.info.host}:${this.info.port}`);
 		this.runAdvertLoop();
 		this.runDiscoveryLoop();
 	}
@@ -75,10 +73,10 @@ export class PeerNode extends (EventEmitter as {
 		while (true) {
 			try {
 				await this.broadcastAdvert();
-			} catch (e) {
-				log("advert loop error:", e);
+			} catch (err) {
+				log("Advert loop error:", err);
 			}
-			await wait(15_000); // every 15s
+			await wait(15_000);
 		}
 	}
 
@@ -87,259 +85,220 @@ export class PeerNode extends (EventEmitter as {
 		while (true) {
 			try {
 				await this.discoverPeers();
-			} catch (e) {
-				log("discover loop error:", e);
+			} catch (err) {
+				log("Discovery loop error:", err);
 			}
-			await wait(20_000); // every 20s
+			await wait(20_000);
 		}
 	}
 
-	// helper: is advert still valid (using advert.expires_at seconds)
-	private isAdvertValid(ad: SignedAdvert | undefined) {
-		if (!ad || !ad.advert?.expires_at) return false;
-		const now = Date.now() / 1000;
-		return now < ad.advert.expires_at;
-	}
-
-	// helper: mark peer as known/online
-	private markPeerOnline(
-		nodeId: string,
-		host: string,
-		port: number,
-		expiresAt?: number,
-	) {
-		const now = Date.now() / 1000;
-		const existing = this.knownPeers.get(nodeId);
-		const kp: KnownPeer = {
-			id: nodeId,
-			host,
-			port,
-			lastSeen: now,
-			expiresAt,
-			online: true,
-		};
-		// merge
-		if (existing) {
-			kp.expiresAt = existing.expiresAt ?? expiresAt;
-		}
-		this.knownPeers.set(nodeId, kp);
-		// also keep minimal peers map for dialing
-		this.peers.set(nodeId, { id: nodeId, host, port });
-	}
-
-	// Broadcast own advert to known or candidate peers, skipping already-advertised & valid peers
+	// --- Advert Broadcasting ---
 	private async broadcastAdvert() {
-		const packet = mkBroadcastAdvert(JSON.stringify(this.advert));
+		const advertPacket = mkBroadcastAdvert(JSON.stringify(this.advert));
 
-		// choose candidate list: known peers first; otherwise rendezvous candidates
-		let peerList = Array.from(this.peers.values());
-		if (peerList.length === 0) {
-			peerList = this.rendezvous.deriveCandidateAddresses(4000, 50);
+		let candidatePeers = Array.from(this.peers.values());
+		if (candidatePeers.length === 0) {
+			candidatePeers = this.rendezvous.deriveCandidateAddresses(4000, 15);
 		}
 
-		for (const peer of peerList) {
-			// skip self
-			if (peer.port === this.info.port && peer.host === this.info.host)
+		for (const peer of candidatePeers) {
+			if (peer.host === this.info.host && peer.port === this.info.port)
 				continue;
 
-			// skip if we've already sent advert to this peer recently AND that peer is online & advert still valid
-			const kp = this.knownPeers.get(peer.id);
-			if (kp && kp.online && kp.expiresAt && Date.now() / 1000 < kp.expiresAt) {
-				// we have fresh info for them; skip re-sending
-				if (this.discoveredSent.has(peer.id)) continue;
-			}
-
-			const key = `${peer.host}:${peer.port}`;
-			const [err, mc] = await this.transport.dial(this.info, peer, 5000, true);
-			if (err) {
-				// failed dial: mark offline if we had them known
-				if (peer.id && this.knownPeers.has(peer.id)) {
-					const ex = this.knownPeers.get(peer.id)!;
-					ex.online = false;
-					this.knownPeers.set(peer.id, ex);
-				}
-				continue;
-			}
-
-			// success: update known state & mark we sent them advert
-			try {
-				this.markPeerOnline(
-					peer.id,
-					peer.host,
-					peer.port,
-					this.advert.advert.expires_at,
-				);
-			} catch {}
-
-			this.discoveredSent.add(peer.id);
-			mc.send(packet);
-			// don't keep ephemeral advert connections open long
-			mc.onClose();
-		}
-
-		log(`📢 Advert broadcasted from ${this.info.id}`);
-	}
-
-	// Handle received adverts
-	private async handleIncomingAdvert(signed: SignedAdvert) {
-		if (!signed?.advert?.addr || !signed?.advert?.node_id) return;
-		const nodeId = signed.advert.node_id;
-		if (nodeId === this.info.id) return;
-
-		const [host, portStr] = signed.advert.addr.split(":");
-		const port = Number(portStr);
-		if (!host || !port) return;
-
-		// store advert and mark the peer
-		this.peers.set(nodeId, { id: nodeId, host, port });
-		this.adverts.set(nodeId, signed);
-
-		// store known peer with expiry
-		const expiresAt = signed.advert.expires_at;
-		this.markPeerOnline(nodeId, host, port, expiresAt);
-
-		log(`🗂 Stored advert from ${nodeId} (${host}:${port})`);
-	}
-
-	// Discover peers and gossip peer lists
-	public async discoverPeers(maxConnections = 5) {
-		// prune stale discoveredSent entries for expired peers
-		for (const id of Array.from(this.discoveredSent)) {
-			const kp = this.knownPeers.get(id);
-			if (!kp) {
-				this.discoveredSent.delete(id);
-				continue;
-			}
-			if (kp.expiresAt && Date.now() / 1000 >= kp.expiresAt) {
-				// expired
-				this.discoveredSent.delete(id);
-			}
-		}
-
-		const candidates: PeerRemote[] = [];
-
-		for (const adv of this.adverts.values()) {
-			const [host, portStr] = adv.advert.addr.split(":");
-			const port = Number(portStr);
-			if (!host || !port) continue;
-			if (adv.advert.node_id === this.info.id) continue;
-			if (this.connections.has(adv.advert.node_id)) continue;
-
-			// if we already sent them an advert and are online and advert still valid, skip
-			const kp = this.knownPeers.get(adv.advert.node_id);
+			const knownPeer = this.knownPeers.get(peer.id);
 			if (
-				kp &&
-				kp.online &&
-				kp.expiresAt &&
-				Date.now() / 1000 < kp.expiresAt &&
-				this.discoveredSent.has(adv.advert.node_id)
+				knownPeer?.online &&
+				knownPeer.expiresAt &&
+				Date.now() / 1000 < knownPeer.expiresAt &&
+				this.sentAdverts.has(peer.id)
 			) {
 				continue;
 			}
 
-			candidates.push({ id: adv.advert.node_id, host, port });
-		}
-
-		const selected = candidates.slice(0, maxConnections);
-		for (const peer of selected) {
-			// avoid duplicate connection attempts
-			if (this.connections.has(peer.id)) continue;
-
-			const [err, mc] = await this.transport.dial(this.info, peer);
-			if (err) {
-				log(`❌ Failed to dial peer ${peer.id}: ${err.message}`);
-				// mark offline in knownPeers if present
-				const kp = this.knownPeers.get(peer.id);
-				if (kp) {
-					kp.online = false;
-					this.knownPeers.set(peer.id, kp);
-				}
+			const [error, conn] = await this.transport.dial(
+				this.info,
+				peer,
+				5000,
+				true,
+			);
+			if (error) {
+				this.markPeerOffline(peer.id);
 				continue;
 			}
 
-			// Successfully connected -> mark online and update lastSeen
 			this.markPeerOnline(
 				peer.id,
 				peer.host,
 				peer.port,
-				this.adverts.get(peer.id)?.advert?.expires_at,
+				this.advert.advert.expires_at,
 			);
+			this.sentAdverts.add(peer.id);
+			conn.send(advertPacket);
 
-			this.connections.set(peer.id, mc);
-			mc.setOnFrame((f) => this.onFrame(mc, f));
-			mc.socket.once("close", () => {
-				this.connections.delete(peer.id);
-				// mark offline
-				const kp = this.knownPeers.get(peer.id);
-				if (kp) {
-					kp.online = false;
-					this.knownPeers.set(peer.id, kp);
-				}
-				log(`🧹 Disconnected from ${peer.id}`);
-			});
+			conn.once("close", () => this.connections.delete(peer.id));
+			log(`📢 Advert sent to ${peer.id}`);
+		}
+	}
 
-			// Upon connection, exchange peer lists
-			mc.send({
+	// --- Discovery Logic ---
+	private async discoverPeers(maxNewConnections = 5) {
+		this.cleanupExpiredPeers();
+
+		const candidates: PeerRemote[] = [];
+		for (const advert of this.adverts.values()) {
+			const nodeId = advert.advert.node_id;
+			if (nodeId === this.info.id) continue;
+			if (this.connections.has(nodeId)) continue;
+
+			const [host, portStr] = advert.advert.addr.split(":");
+			const port = Number(portStr);
+			if (!host || !port) continue;
+
+			const knownPeer = this.knownPeers.get(nodeId);
+			const isRecent =
+				knownPeer?.online &&
+				knownPeer.expiresAt &&
+				Date.now() / 1000 < knownPeer.expiresAt;
+			if (isRecent && this.sentAdverts.has(nodeId)) continue;
+
+			candidates.push({ id: nodeId, host, port });
+		}
+
+		for (const peer of candidates.slice(0, maxNewConnections)) {
+			const [error, conn] = await this.transport.dial(this.info, peer);
+			if (error) {
+				this.markPeerOffline(peer.id);
+				continue;
+			}
+
+			this.markPeerOnline(peer.id, peer.host, peer.port);
+			this.connections.set(peer.id, conn);
+
+			conn.on("frame", (frame: Packet) => this.onFrame(conn, frame));
+			conn.once("close", () => this.markPeerOffline(peer.id));
+
+			conn.send({
 				t: "PEER_LIST",
 				from: this.info.id,
 				payload: { peers: Array.from(this.peers.values()) },
 			});
 
-			log(`✅ Connected to peer ${peer.id} (${peer.host}:${peer.port})`);
+			log(`✅ Connected to ${peer.id} (${peer.host}:${peer.port})`);
 		}
 	}
 
-	public async ensureConn(id: string) {
-		const connection = this.connections.get(id);
-		if (connection) return safeResult(connection);
+	// --- Packet Handler ---
+	private onFrame = async (conn: MuxedConnection, frame: Packet) => {
+		switch (frame.t) {
+			case "PING":
+				conn.send({ t: "PONG", payload: { id: this.info.id } });
+				break;
 
-		const peerId = this.peers.get(id);
-		if (!peerId) return safeResult(undefined);
+			case "MSG":
+				log(`[${this.info.id}] <${frame.from}>: ${frame.payload?.text}`);
+				break;
 
-		const [error, mc] = await this.transport.dial(this.info, peerId);
-		if (error) return safeError(error);
-
-		this.connections.set(id, mc);
-		mc.setOnFrame((f) => this.onFrame(mc, f));
-		mc.socket.once("close", () => this.peers.delete(id));
-
-		return safeResult(mc);
-	}
-
-	// --- Core packet handler ---
-	private onFrame = async (mc: MuxedConnection, f: Packet) => {
-		if (f.t === "PING") {
-			mc.send({ t: "PONG", payload: { id: this.info.id } });
-		} else if (f.t === "MSG") {
-			console.log(`[${this.info.id}] <${f.from}>: ${f.payload?.text}`);
-		} else if (f.t === "BROADCAST_ADVERT" || f.t === "DISCOVERY_RESPONSE") {
-			try {
-				const signed: SignedAdvert = JSON.parse(f.payload.advert);
-				await this.handleIncomingAdvert(signed);
-			} catch (err) {
-				log("Failed to parse advert:", err);
-			}
-		} else if (f.t === "PEER_LIST") {
-			const incoming = f.payload.peers as PeerRemote[];
-			const newlyLearned: PeerRemote[] = [];
-			for (const p of incoming) {
-				if (p.id === this.info.id) continue;
-				if (!this.peers.has(p.id)) {
-					this.peers.set(p.id, p);
-					newlyLearned.push(p);
-					log(`🌐 Learned new peer ${p.id} from gossip`);
+			case "BROADCAST_ADVERT":
+			case "DISCOVERY_RESPONSE":
+				try {
+					const signed: SignedAdvert = JSON.parse(frame.payload.advert);
+					await this.handleIncomingAdvert(signed);
+				} catch (err) {
+					log("Failed to parse advert:", err);
 				}
-			}
-			// try connect to them lazily (non-blocking)
-			if (newlyLearned.length > 0) {
-				for (const p of newlyLearned) {
-					// avoid duplicates
-					if (!this.connections.has(p.id)) {
-						// schedule ensureConn but don't await them all here
-						this.ensureConn(p.id).catch((e) => log("ensureConn error:", e));
-					}
-				}
+				break;
+
+			case "PEER_LIST": {
+				const peers = frame.payload.peers as PeerRemote[];
+				this.integratePeerList(peers);
+				break;
 			}
 		}
 	};
+
+	// --- Handle Incoming Adverts ---
+	private async handleIncomingAdvert(advert: SignedAdvert) {
+		const nodeId = advert?.advert?.node_id;
+		const addr = advert?.advert?.addr;
+		if (!nodeId || !addr || nodeId === this.info.id) return;
+
+		const [host, portStr] = addr.split(":");
+		const port = Number(portStr);
+		if (!host || !port) return;
+
+		this.peers.set(nodeId, { id: nodeId, host, port });
+		this.adverts.set(nodeId, advert);
+		this.markPeerOnline(nodeId, host, port, advert.advert.expires_at);
+
+		log(`🗂 Stored advert from ${nodeId} (${host}:${port})`);
+	}
+
+	// --- Peer List Integration ---
+	private integratePeerList(peers: PeerRemote[]) {
+		for (const peer of peers) {
+			if (peer.id === this.info.id) continue;
+			if (!this.peers.has(peer.id)) {
+				this.peers.set(peer.id, peer);
+				log(`🌐 Discovered new peer ${peer.id}`);
+				this.ensureConnection(peer.id).catch((e) =>
+					log("ensureConnection error:", e),
+				);
+			}
+		}
+	}
+
+	// --- Connection Ensure ---
+	private async ensureConnection(peerId: string) {
+		if (this.connections.has(peerId))
+			return safeResult(this.connections.get(peerId));
+		const peer = this.peers.get(peerId);
+		if (!peer) return safeResult(undefined);
+
+		const [error, conn] = await this.transport.dial(this.info, peer);
+		if (error) return safeError(error);
+
+		this.connections.set(peerId, conn);
+		conn.on("frame", (frame: Packet) => this.onFrame(conn, frame));
+		conn.once("close", () => this.markPeerOffline(peerId));
+
+		return safeResult(conn);
+	}
+
+	// --- Helpers ---
+	private markPeerOnline(
+		id: string,
+		host: string,
+		port: number,
+		expiresAt?: number,
+	) {
+		const now = Date.now() / 1000;
+		this.knownPeers.set(id, {
+			id,
+			host,
+			port,
+			lastSeen: now,
+			expiresAt,
+			online: true,
+		});
+		this.peers.set(id, { id, host, port });
+	}
+
+	private markPeerOffline(id: string) {
+		const known = this.knownPeers.get(id);
+		if (known) {
+			known.online = false;
+			this.knownPeers.set(id, known);
+		}
+	}
+
+	private cleanupExpiredPeers() {
+		const now = Date.now() / 1000;
+		for (const [id, peer] of this.knownPeers.entries()) {
+			if (peer.expiresAt && peer.expiresAt < now) {
+				this.sentAdverts.delete(id);
+				this.knownPeers.delete(id);
+				this.peers.delete(id);
+			}
+		}
+	}
 }
