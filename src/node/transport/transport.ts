@@ -1,9 +1,17 @@
 import type { Multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import type { TcpSocketConnectOpts } from "net";
-import net, { type Server } from "node:net";
+import net from "node:net";
 import type { Secp256k1PrivateKey } from "../../secp256k1/secp256k1";
-import { safeError, safeResult, safeSyncTry, safeTry } from "../../utils/safe";
+import {
+	type SafeError,
+	type SafePromise,
+	type SafeResult,
+	safeError,
+	safeResult,
+	safeSyncTry,
+	safeTry,
+} from "../../utils/safe";
 import { multiaddrToNetConfig } from "../../utils/utils";
 import {
 	type ConnectionHandler,
@@ -15,159 +23,133 @@ import { TransportListener } from "./transport-listener";
 
 const log = debug("p2p:transport");
 
-// tune this if needed
-const MAX_ACTIVE_DIALS = 16;
+type TransportDialOpts = {
+	timeoutMs?: number;
+	shouldCreateConnection?: boolean;
+	maxActiveDials: number;
+};
+
+export type CreateTransportOptions = {
+	frameHandler: ConnectionHandler;
+	streamOpenHandler?: StreamOpenHandler;
+};
 
 export class Transport {
-	public server: Server | undefined;
 	private encrypter: Encrypter;
-	private connCache: Map<string, MuxedConnection> = new Map();
+	private connectionCache: Map<string, MuxedConnection> = new Map();
+	private inFlightDials = new Map<string, SafePromise<MuxedConnection>>();
 
-	// NEW: dedupe and rate-limit dials
-	private inFlightDials = new Map<
-		string,
-		Promise<[Error | undefined, MuxedConnection | undefined]>
-	>();
-	private activeDials = 0;
+	private dialOpts: TransportDialOpts;
 	private dialQueue: Array<() => void> = [];
+	private activeDials = 0;
 
-	constructor(privateKey: Secp256k1PrivateKey) {
+	constructor(privateKey: Secp256k1PrivateKey, dialOpts: TransportDialOpts) {
 		this.encrypter = new Encrypter(privateKey);
+		this.dialOpts = dialOpts;
 	}
 
-	private cacheKey(target: Multiaddr) {
-		return target.toString();
-	}
-
-	private async scheduleDial<T>(fn: () => Promise<T>): Promise<T> {
-		if (this.activeDials >= MAX_ACTIVE_DIALS) {
-			await new Promise<void>((resolve) => this.dialQueue.push(resolve));
-		}
-
-		this.activeDials++;
-		try {
-			return await fn();
-		} finally {
-			this.activeDials--;
-			const next = this.dialQueue.shift();
-			if (next) next();
-		}
-	}
-
-	async dial<T extends boolean = true>(
-		peerId: Multiaddr,
-		timeoutMs = 10_000,
-		shouldCreateConnection: T = true as T,
-	): Promise<[Error | undefined, MuxedConnection | undefined]> {
+	async dial(peerId: Multiaddr, timeoutMs = 10_000) {
+		const peerIdStr = peerId.toString();
 		const netOptions = multiaddrToNetConfig(peerId) as TcpSocketConnectOpts;
-		const key = this.cacheKey(peerId);
 
-		// reuse an existing healthy connection if present
-		const cached = this.connCache.get(key);
-		if (cached && !cached.socket.destroyed) {
-			return safeResult(cached as any);
-		}
-
-		// reuse in-flight dial if one is already happening to this peer
-		const existingDial = this.inFlightDials.get(key);
-		if (existingDial) {
-			return existingDial;
-		}
+		const existingConn = this.checkAndReturnExistingConnection(peerId);
+		if (existingConn) return existingConn;
 
 		const dialPromise = this.scheduleDial(async () => {
-			// ---- old dial logic lives here, but returns safeResult ----
-			const [sockErr, sock] = safeSyncTry(() =>
-				net.createConnection(netOptions),
-			);
-			if (sockErr) {
-				log(`Failed to create TCP socket to ${peerId.toString()}: ${sockErr}`);
-				return safeError(sockErr);
-			}
+			const sock = net.createConnection(netOptions);
 
 			sock.setNoDelay(true);
 			sock.setKeepAlive(true, 10_000);
 
-			// wait for TCP connect with timeout
-			const [connectionError] = await safeTry(() => {
-				return new Promise<void>((resolve, reject) => {
+			return await new Promise<SafeResult<MuxedConnection> | SafeError<Error>>(
+				(resolve) => {
 					const cleanup = () => {
 						clearTimeout(timer);
-						sock.off("connect", onReady);
+						sock.off("connect", onConnect);
 						sock.off("error", onError);
 					};
 
-					const onReady = () => {
+					const onError = (err: Error) => {
 						cleanup();
-						resolve();
+						sock.destroy(err);
+						resolve(safeError(err));
 					};
-					const onError = (e: Error) => {
+					const onConnect = async () => {
+						const [error, res] = await this.onConnect(sock, peerId);
 						cleanup();
-						reject(e);
+						if (error) onError(error);
+						resolve(safeResult(res));
 					};
+
 					const onTimeout = () => {
 						const err = new Error(`connection timeout after ${timeoutMs}ms`);
 						cleanup();
 						sock.destroy(err);
-						reject(err);
+						resolve(safeError(err));
 					};
 
-					sock.once("connect", onReady);
+					sock.once("connect", onConnect);
 					sock.once("error", onError);
 					const timer = setTimeout(onTimeout, timeoutMs);
-				});
-			});
-
-			if (connectionError) {
-				log(`Failed to connect to ${peerId.toString()}: ${connectionError}`);
-				sock.destroy();
-				return safeError(connectionError);
-			}
-
-			// Encrypted or plaintext connection based on shouldCreateConnection
-			if (shouldCreateConnection) {
-				const [encryptionError, result] = await safeTry(() =>
-					this.encrypter.encrypt(sock, false),
-				);
-
-				if (encryptionError) {
-					log(
-						`Failed to encrypt TLS connection to ${peerId.toString()}: ${encryptionError}`,
-					);
-					sock.destroy();
-					return safeError(encryptionError);
-				}
-
-				const mc = new MuxedConnection(peerId, result.socket);
-				this.connCache.set(key, mc);
-				mc.socket.once("close", () => {
-					this.connCache.delete(key);
-				});
-				return safeResult(mc as any);
-			}
-
-			// plaintext (e.g. adverts) – no TLS
-			const mc = new MuxedConnection(peerId, sock);
-			this.connCache.set(key, mc);
-			mc.socket.once("close", () => {
-				this.connCache.delete(key);
-			});
-			return safeResult(mc as any);
+				},
+			);
 		});
 
-		this.inFlightDials.set(key, dialPromise);
-		const res = await dialPromise;
-		this.inFlightDials.delete(key);
-		return res;
+		this.inFlightDials.set(peerIdStr, dialPromise);
+		const [error, dialResult] = await dialPromise;
+		this.inFlightDials.delete(peerIdStr);
+
+		if (error) return safeError(error);
+		return safeResult(dialResult);
 	}
 
-	createListener(
-		frameHandler: ConnectionHandler,
-		streamOpenHandler?: StreamOpenHandler,
-	) {
-		return new TransportListener({
-			upgrader: this.encrypter,
-			frameHandler,
-			streamOpenHandler, // NEW
+	private async scheduleDial(dialCallback: () => SafePromise<MuxedConnection>) {
+		if (this.activeDials >= this.dialOpts.maxActiveDials) {
+			await new Promise<void>((resolve) => this.dialQueue.push(resolve));
+		}
+		this.activeDials++;
+		const [dialError, result] = await dialCallback();
+
+		this.activeDials--;
+		const nextDial = this.dialQueue.shift();
+		nextDial?.();
+
+		return dialError ? safeError(dialError) : safeResult(result);
+	}
+
+	private onConnect = async (socket: net.Socket, peerId: Multiaddr) => {
+		const [encryptionError, result] = await safeTry(() =>
+			this.encrypter.encrypt(socket, false),
+		);
+		if (encryptionError) {
+			return safeError(encryptionError);
+		}
+		const [connectionError, connection] = safeSyncTry(
+			() => new MuxedConnection(peerId, result.socket),
+		);
+
+		if (connectionError) {
+			return safeError(connectionError);
+		}
+		this.connectionCache.set(peerId.toString(), connection);
+		connection.socket.once("close", () => {
+			this.connectionCache.delete(peerId.toString());
 		});
+		return safeResult(connection);
+	};
+
+	private checkAndReturnExistingConnection(peerId: Multiaddr) {
+		const cachedConnection = this.connectionCache.get(peerId.toString());
+
+		if (cachedConnection && !cachedConnection.socket.destroyed) {
+			return safeResult(cachedConnection);
+		}
+
+		const existingDial = this.inFlightDials.get(peerId.toString());
+		if (existingDial) return existingDial;
+	}
+
+	createListener(params: CreateTransportOptions) {
+		return new TransportListener({ upgrader: this.encrypter, ...params });
 	}
 }

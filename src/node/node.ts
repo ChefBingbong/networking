@@ -10,6 +10,7 @@ import {
 import type { Packet } from "../packet/types";
 import type { ProtocolHandler } from "../protocol/protocol-manager";
 import { ProtocolManager } from "../protocol/protocol-manager";
+import { loopInterval } from "../secp256k1/utils";
 import type { PeerId, PeerInfo } from "../session/nodeInfo";
 import { peerIdFromPrivateKey } from "../session/peer-id";
 import { safeError, safeResult } from "../utils/safe";
@@ -62,13 +63,14 @@ export class PeerNode extends EventEmitter {
 	public protocolManager: ProtocolManager;
 	public nodeOptions: PeerInfo;
 
-	// NEW: dial backoff tracking
 	private failedPeers = new Map<string, number>(); // addrKey -> nextAllowedDialTs
 
 	constructor(nodeOptions: PeerInfo) {
 		super();
 		this.nodeOptions = nodeOptions;
-		this.transport = new Transport(nodeOptions.privateKey);
+		this.transport = new Transport(nodeOptions.privateKey, {
+			maxActiveDials: 16,
+		});
 		this.peerId = peerIdFromPrivateKey(nodeOptions.privateKey);
 
 		this.address = multiaddr(
@@ -84,16 +86,12 @@ export class PeerNode extends EventEmitter {
 		this.router.register(this.rendezvous.handle);
 		this.router.register(this.coreHandler.handle);
 
-		this.listener = this.transport.createListener(
-			this.router.handle,
-			(protocol, stream) => {
-				// Forward STREAM_OPEN to ProtocolManager
-				this.protocolManager.onIncomingStream(protocol, stream);
-			},
-		);
+		this.listener = this.transport.createListener({
+			frameHandler: this.router.handle,
+			streamOpenHandler: (protocol, stream) =>
+				this.protocolManager.onIncomingStream(protocol, stream),
+		});
 	}
-
-	// ---------- lifecycle ----------
 
 	public async start() {
 		try {
@@ -107,12 +105,6 @@ export class PeerNode extends EventEmitter {
 		}
 	}
 
-	private startListening() {
-		return this.listener.listen(this.address);
-	}
-
-	// ---------- public API ----------
-
 	public async dial(addrKey: string) {
 		try {
 			const mAddr = multiaddr(addrKey);
@@ -125,11 +117,7 @@ export class PeerNode extends EventEmitter {
 
 	public async dialProtocol(addr: Multiaddr, protocol: string) {
 		try {
-			const connection = await this.getExistingOrNewConnection(
-				addr,
-				true,
-				5_000,
-			);
+			const connection = await this.getExistingOrNewConnection(addr, true);
 			return await this.protocolManager.initOutgoing(connection, protocol);
 		} catch (error) {
 			log(`Failed to dial protocol ${protocol} on ${String(addr)}`);
@@ -159,11 +147,114 @@ export class PeerNode extends EventEmitter {
 		};
 	}
 
-	private getCurrentDegree() {
-		return this.connections.size;
+	public async broadcastAdvert() {
+		this.rendezvous.refreshAdvertIfNeeded();
+		const advert = this.rendezvous.getCurrentAdvert();
+
+		const targets = this.rendezvous
+			.getAdvertBroadcastTargets()
+			.filter(this.filterKnownAndSelfAddrs);
+
+		targets.forEach(async (addr) => {
+			try {
+				const conn = await this.getExistingOrNewConnection(addr, false);
+				conn.send(mkBroadcastAdvert(JSON.stringify(advert)));
+				log(`📢 Advert sent to ${addr.toString()}`);
+			} catch {}
+		});
 	}
 
-	// ---------- backoff helpers ----------
+	public async discoverPeers(maxNewConnections = 50) {
+		const degree = this.connections.size;
+		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
+
+		if (remainingBudget === 0 || degree >= DEGREE_MIN) return;
+
+		this.rendezvous.refreshAdvertIfNeeded();
+		const slots = this.rendezvous.getDiscoverySlots();
+
+		const targets = this.rendezvous
+			.getDiscoveryTargets(Math.min(maxNewConnections, remainingBudget))
+			.filter(this.filterKnownAndSelfAddrs);
+
+		targets.forEach(async (addr) => {
+			try {
+				const conn = await this.getExistingOrNewConnection(addr, false);
+				conn.send(mkDiscoveryRequest(slots, this.address.toString()));
+				log(`Sent DISCOVERY_REQUEST to ${addr.toString()}`);
+			} catch {}
+		});
+	}
+
+	public async connectToAdvertisedPeers() {
+		const degree = this.connections.size;
+		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
+		if (remainingBudget === 0 || degree >= DEGREE_MIN) return;
+
+		const allAdverts = this.rendezvous.getKnownAdvertPeers();
+		const candidates = allAdverts.filter(this.filterKnownAndSelfAddrs);
+
+		for (const addr of candidates.slice(0, remainingBudget)) {
+			try {
+				const conn = await this.getExistingOrNewConnection(addr, true, 5_000);
+				conn.send(mkPing(this.address.toString()));
+				log(`Connected to ${addr.toString()} (from adverts)`);
+			} catch {}
+		}
+	}
+
+	private async getExistingOrNewConnection(
+		mAddr: Multiaddr,
+		storeConnection = true,
+		timeoutMs = 10_000,
+	) {
+		const key = mAddr.toString();
+
+		const existing = this.connections.get(key);
+		if (existing) return existing;
+
+		if (!this.canDialPeer(mAddr)) {
+			throw new Error(`backing off dial to ${key}`);
+		}
+
+		const start = Date.now();
+		const [error, dialedConn] = await this.transport.dial(mAddr, timeoutMs);
+		const elapsed = Date.now() - start;
+
+		if (error) {
+			this.markDialFailure(mAddr);
+			throw error;
+		}
+
+		if (!this.metrics.firstConnectLatencies.has(key)) {
+			this.metrics.firstConnectLatencies.set(key, elapsed);
+		}
+
+		if (!storeConnection) return dialedConn;
+		return this.attachConnectionHandlers(mAddr, dialedConn);
+	}
+
+	private attachConnectionHandlers(addr: Multiaddr, conn: MuxedConnection) {
+		const key = addr.toString();
+		this.connections.set(key, conn);
+		log(`connection established to ${key} (total: ${this.connections.size})`);
+
+		conn.setOnFrame((frame: Packet) => {
+			this.router.handle(conn, frame);
+		});
+
+		conn.setOnStreamOpen((protocol, stream) => {
+			this.protocolManager.onIncomingStream(protocol, stream);
+		});
+
+		conn.socket.once("close", () => {
+			this.connections.delete(key);
+			this.protocolManager.onConnectionClosed(conn);
+			log(`connection to ${key} closed (total: ${this.connections.size})`);
+		});
+
+		return conn;
+	}
 
 	private canDialPeer(addr: Multiaddr): boolean {
 		const key = addr.toString();
@@ -181,219 +272,40 @@ export class PeerNode extends EventEmitter {
 		this.failedPeers.set(key, next);
 	}
 
-	// ---------- rendezvous / discovery ----------
-
-	public async broadcastAdvert() {
-		this.rendezvous.refreshAdvertIfNeeded();
-		const advert = this.rendezvous.getCurrentAdvert();
-
-		const targets = this.rendezvous
-			.getAdvertBroadcastTargets()
-			.filter(
-				(addr) =>
-					!this.connections.has(addr.toString()) &&
-					!addr.toString().includes(this.nodeOptions.port.toString()),
-			);
-
-		targets.forEach(async (addr) => {
-			try {
-				// adverts are "best effort" → short timeout, don't store connection
-				const conn = await this.getExistingOrNewConnection(
-					addr,
-					false,
-					500, // ms
-				);
-				conn.send(mkBroadcastAdvert(JSON.stringify(advert)));
-				log(`📢 Advert sent to ${addr.toString()}`);
-			} catch {
-				// ignore
-			}
-		});
-	}
-
-	/**
-	 * Discovery:
-	 * - Only runs when degree < DEGREE_MIN.
-	 * - Uses short timeouts, does not persist connections necessarily.
-	 */
-	public async discoverPeers(maxNewConnections = 50) {
-		const degree = this.getCurrentDegree();
-		if (degree >= DEGREE_MIN) {
-			return; // good enough, skip active discovery
-		}
-
-		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
-		if (remainingBudget === 0) return;
-
-		this.rendezvous.refreshAdvertIfNeeded();
-
-		const targets = this.rendezvous
-			.getDiscoveryTargets(Math.min(maxNewConnections, remainingBudget))
-			.filter(
-				(addr) =>
-					!this.connections.has(addr.toString()) &&
-					!addr.toString().includes(this.nodeOptions.port.toString()),
-			);
-
-		if (targets.length === 0) return;
-
-		const slots = this.rendezvous.getDiscoverySlots();
-
-		targets.forEach(async (addr) => {
-			try {
-				const conn = await this.getExistingOrNewConnection(
-					addr,
-					false,
-					250, // short probe timeout
-				);
-				conn.send(mkDiscoveryRequest(slots, this.address.toString()));
-				log(`Sent DISCOVERY_REQUEST to ${addr.toString()}`);
-			} catch {
-				// ignore
-			}
-		});
-	}
-
-	/**
-	 * Connect to peers we learned via adverts.
-	 * Same degree band logic as discoverPeers, but with longer timeouts & stored connections.
-	 */
-	public async connectToAdvertisedPeers(maxNewConnections = 50) {
-		const degree = this.getCurrentDegree();
-		if (degree >= DEGREE_MIN) {
-			return;
-		}
-
-		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
-		if (remainingBudget === 0) return;
-
-		const allAdverts = this.rendezvous.getKnownAdvertPeers();
-
-		const candidates = allAdverts.filter((addr) => {
-			const key = addr.toString();
-			if (key.includes(this.nodeOptions.port.toString())) return false; // self
-			if (this.connections.has(key)) return false; // already connected
-			return true;
-		});
-
-		const toDial = candidates.slice(
-			0,
-			Math.min(maxNewConnections, remainingBudget),
-		);
-
-		for (const addr of toDial) {
-			try {
-				const conn = await this.getExistingOrNewConnection(addr, true, 5_000);
-				conn.send(mkPing(this.address.toString()));
-				log(`Connected to ${addr.toString()} (from adverts)`);
-			} catch {
-				// ignore
-			}
-		}
-	}
-
-	// ---------- connection management ----------
-
-	private async getExistingOrNewConnection(
-		mAddr: Multiaddr,
-		storeConnection = true,
-		timeoutMs = 10_000,
-	): Promise<MuxedConnection> {
-		const key = mAddr.toString();
-
-		const existing = this.connections.get(key);
-		if (existing) return existing;
-
-		if (!this.canDialPeer(mAddr)) {
-			throw new Error(`backing off dial to ${key}`);
-		}
-
-		const start = Date.now();
-		const [error, dialedConn] = await this.transport.dial(
-			mAddr,
-			timeoutMs,
-			true,
-		);
-		const elapsed = Date.now() - start;
-
-		if (error || !dialedConn) {
-			this.markDialFailure(mAddr);
-			throw error ?? new Error(`dial failed to ${key}`);
-		}
-
-		// record first-connect latency once per peer
-		if (!this.metrics.firstConnectLatencies.has(key)) {
-			this.metrics.firstConnectLatencies.set(key, elapsed);
-		}
-
-		if (!storeConnection) return dialedConn;
-		return this.attachConnectionHandlers(mAddr, dialedConn);
-	}
-
-	private attachConnectionHandlers(addr: Multiaddr, conn: MuxedConnection) {
+	private filterKnownAndSelfAddrs = (addr: Multiaddr) => {
 		const key = addr.toString();
-		this.connections.set(key, conn);
-		log(`connection established to ${key} (total: ${this.connections.size})`);
-
-		// route non-stream frames to router
-		conn.setOnFrame((frame: Packet) => {
-			this.router.handle(conn, frame);
-		});
-
-		// mux: route incoming streams into ProtocolManager
-		conn.setOnStreamOpen((protocol, stream) => {
-			this.protocolManager.onIncomingStream(protocol, stream);
-		});
-
-		conn.socket.once("close", () => {
-			this.connections.delete(key);
-			this.protocolManager.onConnectionClosed(conn);
-			log(`connection to ${key} closed (total: ${this.connections.size})`);
-		});
-
-		return conn;
-	}
-
-	// ---------- jittered background loops ----------
+		if (key === this.address.toString()) return false;
+		if (this.connections.has(key)) return false;
+		return true;
+	};
 
 	private withJitter(baseMs: number, jitterFraction = 0.2) {
 		const delta = baseMs * jitterFraction;
 		return baseMs + (Math.random() * 2 - 1) * delta;
 	}
 
+	private startListening() {
+		return this.listener.listen(this.address);
+	}
+
 	private runAdvertLoop() {
-		const loop = async () => {
-			try {
-				await this.broadcastAdvert();
-			} catch (e) {
-				log(`advert loop error: ${String(e)}`);
-			}
-			setTimeout(loop, this.withJitter(10_000));
-		};
-		setTimeout(loop, this.withJitter(10_000));
+		loopInterval(
+			async () => await this.broadcastAdvert(),
+			this.withJitter(10_000),
+		);
 	}
 
 	private runDiscoveryLoop() {
-		const loop = async () => {
-			try {
-				await this.discoverPeers();
-			} catch (e) {
-				log(`discovery loop error: ${String(e)}`);
-			}
-			setTimeout(loop, this.withJitter(15_000));
-		};
-		setTimeout(loop, this.withJitter(15_000));
+		loopInterval(
+			async () => await this.discoverPeers(),
+			this.withJitter(15_000),
+		);
 	}
 
 	private runContactLoop() {
-		const loop = async () => {
-			try {
-				await this.connectToAdvertisedPeers();
-			} catch (e) {
-				log(`contact loop error: ${String(e)}`);
-			}
-			setTimeout(loop, this.withJitter(20_000));
-		};
-		setTimeout(loop, this.withJitter(20_000));
+		loopInterval(
+			async () => await this.connectToAdvertisedPeers(),
+			this.withJitter(20_000),
+		);
 	}
 }

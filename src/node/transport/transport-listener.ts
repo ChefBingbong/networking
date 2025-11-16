@@ -40,7 +40,7 @@ interface Context extends TCPCreateListenerOptions {
 	maxConnections?: number;
 	backlog?: number;
 	frameHandler: ConnectionHandler;
-	streamOpenHandler?: StreamOpenHandler;
+	streamOpenHandler: StreamOpenHandler;
 }
 export class TransportListener {
 	public server: Server;
@@ -96,11 +96,11 @@ export class TransportListener {
 				this.status.listeningAddr,
 				socketToUse,
 			);
-			connection.setOnFrame((f) => this.context.frameHandler(connection, f));
 
-			if (this.context.streamOpenHandler) {
-				connection.setOnStreamOpen(this.context.streamOpenHandler);
-			}
+			connection.setOnFrame((f) => this.context.frameHandler(connection, f));
+			connection.setOnStreamOpen((protocol, stream) =>
+				this.context.streamOpenHandler(protocol, stream),
+			);
 
 			socketToUse.once("close", () => {
 				log(`[node] socket closed`);

@@ -7,6 +7,7 @@ import { startCLI } from "./cli";
 debug.enable("p2p*");
 
 const PING_PROTOCOL = "/ping/1.0.0";
+const PORT = parseInt(process.env.PORT || "0", 10); // 0 picks a free port
 
 export function setupPingProtocolPing(node: PeerNode) {
 	node.handleProtocol(PING_PROTOCOL, (stream: ProtocolStream) => {
@@ -27,9 +28,6 @@ export function setupPingProtocolPing(node: PeerNode) {
 		});
 	});
 }
-
-const PORT = parseInt(process.env.PORT || "0", 10); // 0 picks a free port
-const ID = process.env.ID || `node-${Math.floor(Math.random() * 1e6)}`;
 
 const ECHO_PROTOCOL = "/echo/1.0.0";
 
@@ -55,6 +53,6 @@ const node = await createNode({
 	port: PORT,
 	start: true,
 });
-setupProtocols(node as PeerNode);
-setupPingProtocolPing(node as PeerNode);
-startCLI(node as PeerNode);
+setupProtocols(node);
+setupPingProtocolPing(node);
+startCLI(node);
