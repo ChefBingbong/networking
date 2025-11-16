@@ -24,11 +24,7 @@ export class Transport {
 		return target.toString();
 	}
 
-	async dial<T extends boolean = true>(
-		peerId: Multiaddr,
-		timeoutMs = 10_000,
-		shouldCreateConnection: T = true as T,
-	) {
+	async dial(peerId: Multiaddr, timeoutMs = 10_000) {
 		const netOptions = multiaddrToNetConfig(peerId) as TcpSocketConnectOpts;
 		const key = this.cacheKey(peerId);
 
@@ -36,7 +32,7 @@ export class Transport {
 		const cached = this.connCache.get(key);
 		if (cached && !cached.socket.destroyed) {
 			// return cached connection immediately
-			return safeResult(cached as any);
+			return safeResult(cached);
 		}
 
 		const [sockErr, sock] = safeSyncTry(() => net.createConnection(netOptions));
@@ -79,30 +75,19 @@ export class Transport {
 			return safeError(connectionError);
 		}
 
-		// 🔒 Normal encrypted connection
-		if (shouldCreateConnection) {
-			const [encryptionError, result] = await safeTry(() =>
-				this.encrypter.encrypt(sock, false),
+		const [encryptionError, result] = await safeTry(() =>
+			this.encrypter.encrypt(sock, false),
+		);
+
+		if (encryptionError) {
+			log(
+				`Failed to encrypt TLS connection to ${peerId.toString()}: ${encryptionError}`,
 			);
-
-			if (encryptionError) {
-				log(
-					`Failed to encrypt TLS connection to ${peerId.toString()}: ${encryptionError}`,
-				);
-				return safeError(encryptionError);
-			}
-
-			const mc = new MuxedConnection(peerId, result.socket);
-			// cache and cleanup on close
-			this.connCache.set(key, mc);
-			mc.socket.once("close", () => {
-				this.connCache.delete(key);
-			});
-			return safeResult(mc);
+			return safeError(encryptionError);
 		}
 
-		// 📢 Advert / plaintext connection (no TLS)
-		const mc = new MuxedConnection(peerId, sock);
+		const mc = new MuxedConnection(peerId, result.socket);
+		// cache and cleanup on close
 		this.connCache.set(key, mc);
 		mc.socket.once("close", () => {
 			this.connCache.delete(key);
@@ -110,14 +95,10 @@ export class Transport {
 		return safeResult(mc);
 	}
 
-	createListener(
-		frameHandler: ConnectionHandler,
-		useEncryption: boolean = true,
-	) {
+	createListener(frameHandler: ConnectionHandler) {
 		return new TransportListener({
 			upgrader: this.encrypter,
 			frameHandler,
-			useEncryption,
 		});
 	}
 }

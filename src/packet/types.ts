@@ -37,10 +37,10 @@ export type PeerJoinPayload = PeerInfo;
 export type PeerLeavePayload = { id: string };
 export type BroadcastAdvertPayload = { advert: string };
 
-export type PingPayload = { ts?: number; id?: string };
-export type PongPayload = { id: string; tsRecv?: number };
+export type PingPayload = { from: string; ts?: number };
+export type PongPayload = { from: string; ts?: number };
 export type DiscoveryRequestPayload = { slots: string[]; from: string };
-export type DiscoveryResponsePayload = { advert: string };
+export type DiscoveryResponsePayload = { adverts: string[]; peers: string[] };
 
 export type Packet =
 	| (PacketBase & { t: PacketType.HELLO; payload: HelloPayload })

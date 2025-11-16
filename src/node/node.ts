@@ -1,298 +1,327 @@
 import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import { EventEmitter } from "events";
+import { Rendezvous } from "../discovery/rendevous/rendevous";
 import {
-	DEFAULT_RENDEZVOUS_CONFIG,
-	Rendezvous,
-} from "../discovery/rendevous/rendevous";
-import type { SignedAdvert } from "../discovery/rendevous/types";
-import { wait } from "../packet/encode";
-import { mkBroadcastAdvert } from "../packet/packets";
+	mkBroadcastAdvert,
+	mkDiscoveryRequest,
+	mkPing,
+} from "../packet/packets";
 import type { Packet } from "../packet/types";
-import type { Secp256k1PrivateKey } from "../secp256k1/secp256k1";
-import { type PeerId, type PeerInfo } from "../session/nodeInfo";
+import { ProtocolManager } from "../protocol/protocol-manager";
+import type { ProtocolHandler } from "../protocol/protocol-stream";
+import { loopInterval } from "../secp256k1/utils";
+import type { PeerId, PeerInfo } from "../session/nodeInfo";
 import { peerIdFromPrivateKey } from "../session/peer-id";
 import { safeError, safeResult } from "../utils/safe";
 import type { MuxedConnection } from "./connection";
+import { CoreMessageHandler } from "./core-handler";
 import type { TransportListener } from "./transport";
+import { MessageRouter } from "./transport/message-router";
 import { Transport } from "./transport/transport";
 
 const log = debug("p2p:node");
 
-interface KnownPeer {
-	addr: Multiaddr;
-	lastSeen: number;
-	expiresAt?: number;
-	online: boolean;
-}
+// target degree band
+const DEGREE_MIN = 12;
+const DEGREE_MAX = 16;
+
+type NodeMetrics = {
+	// first successful connect latency per peer (ms)
+	firstConnectLatencies: Map<string, number>;
+	// ping RTTs in ms (filled by CoreMessageHandler)
+	pingLatencies: number[];
+};
+
+export type NodeMetricsSnapshot = {
+	nodeId: string;
+	address: string;
+	uniquePeers: number;
+	firstConnectCount: number;
+	firstConnectAvgMs: number;
+	pingCount: number;
+	pingAvgMs: number;
+};
 
 export class PeerNode extends EventEmitter {
-	public info: PeerInfo;
+	public metrics: NodeMetrics = {
+		firstConnectLatencies: new Map(),
+		pingLatencies: [],
+	};
+
 	private transport: Transport;
 	private rendezvous: Rendezvous;
-
 	public connections = new Map<string, MuxedConnection>();
-	public peers = new Map<string, Multiaddr>();
-	public adverts = new Map<string, SignedAdvert>();
-	private knownPeers = new Map<string, KnownPeer>();
-
-	private privateKey: Secp256k1PrivateKey;
-	private sentAdverts = new Set<string>();
 
 	public peerId: PeerId;
 	public address: Multiaddr;
 	private listener: TransportListener;
-	private advert: SignedAdvert;
+	private coreHandler: CoreMessageHandler;
+
+	private router: MessageRouter;
+	public protocolManager: ProtocolManager;
+	public nodeOptions: PeerInfo;
 
 	constructor(nodeOptions: PeerInfo) {
 		super();
-		this.privateKey = nodeOptions.privateKey;
-		this.transport = new Transport(this.privateKey);
-		this.peerId = peerIdFromPrivateKey(this.privateKey);
+		this.nodeOptions = nodeOptions;
+		this.transport = new Transport(nodeOptions.privateKey);
+		this.peerId = peerIdFromPrivateKey(nodeOptions.privateKey);
 
 		this.address = multiaddr(
 			`/ip4/${nodeOptions.host}/tcp/${nodeOptions.port}/p2p/${this.peerId.toString()}`,
 		);
 
-		this.rendezvous = new Rendezvous(DEFAULT_RENDEZVOUS_CONFIG, {
-			peerId: this.peerId,
-			privateKey: this.privateKey,
-			publicKey: this.privateKey.publicKey,
-			address: this.address,
-		});
+		this.rendezvous = new Rendezvous(nodeOptions);
+		this.protocolManager = new ProtocolManager();
+		// assuming your CoreMessageHandler signature is (address: Multiaddr, node: PeerNode)
+		this.coreHandler = new CoreMessageHandler(this);
 
-		this.advert = this.rendezvous.createAdvert();
-		this.listener = this.transport.createListener(this.onFrame, true);
-		this.info = nodeOptions;
+		this.router = new MessageRouter();
+		this.router.register(this.protocolManager.handle);
+		this.router.register(this.rendezvous.handle);
+		this.router.register(this.coreHandler.handle);
+
+		this.listener = this.transport.createListener(this.router.handle);
 	}
+
+	// ---------- lifecycle ----------
 
 	public async start() {
-		await this.listener.listen(this.address);
-		// if (listenError) {
-		// 	log("❌ Failed to start listener:", listenError);
-		// 	return;
-		// }
-		log(`🚀 Peer started at ${this.address.toString()}`);
-		this.runAdvertLoop();
-		this.runDiscoveryLoop();
-	}
-
-	private async runAdvertLoop() {
-		while (true) {
-			try {
-				await this.broadcastAdvert();
-			} catch (err) {
-				log("Advert loop error:", err);
-			}
-			await wait(15_000);
+		try {
+			await this.startListening();
+			this.runAdvertLoop();
+			this.runDiscoveryLoop();
+			this.runContactLoop();
+		} catch (error) {
+			log(`Failed to start ${String(this.address)}`);
+			throw error;
 		}
 	}
 
-	private async runDiscoveryLoop() {
-		while (true) {
-			try {
-				await this.discoverPeers();
-			} catch (err) {
-				log("Discovery loop error:", err);
-			}
-			await wait(20_000);
+	private startListening() {
+		return this.listener.listen(this.address);
+	}
+
+	// ---------- public API ----------
+
+	public async dial(addrKey: string) {
+		try {
+			const mAddr = multiaddr(addrKey);
+			const conn = await this.getExistingOrNewConnection(mAddr);
+			return safeResult(conn);
+		} catch (error) {
+			return safeError(error);
 		}
 	}
+
+	public async dialProtocol(addr: Multiaddr, protocol: string) {
+		try {
+			const connection = await this.getExistingOrNewConnection(addr);
+			return await this.protocolManager.initOutgoing(connection, protocol);
+		} catch (error) {
+			log(`Failed to dial protocol ${protocol} on ${String(addr)}`);
+			throw error;
+		}
+	}
+
+	public handleProtocol(protocol: string, handler: ProtocolHandler) {
+		this.protocolManager.register(protocol, handler);
+	}
+
+	public getMetricsSnapshot(): NodeMetricsSnapshot {
+		const firstVals = [...this.metrics.firstConnectLatencies.values()];
+		const pingVals = this.metrics.pingLatencies;
+
+		const avg = (xs: number[]) =>
+			xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
+
+		return {
+			nodeId: this.peerId.toString(),
+			address: this.address.toString(),
+			uniquePeers: this.connections.size,
+			firstConnectCount: firstVals.length,
+			firstConnectAvgMs: avg(firstVals),
+			pingCount: pingVals.length,
+			pingAvgMs: avg(pingVals),
+		};
+	}
+
+	private getCurrentDegree() {
+		return this.connections.size;
+	}
+
+	private hasReachedSaturation() {
+		return this.getCurrentDegree() >= DEGREE_MIN;
+	}
+
+	// ---------- rendezvous / discovery ----------
 
 	public async broadcastAdvert() {
-		const advertPacket = mkBroadcastAdvert(JSON.stringify(this.advert));
-		let candidatePeers = Array.from(this.peers.values());
-		if (candidatePeers.length === 0) {
-			candidatePeers = this.rendezvous.deriveCandidateAddresses(4000, 15);
-		}
+		this.rendezvous.refreshAdvertIfNeeded();
+		const advert = this.rendezvous.getCurrentAdvert();
 
-		for (const addr of candidatePeers) {
-			if (addr.toString() === this.address.toString()) continue;
+		const targets = this.rendezvous
+			.getAdvertBroadcastTargets()
+			.filter(
+				(addr) =>
+					!this.connections.has(addr.toString()) &&
+					!addr.toString().includes(this.nodeOptions.port.toString()),
+			);
 
-			const key = addr.toString();
-			const known = this.knownPeers.get(key);
-			if (
-				known?.online &&
-				known.expiresAt &&
-				Date.now() / 1000 < known.expiresAt &&
-				this.sentAdverts.has(key)
-			) {
-				continue;
-			}
-
-			const [error, conn] = await this.transport.dial(addr, 5000, true);
-			if (error) {
-				this.markPeerOffline(key);
-				continue;
-			}
-
-			this.markPeerOnline(addr, this.advert.advert.expires_at);
-			this.sentAdverts.add(key);
-			conn.send(advertPacket);
-
-			conn.once("close", () => this.connections.delete(key));
-			log(`📢 Advert sent to ${key}`);
-		}
-	}
-
-	public async discoverPeers(maxNewConnections = 5) {
-		this.cleanupExpiredPeers();
-
-		const newPeers: Multiaddr[] = [];
-		for (const advert of this.adverts.values()) {
-			const addrStr = advert.advert.addr;
-			if (!addrStr) continue;
-
-			let addr: Multiaddr;
+		targets.forEach(async (addr) => {
 			try {
-				addr = multiaddr(addrStr);
+				const conn = await this.getExistingOrNewConnection(addr, false);
+				conn.send(mkBroadcastAdvert(JSON.stringify(advert)));
+				log(`📢 Advert sent to ${addr.toString()}`);
 			} catch {
-				continue;
+				// ignore individual target errors
 			}
-
-			const key = addr.toString();
-			if (key === this.address.toString()) continue;
-			if (this.connections.has(key)) continue;
-
-			const known = this.knownPeers.get(key);
-			const isRecent =
-				known?.online && known.expiresAt && Date.now() / 1000 < known.expiresAt;
-			if (isRecent && this.sentAdverts.has(key)) continue;
-
-			newPeers.push(addr);
-		}
-
-		for (const addr of newPeers.slice(0, maxNewConnections)) {
-			const [error, conn] = await this.transport.dial(addr, 5000, true);
-			const key = addr.toString();
-
-			if (error) {
-				this.markPeerOffline(key);
-				continue;
-			}
-
-			this.markPeerOnline(addr);
-			this.connections.set(key, conn);
-
-			conn.on("frame", (frame: Packet) => this.onFrame(conn, frame));
-			conn.once("close", () => this.markPeerOffline(key));
-
-			conn.send({
-				t: "PEER_LIST",
-				from: this.peerId.toString(),
-				payload: {
-					peers: Array.from(this.peers.values()).map((a) => a.toString()),
-				},
-			});
-
-			log(`✅ Connected to ${key}`);
-		}
+		});
 	}
 
-	private onFrame = async (conn: MuxedConnection, frame: Packet) => {
-		switch (frame.t) {
-			case "PING":
-				conn.send({ t: "PONG", payload: { id: this.peerId.toString() } });
-				break;
-
-			case "MSG":
-				log(`[${this.peerId}] <${frame.from}>: ${frame.payload?.text}`);
-				break;
-
-			case "BROADCAST_ADVERT":
-			case "DISCOVERY_RESPONSE":
-				try {
-					const signed: SignedAdvert = JSON.parse(frame.payload.advert);
-					await this.handleIncomingAdvert(signed);
-				} catch (err) {
-					log("Failed to parse advert:", err);
-				}
-				break;
-
-			case "PEER_LIST": {
-				const peers = frame.payload.peers.map((a) => multiaddr(a));
-				this.integratePeerList(peers);
-				break;
-			}
-		}
-	};
-
-	private async handleIncomingAdvert(advert: SignedAdvert) {
-		const addrStr = advert?.advert?.addr;
-		if (!addrStr) return;
-
-		let addr: Multiaddr;
-		try {
-			addr = multiaddr(addrStr);
-		} catch {
+	/**
+	 * Discovery:
+	 * - Only runs when degree < DEGREE_MIN (below target band).
+	 * - Caps new dials so we don't overshoot far past DEGREE_MAX.
+	 */
+	public async discoverPeers(maxNewConnections = 25) {
+		const degree = this.getCurrentDegree();
+		if (degree >= DEGREE_MIN) {
+			// already within / above our target band; skip active discovery
 			return;
 		}
 
-		const key = addr.toString();
-		if (key === this.address.toString()) return;
+		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
+		if (remainingBudget === 0) return;
 
-		this.peers.set(key, addr);
-		this.adverts.set(key, advert);
-		this.markPeerOnline(addr, advert.advert.expires_at);
+		this.rendezvous.refreshAdvertIfNeeded();
 
-		log(`🗂 Stored advert from ${key}`);
+		const targets = this.rendezvous
+			.getDiscoveryTargets(Math.min(maxNewConnections, remainingBudget))
+			.filter(
+				(addr) =>
+					!this.connections.has(addr.toString()) &&
+					!addr.toString().includes(this.nodeOptions.port.toString()),
+			);
+
+		if (targets.length === 0) return;
+
+		const slots = this.rendezvous.getDiscoverySlots();
+
+		targets.forEach(async (addr) => {
+			try {
+				const conn = await this.getExistingOrNewConnection(addr, false);
+				conn.send(mkDiscoveryRequest(slots, this.address.toString()));
+				log(`Sent DISCOVERY_REQUEST to ${addr.toString()}`);
+			} catch {
+				// ignore
+			}
+		});
 	}
 
-	private integratePeerList(peers: Multiaddr[]) {
-		for (const addr of peers) {
+	/**
+	 * Connect to peers we learned via adverts.
+	 * Same degree band logic as discoverPeers.
+	 */
+	public async connectToAdvertisedPeers(maxNewConnections = 25) {
+		const degree = this.getCurrentDegree();
+		if (degree >= DEGREE_MIN) {
+			// good enough, don't aggressively hunt for more
+			return;
+		}
+
+		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
+		if (remainingBudget === 0) return;
+
+		const allAdverts = this.rendezvous.getKnownAdvertPeers();
+
+		const candidates = allAdverts.filter((addr) => {
 			const key = addr.toString();
-			if (key === this.address.toString()) continue;
+			if (key.includes(this.nodeOptions.port.toString())) return false; // self
+			if (this.connections.has(key)) return false; // already connected
+			return true;
+		});
 
-			if (!this.peers.has(key)) {
-				this.peers.set(key, addr);
-				log(`🌐 Discovered new peer ${key}`);
-				this.ensureConnection(key).catch((e) =>
-					log("ensureConnection error:", e),
-				);
+		const toDial = candidates.slice(
+			0,
+			Math.min(maxNewConnections, remainingBudget),
+		);
+
+		for (const addr of toDial) {
+			try {
+				const conn = await this.getExistingOrNewConnection(addr);
+				// basic keepalive / health check
+				conn.send(mkPing(this.address.toString()));
+				log(`Connected to ${addr.toString()} (from adverts)`);
+			} catch {
+				// ignore
 			}
 		}
 	}
 
-	public async ensureConnection(addrKey: string) {
-		if (this.connections.has(addrKey))
-			return safeResult(this.connections.get(addrKey));
+	// ---------- connection management ----------
 
-		const addr = this.peers.get(addrKey);
-		if (!addr) return safeResult(undefined);
+	private async getExistingOrNewConnection(
+		mAddr: Multiaddr,
+		storeConnection = true,
+	) {
+		const key = mAddr.toString();
+		const existing = this.connections.get(key);
+		if (existing) return existing;
 
-		const [error, conn] = await this.transport.dial(addr, 5000, true);
-		if (error) return safeError(error);
+		const start = Date.now();
+		const [error, dialedConn] = await this.transport.dial(mAddr);
+		const elapsed = Date.now() - start;
 
-		this.connections.set(addrKey, conn);
-		conn.on("frame", (frame: Packet) => this.onFrame(conn, frame));
-		conn.once("close", () => this.markPeerOffline(addrKey));
+		if (error) throw error;
 
-		return safeResult(conn);
+		// record first-connect latency once per peer
+		if (!this.metrics.firstConnectLatencies.has(key)) {
+			this.metrics.firstConnectLatencies.set(key, elapsed);
+		}
+
+		if (!storeConnection) return dialedConn;
+		return this.attachConnectionHandlers(mAddr, dialedConn);
 	}
 
-	private markPeerOnline(addr: Multiaddr, expiresAt?: number) {
-		const now = Date.now() / 1000;
+	private attachConnectionHandlers(addr: Multiaddr, conn: MuxedConnection) {
 		const key = addr.toString();
-		this.knownPeers.set(key, { addr, lastSeen: now, expiresAt, online: true });
-		this.peers.set(key, addr);
+		this.connections.set(key, conn);
+		log(`connection established to ${key} (total: ${this.connections.size})`);
+
+		conn.setOnFrame((frame: Packet) => {
+			this.router.handle(conn, frame);
+		});
+
+		conn.socket.once("close", () => {
+			this.connections.delete(key);
+			this.protocolManager.onConnectionClosed(conn);
+			log(`connection to ${key} closed (total: ${this.connections.size})`);
+		});
+
+		return conn;
 	}
 
-	private markPeerOffline(key: string) {
-		const known = this.knownPeers.get(key);
-		if (known) {
-			known.online = false;
-			this.knownPeers.set(key, known);
-		}
+	// ---------- background loops ----------
+
+	private runAdvertLoop() {
+		loopInterval(async () => {
+			// adverts should still be gossiped even if we're already saturated,
+			// so other nodes can discover us.
+			await this.broadcastAdvert();
+		}, 10_000);
 	}
 
-	private cleanupExpiredPeers() {
-		const now = Date.now() / 1000;
-		for (const [key, peer] of this.knownPeers.entries()) {
-			if (peer.expiresAt && peer.expiresAt < now) {
-				this.sentAdverts.delete(key);
-				this.knownPeers.delete(key);
-				this.peers.delete(key);
-			}
-		}
+	private runDiscoveryLoop() {
+		loopInterval(async () => {
+			await this.discoverPeers();
+		}, 15_000);
+	}
+
+	private runContactLoop() {
+		loopInterval(async () => {
+			await this.connectToAdvertisedPeers();
+		}, 20_000);
 	}
 }

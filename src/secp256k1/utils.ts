@@ -1,9 +1,9 @@
 import { secp256k1 as secp } from "@noble/curves/secp256k1";
 import {
-	Secp256k1PublicKey as Secp256k1PublicKeyClass,
-	Secp256k1PrivateKey as Secp256k1PrivateKeyClass,
 	Secp256k1PrivateKey,
+	Secp256k1PrivateKey as Secp256k1PrivateKeyClass,
 	Secp256k1PublicKey,
+	Secp256k1PublicKey as Secp256k1PublicKeyClass,
 } from "./secp256k1.js";
 
 const PRIVATE_KEY_BYTE_LENGTH = 32;
@@ -66,3 +66,15 @@ export type PeerKeyPair = {
 	privateKey: Secp256k1PrivateKey;
 	publicKey: Secp256k1PublicKey;
 };
+
+/**
+ * Repeat indefinitely
+ * @param fn -
+ * @param interval - in milliseconds
+ */
+export async function loopInterval(fn: () => Promise<void>, interval: number) {
+	while (true) {
+		await fn();
+		await new Promise((resolve) => setTimeout(resolve, interval));
+	}
+}

@@ -160,7 +160,6 @@ export async function verifyPeerCertificate(
 	const ok = secp.verify(sig, digest, pub);
 	if (!ok) throw new Error("node binding signature invalid");
 
-	console.log(opts);
 	if (opts.expectedNodePubCompressed) {
 		const exp = opts.expectedNodePubCompressed;
 		if (exp.length !== pub.length || exp.some((b, j) => b !== pub[j])) {

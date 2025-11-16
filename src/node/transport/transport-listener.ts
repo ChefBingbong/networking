@@ -36,7 +36,6 @@ interface Context extends TCPCreateListenerOptions {
 	maxConnections?: number;
 	backlog?: number;
 	frameHandler: ConnectionHandler;
-	useEncryption: boolean;
 }
 export class TransportListener {
 	public server: Server;

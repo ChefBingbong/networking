@@ -1,3 +1,4 @@
+import { multiaddr } from "@multiformats/multiaddr";
 import type { PeerNode } from "../src/node/node";
 
 export function startCLI(node: PeerNode) {
@@ -29,17 +30,44 @@ export function startCLI(node: PeerNode) {
 
 		if (cmd === "ping" && a) {
 			try {
-				const [error, mc] = await node.ensureConnection(a);
-				if (error) {
-					console.log("ping error:", error);
-					return;
-				}
-				if (!mc) return;
-				// const sid = mc.openStream((msg) => {
-				// 	console.log(`[${node.info.id}] ping reply from ${a}:`, msg);
-				// 	mc.closeStream(sid);
+				const ECHO_PROTOCOL = "/echo/1.0.0";
+				// const [error, mc] = await node.ensureConnection(a);
+				// if (error) {
+				// 	console.log("ping error:", error);
+				// 	return;
+				// }
+				// if (!mc) return;
+				// // const sid = mc.openStream((msg) => {
+				// // 	console.log(`[${node.info.id}] ping reply from ${a}:`, msg);
+				// // 	mc.closeStream(sid);
+				// // });
+				// mc.send({ t: "PING", payload: { id: a } });
+				// remote node
+				// node.handleProtocol(ECHO_PROTOCOL, (stream) => {
+				// 	// echo incoming messages back
+				// 	stream.addEventListener("message", (evt) => {
+				// 		console.log("echo protocol received:", evt.data);
+				// 		stream.send(evt.data);
+				// 	});
+
+				// 	// when the remote writable end closes, close ours
+				// 	stream.addEventListener("remoteCloseWrite", () => {
+				// 		stream.close();
+				// 	});
 				// });
-				mc.send({ t: "PING", payload: { id: a } });
+
+				// local node
+				// const [error, conn] = await node.dial(a);
+				// if (error || !conn) throw error ?? new Error("dial failed");
+
+				// turn the existing connection into an echo protocol stream:
+				const stream = await node.dialProtocol(multiaddr(a), ECHO_PROTOCOL);
+				// (you’d need to expose protocolManager or wrap this in a method)
+
+				stream.addEventListener("message", (evt) => {
+					console.log("echoed:", evt.data);
+				});
+				stream.send("hello world");
 			} catch (e) {
 				console.log("ping error:", e);
 			}

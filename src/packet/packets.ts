@@ -21,18 +21,15 @@ export const mkSecure = (from?: string, to?: string): Packet => ({
 	to,
 });
 
-export const mkPing = (
-	from?: string,
-	to?: string,
-	ts: number = Date.now(),
-): Packet => ({ t: PacketType.PING, payload: { ts }, from, to });
+export const mkPing = (from: string): Packet => ({
+	t: PacketType.PING,
+	payload: { from, ts: Date.now() },
+});
 
-export const mkPong = (
-	id: string,
-	from?: string,
-	to?: string,
-	tsRecv?: number,
-): Packet => ({ t: PacketType.PONG, payload: { id, tsRecv }, from, to });
+export const mkPong = (from: string, ts: number): Packet => ({
+	t: PacketType.PONG,
+	payload: { from, ts },
+});
 
 export const mkMsg = (text: string, from?: string, to?: string): Packet => ({
 	t: PacketType.MSG,
@@ -69,14 +66,20 @@ export const mkBroadcastAdvert = (advert: string): Packet => ({
 	payload: { advert },
 });
 
+// packets.ts (or wherever your PacketType + mk* live)
 export const mkDiscoveryRequest = (slots: string[], from: string): Packet => ({
 	t: PacketType.DISCOVERY_REQUEST,
 	payload: { slots, from },
 });
-export const mkDiscoveryResponse = (advert: string): Packet => ({
+
+export const mkDiscoveryResponse = (
+	adverts: string[],
+	peers: string[] = [],
+): Packet => ({
 	t: PacketType.DISCOVERY_RESPONSE,
-	payload: { advert },
+	payload: { adverts, peers },
 });
+
 // ── Tiny runtime validation (no external libs) ────────────────────────────
 export function isPacket(x: any): x is Packet {
 	return x && typeof x === "object" && typeof x.t === "string";
