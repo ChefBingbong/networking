@@ -5,7 +5,11 @@ import net, { type Server, type Socket } from "net";
 import type { NetConfig } from "../../utils/getNetConfig";
 import { safeError, safeTry } from "../../utils/safe";
 import { multiaddrToNetConfig } from "../../utils/utils";
-import { type ConnectionHandler, MuxedConnection } from "../connection";
+import {
+	type ConnectionHandler,
+	MuxedConnection,
+	type StreamOpenHandler,
+} from "../connection";
 import { Encrypter } from "../connection-encrypter";
 
 const log = debug("p2p:transport");
@@ -36,6 +40,7 @@ interface Context extends TCPCreateListenerOptions {
 	maxConnections?: number;
 	backlog?: number;
 	frameHandler: ConnectionHandler;
+	streamOpenHandler?: StreamOpenHandler;
 }
 export class TransportListener {
 	public server: Server;
@@ -92,6 +97,10 @@ export class TransportListener {
 				socketToUse,
 			);
 			connection.setOnFrame((f) => this.context.frameHandler(connection, f));
+
+			if (this.context.streamOpenHandler) {
+				connection.setOnStreamOpen(this.context.streamOpenHandler);
+			}
 
 			socketToUse.once("close", () => {
 				log(`[node] socket closed`);

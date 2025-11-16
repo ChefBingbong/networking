@@ -77,7 +77,6 @@ export function startCLI(node: PeerNode) {
 		if (cmd === "ping2" && a) {
 			try {
 				const rtt = await pingViaProtocol(node, a);
-				console.log("stream ping RTT:", rtt, "ms");
 			} catch (e) {
 				console.log("ping2 error:", e);
 			}

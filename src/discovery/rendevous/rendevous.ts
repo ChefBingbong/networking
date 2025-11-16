@@ -24,7 +24,7 @@ export enum MessageType {
 export const DEFAULT_RENDEZVOUS_CONFIG: RendezvousConfig = {
 	namespace: "P2P-NETWORK-V1",
 	epochSeconds: 15, // was 60
-	slotsPerNode: 40, // was 8
+	slotsPerNode: 10, // was 8
 	querySlots: 64, // was 32
 	discoveryBasePort: 4000,
 	discoveryPortRange: 64, // wide enough for your 50-node cluster

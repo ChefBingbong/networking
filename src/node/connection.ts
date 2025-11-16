@@ -6,7 +6,7 @@ import EventEmitter from "events";
 import net from "net";
 import { decodeFrames, encodeFrame } from "../packet/encode";
 import type { Packet } from "../packet/types";
-import type { ProtocolStream } from "../protocol/protocol-stream"; // we'll define this next
+import { ProtocolStream } from "../protocol/protocol-stream"; // we'll define this next
 import type { NetworkEventEmitter } from "./events";
 
 export type ConnectionHandler = (
@@ -106,9 +106,6 @@ export class MuxedConnection extends (EventEmitter as {
 	 */
 	openStream(protocol: string): ProtocolStream {
 		const sid = this.nextStreamId++;
-		const { ProtocolStream } =
-			require("../protocol/protocol-stream") as typeof import("../protocol/protocol-stream");
-
 		const stream = new ProtocolStream(this, sid, protocol, true);
 		this.streams.set(sid, stream);
 
@@ -192,11 +189,6 @@ export class MuxedConnection extends (EventEmitter as {
 					);
 					return;
 				}
-
-				// lazily require to avoid circular import issues
-				const { ProtocolStream } =
-					require("../protocol/protocol-stream") as typeof import("../protocol/protocol-stream");
-
 				const stream = new ProtocolStream(this, sid, protocol, false);
 				this.streams.set(sid, stream);
 

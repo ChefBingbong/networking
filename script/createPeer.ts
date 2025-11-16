@@ -8,15 +8,18 @@ debug.enable("p2p*");
 
 const PING_PROTOCOL = "/ping/1.0.0";
 
-export function setupPingProtocol(node: PeerNode) {
+export function setupPingProtocolPing(node: PeerNode) {
 	node.handleProtocol(PING_PROTOCOL, (stream: ProtocolStream) => {
 		// This is the "pong" side: respond to ping messages
 		stream.addEventListener("message", (evt) => {
 			const msg = evt.data;
-			if (!msg || msg.type !== "ping") return;
+			if (!msg) return;
+
+			if (msg.type === "ping") console.log("[ping] received ping:", msg);
+			else if (msg.type === "pong") console.log("[ping] received pong:", msg);
 
 			// echo back the same timestamp so the sender can compute RTT
-			stream.send({ type: "pong", ts: msg.ts });
+			if (msg.type === "ping") stream.send({ type: "pong", ts: msg.ts });
 		});
 
 		stream.addEventListener("remoteCloseWrite", () => {
@@ -50,8 +53,8 @@ const node = await createNode({
 	nodeTypes: "peer",
 	host: "127.0.0.1",
 	port: PORT,
-	id: ID,
 	start: true,
 });
 setupProtocols(node as PeerNode);
+setupPingProtocolPing(node as PeerNode);
 startCLI(node as PeerNode);

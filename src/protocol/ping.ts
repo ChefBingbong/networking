@@ -18,7 +18,7 @@ export async function pingViaProtocol(node: PeerNode, addrStr: string) {
 
 			const rtt = Date.now() - start;
 			console.log(
-				`[${node.address.toString()}] ping RTT to ${addrStr}: ${rtt}ms`,
+				`[${node.address.toString()}] pong recieved RTT to ${addrStr}: ${rtt}ms`,
 			);
 
 			stream.removeListener("message", onMessage as any);

@@ -7,7 +7,7 @@ import { generateTestPrivateKey } from "./test-keys";
 
 const HOST = "127.0.0.1";
 const BASE_PORT = 4000;
-const NODE_COUNT = 20;
+const NODE_COUNT = 50;
 
 // ---- helpers ----
 

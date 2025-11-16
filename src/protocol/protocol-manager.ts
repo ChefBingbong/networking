@@ -23,7 +23,7 @@ export class ProtocolManager {
 	 * Called by PeerNode when a new stream is opened by the remote.
 	 */
 	public onIncomingStream(protocol: string, stream: ProtocolStream) {
-		this.trackStream(stream.conn, stream);
+		// this.trackStream(stream.conn, stream);
 
 		const handler = this.handlers.get(protocol);
 		if (!handler) {

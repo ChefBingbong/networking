@@ -8,9 +8,8 @@ import {
 	mkPing,
 } from "../packet/packets";
 import type { Packet } from "../packet/types";
+import type { ProtocolHandler } from "../protocol/protocol-manager";
 import { ProtocolManager } from "../protocol/protocol-manager";
-import type { ProtocolHandler } from "../protocol/protocol-stream";
-import { loopInterval } from "../secp256k1/utils";
 import type { PeerId, PeerInfo } from "../session/nodeInfo";
 import { peerIdFromPrivateKey } from "../session/peer-id";
 import { safeError, safeResult } from "../utils/safe";
@@ -26,11 +25,12 @@ const log = debug("p2p:node");
 const DEGREE_MIN = 12;
 const DEGREE_MAX = 16;
 
+// backoff for failing peers (ms)
+const DIAL_BACKOFF_MS = 5_000;
+
 type NodeMetrics = {
-	// first successful connect latency per peer (ms)
-	firstConnectLatencies: Map<string, number>;
-	// ping RTTs in ms (filled by CoreMessageHandler)
-	pingLatencies: number[];
+	firstConnectLatencies: Map<string, number>; // per-peer first connect ms
+	pingLatencies: number[]; // ms
 };
 
 export type NodeMetricsSnapshot = {
@@ -62,6 +62,9 @@ export class PeerNode extends EventEmitter {
 	public protocolManager: ProtocolManager;
 	public nodeOptions: PeerInfo;
 
+	// NEW: dial backoff tracking
+	private failedPeers = new Map<string, number>(); // addrKey -> nextAllowedDialTs
+
 	constructor(nodeOptions: PeerInfo) {
 		super();
 		this.nodeOptions = nodeOptions;
@@ -74,7 +77,6 @@ export class PeerNode extends EventEmitter {
 
 		this.rendezvous = new Rendezvous(nodeOptions);
 		this.protocolManager = new ProtocolManager();
-		// assuming your CoreMessageHandler signature is (address: Multiaddr, node: PeerNode)
 		this.coreHandler = new CoreMessageHandler(this);
 
 		this.router = new MessageRouter();
@@ -82,7 +84,13 @@ export class PeerNode extends EventEmitter {
 		this.router.register(this.rendezvous.handle);
 		this.router.register(this.coreHandler.handle);
 
-		this.listener = this.transport.createListener(this.router.handle);
+		this.listener = this.transport.createListener(
+			this.router.handle,
+			(protocol, stream) => {
+				// Forward STREAM_OPEN to ProtocolManager
+				this.protocolManager.onIncomingStream(protocol, stream);
+			},
+		);
 	}
 
 	// ---------- lifecycle ----------
@@ -108,7 +116,7 @@ export class PeerNode extends EventEmitter {
 	public async dial(addrKey: string) {
 		try {
 			const mAddr = multiaddr(addrKey);
-			const conn = await this.getExistingOrNewConnection(mAddr);
+			const conn = await this.getExistingOrNewConnection(mAddr, true, 10_000);
 			return safeResult(conn);
 		} catch (error) {
 			return safeError(error);
@@ -117,7 +125,11 @@ export class PeerNode extends EventEmitter {
 
 	public async dialProtocol(addr: Multiaddr, protocol: string) {
 		try {
-			const connection = await this.getExistingOrNewConnection(addr);
+			const connection = await this.getExistingOrNewConnection(
+				addr,
+				true,
+				5_000,
+			);
 			return await this.protocolManager.initOutgoing(connection, protocol);
 		} catch (error) {
 			log(`Failed to dial protocol ${protocol} on ${String(addr)}`);
@@ -151,8 +163,22 @@ export class PeerNode extends EventEmitter {
 		return this.connections.size;
 	}
 
-	private hasReachedSaturation() {
-		return this.getCurrentDegree() >= DEGREE_MIN;
+	// ---------- backoff helpers ----------
+
+	private canDialPeer(addr: Multiaddr): boolean {
+		const key = addr.toString();
+		const now = Date.now();
+		const nextAllowed = this.failedPeers.get(key);
+		if (nextAllowed && now < nextAllowed) {
+			return false;
+		}
+		return true;
+	}
+
+	private markDialFailure(addr: Multiaddr) {
+		const key = addr.toString();
+		const next = Date.now() + DIAL_BACKOFF_MS;
+		this.failedPeers.set(key, next);
 	}
 
 	// ---------- rendezvous / discovery ----------
@@ -171,25 +197,29 @@ export class PeerNode extends EventEmitter {
 
 		targets.forEach(async (addr) => {
 			try {
-				const conn = await this.getExistingOrNewConnection(addr, false);
+				// adverts are "best effort" → short timeout, don't store connection
+				const conn = await this.getExistingOrNewConnection(
+					addr,
+					false,
+					500, // ms
+				);
 				conn.send(mkBroadcastAdvert(JSON.stringify(advert)));
 				log(`📢 Advert sent to ${addr.toString()}`);
 			} catch {
-				// ignore individual target errors
+				// ignore
 			}
 		});
 	}
 
 	/**
 	 * Discovery:
-	 * - Only runs when degree < DEGREE_MIN (below target band).
-	 * - Caps new dials so we don't overshoot far past DEGREE_MAX.
+	 * - Only runs when degree < DEGREE_MIN.
+	 * - Uses short timeouts, does not persist connections necessarily.
 	 */
-	public async discoverPeers(maxNewConnections = 25) {
+	public async discoverPeers(maxNewConnections = 50) {
 		const degree = this.getCurrentDegree();
 		if (degree >= DEGREE_MIN) {
-			// already within / above our target band; skip active discovery
-			return;
+			return; // good enough, skip active discovery
 		}
 
 		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
@@ -211,7 +241,11 @@ export class PeerNode extends EventEmitter {
 
 		targets.forEach(async (addr) => {
 			try {
-				const conn = await this.getExistingOrNewConnection(addr, false);
+				const conn = await this.getExistingOrNewConnection(
+					addr,
+					false,
+					250, // short probe timeout
+				);
 				conn.send(mkDiscoveryRequest(slots, this.address.toString()));
 				log(`Sent DISCOVERY_REQUEST to ${addr.toString()}`);
 			} catch {
@@ -222,12 +256,11 @@ export class PeerNode extends EventEmitter {
 
 	/**
 	 * Connect to peers we learned via adverts.
-	 * Same degree band logic as discoverPeers.
+	 * Same degree band logic as discoverPeers, but with longer timeouts & stored connections.
 	 */
-	public async connectToAdvertisedPeers(maxNewConnections = 25) {
+	public async connectToAdvertisedPeers(maxNewConnections = 50) {
 		const degree = this.getCurrentDegree();
 		if (degree >= DEGREE_MIN) {
-			// good enough, don't aggressively hunt for more
 			return;
 		}
 
@@ -250,8 +283,7 @@ export class PeerNode extends EventEmitter {
 
 		for (const addr of toDial) {
 			try {
-				const conn = await this.getExistingOrNewConnection(addr);
-				// basic keepalive / health check
+				const conn = await this.getExistingOrNewConnection(addr, true, 5_000);
 				conn.send(mkPing(this.address.toString()));
 				log(`Connected to ${addr.toString()} (from adverts)`);
 			} catch {
@@ -265,16 +297,29 @@ export class PeerNode extends EventEmitter {
 	private async getExistingOrNewConnection(
 		mAddr: Multiaddr,
 		storeConnection = true,
-	) {
+		timeoutMs = 10_000,
+	): Promise<MuxedConnection> {
 		const key = mAddr.toString();
+
 		const existing = this.connections.get(key);
 		if (existing) return existing;
 
+		if (!this.canDialPeer(mAddr)) {
+			throw new Error(`backing off dial to ${key}`);
+		}
+
 		const start = Date.now();
-		const [error, dialedConn] = await this.transport.dial(mAddr);
+		const [error, dialedConn] = await this.transport.dial(
+			mAddr,
+			timeoutMs,
+			true,
+		);
 		const elapsed = Date.now() - start;
 
-		if (error) throw error;
+		if (error || !dialedConn) {
+			this.markDialFailure(mAddr);
+			throw error ?? new Error(`dial failed to ${key}`);
+		}
 
 		// record first-connect latency once per peer
 		if (!this.metrics.firstConnectLatencies.has(key)) {
@@ -290,12 +335,12 @@ export class PeerNode extends EventEmitter {
 		this.connections.set(key, conn);
 		log(`connection established to ${key} (total: ${this.connections.size})`);
 
-		// route non-stream frames to router (Core/Rendezvous/etc)
+		// route non-stream frames to router
 		conn.setOnFrame((frame: Packet) => {
 			this.router.handle(conn, frame);
 		});
 
-		// NEW: route incoming streams into ProtocolManager
+		// mux: route incoming streams into ProtocolManager
 		conn.setOnStreamOpen((protocol, stream) => {
 			this.protocolManager.onIncomingStream(protocol, stream);
 		});
@@ -309,25 +354,46 @@ export class PeerNode extends EventEmitter {
 		return conn;
 	}
 
-	// ---------- background loops ----------
+	// ---------- jittered background loops ----------
+
+	private withJitter(baseMs: number, jitterFraction = 0.2) {
+		const delta = baseMs * jitterFraction;
+		return baseMs + (Math.random() * 2 - 1) * delta;
+	}
 
 	private runAdvertLoop() {
-		loopInterval(async () => {
-			// adverts should still be gossiped even if we're already saturated,
-			// so other nodes can discover us.
-			await this.broadcastAdvert();
-		}, 10_000);
+		const loop = async () => {
+			try {
+				await this.broadcastAdvert();
+			} catch (e) {
+				log(`advert loop error: ${String(e)}`);
+			}
+			setTimeout(loop, this.withJitter(10_000));
+		};
+		setTimeout(loop, this.withJitter(10_000));
 	}
 
 	private runDiscoveryLoop() {
-		loopInterval(async () => {
-			await this.discoverPeers();
-		}, 15_000);
+		const loop = async () => {
+			try {
+				await this.discoverPeers();
+			} catch (e) {
+				log(`discovery loop error: ${String(e)}`);
+			}
+			setTimeout(loop, this.withJitter(15_000));
+		};
+		setTimeout(loop, this.withJitter(15_000));
 	}
 
 	private runContactLoop() {
-		loopInterval(async () => {
-			await this.connectToAdvertisedPeers();
-		}, 20_000);
+		const loop = async () => {
+			try {
+				await this.connectToAdvertisedPeers();
+			} catch (e) {
+				log(`contact loop error: ${String(e)}`);
+			}
+			setTimeout(loop, this.withJitter(20_000));
+		};
+		setTimeout(loop, this.withJitter(20_000));
 	}
 }
