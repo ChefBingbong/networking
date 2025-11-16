@@ -1,9 +1,29 @@
 import debug from "debug";
 import { createNode } from "../src//node/createNode";
 import type { PeerNode } from "../src/node";
+import type { ProtocolStream } from "../src/protocol/protocol-stream";
 import { startCLI } from "./cli";
 
 debug.enable("p2p*");
+
+const PING_PROTOCOL = "/ping/1.0.0";
+
+export function setupPingProtocol(node: PeerNode) {
+	node.handleProtocol(PING_PROTOCOL, (stream: ProtocolStream) => {
+		// This is the "pong" side: respond to ping messages
+		stream.addEventListener("message", (evt) => {
+			const msg = evt.data;
+			if (!msg || msg.type !== "ping") return;
+
+			// echo back the same timestamp so the sender can compute RTT
+			stream.send({ type: "pong", ts: msg.ts });
+		});
+
+		stream.addEventListener("remoteCloseWrite", () => {
+			stream.close();
+		});
+	});
+}
 
 const PORT = parseInt(process.env.PORT || "0", 10); // 0 picks a free port
 const ID = process.env.ID || `node-${Math.floor(Math.random() * 1e6)}`;

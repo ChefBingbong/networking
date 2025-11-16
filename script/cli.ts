@@ -1,5 +1,6 @@
 import { multiaddr } from "@multiformats/multiaddr";
 import type { PeerNode } from "../src/node/node";
+import { pingViaProtocol } from "../src/protocol/ping";
 
 export function startCLI(node: PeerNode) {
 	console.log(
@@ -70,6 +71,15 @@ export function startCLI(node: PeerNode) {
 				stream.send("hello world");
 			} catch (e) {
 				console.log("ping error:", e);
+			}
+			return;
+		}
+		if (cmd === "ping2" && a) {
+			try {
+				const rtt = await pingViaProtocol(node, a);
+				console.log("stream ping RTT:", rtt, "ms");
+			} catch (e) {
+				console.log("ping2 error:", e);
 			}
 			return;
 		}

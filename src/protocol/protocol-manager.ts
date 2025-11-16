@@ -1,116 +1,100 @@
-// protocol/ProtocolManager.ts
-import type { ConnectionHandler, MuxedConnection } from "../node/connection";
-import type { Packet } from "../packet/types";
-import { type ProtocolHandler, ProtocolStream } from "./protocol-stream";
+// src/protocol/protocol-manager.ts
 
-/**
- * ProtocolManager:
- *  - maps protocol strings ("/ping/1.0.0") to handlers
- *  - manages a single ProtocolStream per connection
- *  - routes PROTOCOL_* frames to the appropriate stream
- */
+import type { ConnectionHandler, MuxedConnection } from "../node/connection";
+import type { ProtocolStream } from "./protocol-stream";
+
+export type ProtocolHandler = (stream: ProtocolStream) => void | Promise<void>;
+
 export class ProtocolManager {
+	// "/echo/1.0.0" -> handler
 	private handlers = new Map<string, ProtocolHandler>();
-	private streams = new Map<MuxedConnection, ProtocolStream>();
+
+	// track streams per connection, just for cleanup / introspection
+	private connStreams = new Map<MuxedConnection, Set<ProtocolStream>>();
 
 	/**
-	 * Register a handler for a protocol, e.g. "/echo/1.0.0".
+	 * Register a handler for a protocol id, e.g. "/echo/1.0.0"
 	 */
 	public register(protocol: string, handler: ProtocolHandler) {
 		this.handlers.set(protocol, handler);
 	}
 
 	/**
-	 * Called when a connection is closed (to clean up internal state).
+	 * Called by PeerNode when a new stream is opened by the remote.
 	 */
-	public onConnectionClosed(conn: MuxedConnection) {
-		this.streams.delete(conn);
+	public onIncomingStream(protocol: string, stream: ProtocolStream) {
+		this.trackStream(stream.conn, stream);
+
+		const handler = this.handlers.get(protocol);
+		if (!handler) {
+			// no handler registered, politely close
+			stream.close();
+			return;
+		}
+
+		// fire handler (can be async, but we don't await here)
+		void handler(stream);
 	}
 
 	/**
-	 * ConnectionHandler for your MessageRouter.
-	 *
-	 * This inspects PROTOCOL_* packets and converts them into events on a ProtocolStream.
-	 */
-	public handle: ConnectionHandler = async (
-		conn: MuxedConnection,
-		frame: Packet,
-	) => {
-		switch (frame.t) {
-			case "PROTOCOL_SELECT": {
-				const protocol = frame.payload?.protocol as string | undefined;
-				if (!protocol) return;
-
-				// If we already have a stream, ignore duplicate selects.
-				if (this.streams.has(conn)) return;
-
-				const handler = this.handlers.get(protocol);
-				if (!handler) {
-					// No handler for this protocol; you might want to close the conn here.
-					// conn.onClose();
-					return;
-				}
-
-				const stream = new ProtocolStream(protocol, conn);
-				this.streams.set(conn, stream);
-
-				// Call the registered handler for inbound protocol selection
-				await handler(stream);
-				return;
-			}
-
-			case "PROTOCOL_MSG": {
-				const stream = this.streams.get(conn);
-				if (!stream) return;
-				const data = frame.payload?.data;
-				stream._onMessage(data);
-				return;
-			}
-
-			case "PROTOCOL_CLOSE": {
-				const stream = this.streams.get(conn);
-				if (!stream) return;
-				stream._onRemoteCloseWrite();
-				// The remote closed its writable side; you may keep the conn open or fully close.
-				this.streams.delete(conn);
-				return;
-			}
-
-			default:
-				// Not a protocol frame, ignore.
-				return;
-		}
-	};
-
-	/**
-	 * Initialize an outgoing protocol stream.
-	 *
-	 * - Registers the stream for this connection
-	 * - Sends PROTOCOL_SELECT with the protocol identifier
-	 * - Optionally calls the handler on the local side too (symmetric behavior)
+	 * Outgoing side: create a new stream for a given protocol on an existing connection.
 	 */
 	public async initOutgoing(
 		conn: MuxedConnection,
 		protocol: string,
-		callLocalHandler = false,
 	): Promise<ProtocolStream> {
-		const stream = new ProtocolStream(protocol, conn);
-		this.streams.set(conn, stream);
+		const stream = conn.openStream(protocol);
+		this.trackStream(conn, stream);
+		return stream;
+	}
 
-		const selectFrame: Packet = {
-			t: "PROTOCOL_SELECT",
-			payload: { protocol },
-		} as any;
+	/**
+	 * Called by PeerNode when a connection is closed.
+	 * We clean up any streams we were tracking for that connection.
+	 */
+	public onConnectionClosed(conn: MuxedConnection) {
+		const set = this.connStreams.get(conn);
+		if (!set) return;
 
-		conn.send(selectFrame);
-
-		if (callLocalHandler) {
-			const handler = this.handlers.get(protocol);
-			if (handler) {
-				await handler(stream);
+		for (const stream of set) {
+			// mark as closed from our side
+			try {
+				stream.close();
+			} catch {
+				// ignore
 			}
 		}
+		this.connStreams.delete(conn);
+	}
 
-		return stream;
+	/**
+	 * Optional: currently we don't use frame-level protocol messages anymore,
+	 * since protocols talk over streams. So this is effectively a no-op handler
+	 * to satisfy MessageRouter's interface.
+	 */
+	public handle: ConnectionHandler = async (_conn, _frame) => {
+		// Intentionally empty. If you later introduce frame-based protocol
+		// messages, you can route them here.
+	};
+
+	// ----- internal helpers -----
+
+	private trackStream(conn: MuxedConnection, stream: ProtocolStream) {
+		let set = this.connStreams.get(conn);
+		if (!set) {
+			set = new Set<ProtocolStream>();
+			this.connStreams.set(conn, set);
+		}
+		set.add(stream);
+
+		// when the stream closes, untrack it
+		stream.on("close", () => {
+			const s = this.connStreams.get(conn);
+			if (!s) return;
+			s.delete(stream);
+			if (s.size === 0) {
+				this.connStreams.delete(conn);
+			}
+		});
 	}
 }

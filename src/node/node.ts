@@ -290,8 +290,14 @@ export class PeerNode extends EventEmitter {
 		this.connections.set(key, conn);
 		log(`connection established to ${key} (total: ${this.connections.size})`);
 
+		// route non-stream frames to router (Core/Rendezvous/etc)
 		conn.setOnFrame((frame: Packet) => {
 			this.router.handle(conn, frame);
+		});
+
+		// NEW: route incoming streams into ProtocolManager
+		conn.setOnStreamOpen((protocol, stream) => {
+			this.protocolManager.onIncomingStream(protocol, stream);
 		});
 
 		conn.socket.once("close", () => {

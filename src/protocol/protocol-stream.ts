@@ -1,71 +1,97 @@
-// protocol/ProtocolStream.ts
-import { EventEmitter } from "events";
+// src/protocol/protocol-stream.ts
+
+import EventEmitter from "events";
+// adjust this import path to where your MuxedConnection is exported
 import type { MuxedConnection } from "../node/connection";
-import type { Packet } from "../packet/types";
 
-/**
- * Simple protocol-level stream abstraction over a MuxedConnection.
- *
- * One ProtocolStream per connection in this design.
- * You can open multiple TCP connections if you need multiple protocols.
- */
-export class ProtocolStream extends EventEmitter {
-	public readonly protocol: string;
-	private conn: MuxedConnection;
-	private closed = false;
-
-	constructor(protocol: string, conn: MuxedConnection) {
-		super();
-		this.protocol = protocol;
-		this.conn = conn;
-	}
-
-	/**
-	 * Send a protocol message. This wraps your data into a PROTOCOL_MSG frame.
-	 */
-	public send(data: any) {
-		if (this.closed) return;
-		const frame: Packet = {
-			t: "PROTOCOL_MSG",
-			payload: { data },
-		} as any;
-		this.conn.send(frame);
-	}
-
-	/**
-	 * Close the writable side of the stream. Sends PROTOCOL_CLOSE.
-	 */
-	public close() {
-		if (this.closed) return;
-		this.closed = true;
-		const frame: Packet = {
-			t: "PROTOCOL_CLOSE",
-			payload: {},
-		} as any;
-		this.conn.send(frame);
-		this.emit("localCloseWrite");
-	}
-
-	/** Internal: invoked by ProtocolManager on incoming PROTOCOL_MSG */
-	_onMessage(data: any) {
-		// event shape: { data } to match your example
-		this.emit("message", { data });
-	}
-
-	/** Internal: invoked by ProtocolManager on incoming PROTOCOL_CLOSE */
-	_onRemoteCloseWrite() {
-		this.emit("remoteCloseWrite");
-	}
-
-	/**
-	 * Small ergonomics helper so you can use addEventListener like in your example.
-	 */
-	public addEventListener(
-		event: "message" | "remoteCloseWrite" | "localCloseWrite",
-		listener: (evt: any) => void,
-	) {
-		this.on(event, listener);
-	}
+export interface StreamMessageEvent {
+	data: any;
 }
 
-export type ProtocolHandler = (stream: ProtocolStream) => void | Promise<void>;
+/**
+ * Logical full-duplex stream multiplexed over a MuxedConnection.
+ *
+ * Events:
+ *  - "message": (evt: { data }) incoming app payload
+ *  - "remoteCloseWrite": remote closed its side
+ *  - "close": stream fully closed (both sides)
+ */
+export class ProtocolStream extends EventEmitter {
+	public readonly id: number;
+	public readonly protocol: string;
+	public readonly conn: MuxedConnection;
+	private readonly initiator: boolean;
+
+	private closedLocal = false;
+	private closedRemote = false;
+
+	constructor(
+		conn: MuxedConnection,
+		id: number,
+		protocol: string,
+		initiator: boolean,
+	) {
+		super();
+		this.conn = conn;
+		this.id = id;
+		this.protocol = protocol;
+		this.initiator = initiator;
+	}
+
+	/**
+	 * Send application data on this logical stream.
+	 */
+	send(data: any) {
+		if (this.closedLocal) {
+			throw new Error("Cannot send on a closed stream");
+		}
+		this.conn._sendStreamData(this.id, data);
+	}
+
+	/**
+	 * Close our side of the stream.
+	 * For now we treat it as fully closed (both directions) and clean up.
+	 */
+	close() {
+		if (this.closedLocal) return;
+		this.closedLocal = true;
+		this.conn._sendStreamClose(this.id, "both");
+		this._checkFullyClosed();
+	}
+
+	/**
+	 * Internal: called by MuxedConnection when STREAM_DATA arrives.
+	 */
+	_onData(data: any) {
+		const evt: StreamMessageEvent = { data };
+		this.emit("message", evt);
+	}
+
+	/**
+	 * Internal: called by MuxedConnection when remote sends STREAM_CLOSE.
+	 */
+	_onRemoteClose() {
+		if (this.closedRemote) return;
+		this.closedRemote = true;
+		this.emit("remoteCloseWrite");
+		this._checkFullyClosed();
+	}
+
+	private _checkFullyClosed() {
+		if (this.closedLocal && this.closedRemote) {
+			this.emit("close");
+			this.conn._removeStream(this.id);
+		}
+	}
+
+	/**
+	 * Convenience for browser-y style:
+	 *  stream.addEventListener("message", (evt) => ...)
+	 */
+	addEventListener(
+		type: "message" | "remoteCloseWrite" | "close",
+		listener: (evt: any) => void,
+	) {
+		this.on(type, listener);
+	}
+}
