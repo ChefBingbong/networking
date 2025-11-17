@@ -72,8 +72,12 @@ export type PeerKeyPair = {
  * @param fn -
  * @param interval - in milliseconds
  */
-export async function loopInterval(fn: () => Promise<void>, interval: number) {
-	while (true) {
+export async function loopInterval(
+	fn: () => Promise<void>,
+	interval: number,
+	condition = true,
+) {
+	while (condition) {
 		await fn();
 		await new Promise((resolve) => setTimeout(resolve, interval));
 	}

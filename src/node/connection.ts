@@ -72,13 +72,38 @@ export class MuxedConnection extends (EventEmitter as {
 		});
 		sock.on("error", (err) => {
 			log(`[${this.addrStr}] socket error: ${err?.message || err}`);
+			this.emit("error", err);
 		});
 	}
 
 	// ------------- public API -------------
 
 	private sendRaw(frame: any) {
-		this.socket.write(encodeFrame(frame));
+		// Socket not writable => treat as fatal for this connection.
+		if (!this.socket.writable) {
+			const err = new Error(
+				`[${this.addrStr}] attempted to write to non-writable socket`,
+			);
+			log(err.message);
+			this.emit("error", err);
+			// ensure we tear down
+			this.socket.destroy();
+			return;
+		}
+
+		try {
+			const encoded = encodeFrame(frame);
+			this.socket.write(encoded);
+		} catch (err: any) {
+			log(
+				`[${this.addrStr}] failed to send frame: ${
+					err?.message || String(err)
+				}`,
+			);
+			this.emit("error", err);
+			// encoding or write failure usually means something is badly wrong
+			this.socket.destroy();
+		}
 	}
 
 	send(frame: any) {
@@ -113,7 +138,20 @@ export class MuxedConnection extends (EventEmitter as {
 			t: "STREAM_OPEN",
 			payload: { sid, protocol },
 		};
-		this.send(pkt);
+
+		try {
+			this.send(pkt);
+		} catch (err: any) {
+			log(
+				`[${this.addrStr}] error while opening stream sid=${sid} protocol=${protocol}: ${
+					err?.message || String(err)
+				}`,
+			);
+			this.emit("error", err);
+			// best-effort cleanup of the stream entry
+			this.streams.delete(sid);
+			throw err;
+		}
 
 		return stream;
 	}
@@ -126,7 +164,17 @@ export class MuxedConnection extends (EventEmitter as {
 			t: "STREAM_DATA",
 			payload: { sid, data },
 		};
-		this.send(pkt);
+
+		try {
+			this.send(pkt);
+		} catch (err: any) {
+			log(
+				`[${this.addrStr}] error sending STREAM_DATA sid=${sid}: ${
+					err?.message || String(err)
+				}`,
+			);
+			this.emit("error", err);
+		}
 	}
 
 	/**
@@ -140,7 +188,17 @@ export class MuxedConnection extends (EventEmitter as {
 			t: "STREAM_CLOSE",
 			payload: { sid, direction },
 		};
-		this.send(pkt);
+
+		try {
+			this.send(pkt);
+		} catch (err: any) {
+			log(
+				`[${this.addrStr}] error sending STREAM_CLOSE sid=${sid}: ${
+					err?.message || String(err)
+				}`,
+			);
+			this.emit("error", err);
+		}
 	}
 
 	/**
@@ -153,14 +211,34 @@ export class MuxedConnection extends (EventEmitter as {
 	// ------------- frame handling / mux -------------
 
 	private onData(chunk: Buffer) {
-		this.partial = Buffer.concat([
-			this.partial as Buffer,
-			chunk as Buffer,
-		]) as unknown as Buffer;
+		try {
+			this.partial = Buffer.concat([
+				this.partial as Buffer,
+				chunk as Buffer,
+			]) as unknown as Buffer;
 
-		this.partial = decodeFrames(this.partial, (outer) => {
-			this.dispatch(outer);
-		});
+			this.partial = decodeFrames(this.partial, (outer) => {
+				try {
+					this.dispatch(outer);
+				} catch (err: any) {
+					log(
+						`[${this.addrStr}] error dispatching decoded frame: ${
+							err?.message || String(err)
+						}`,
+					);
+					this.emit("error", err);
+				}
+			});
+		} catch (err: any) {
+			log(
+				`[${this.addrStr}] Failed to parse frame: ${
+					err?.message || String(err)
+				}`,
+			);
+			this.emit("error", err);
+			// Bad framing usually means stream is corrupted; tear down connection.
+			this.socket.destroy();
+		}
 	}
 
 	private dispatch(f: Packet) {
@@ -175,66 +253,136 @@ export class MuxedConnection extends (EventEmitter as {
 		}
 
 		// Otherwise, pass it to higher-level router (Core/Rendezvous/ProtocolManager)
-		this.onFrameHandler?.(f);
+		if (!this.onFrameHandler) return;
+
+		try {
+			this.onFrameHandler(f);
+		} catch (err: any) {
+			log(
+				`[${this.addrStr}] error in onFrameHandler: ${
+					err?.message || String(err)
+				}`,
+			);
+			this.emit("error", err);
+			// we *don't* destroy the connection here; we assume the higher layer
+			// may choose what to do with the error
+		}
 	}
 
 	private handleStreamPacket(pkt: StreamPacket) {
-		switch (pkt.t) {
-			case "STREAM_OPEN": {
-				const { sid, protocol } = pkt.payload;
-				if (this.streams.has(sid)) {
-					// collision / protocol violation
-					log(
-						`[${this.addrStr}] STREAM_OPEN collision for sid=${sid} protocol=${protocol}`,
-					);
-					return;
-				}
-				const stream = new ProtocolStream(this, sid, protocol, false);
-				this.streams.set(sid, stream);
+		try {
+			switch (pkt.t) {
+				case "STREAM_OPEN": {
+					const { sid, protocol } = pkt.payload;
+					if (this.streams.has(sid)) {
+						// collision / protocol violation
+						log(
+							`[${this.addrStr}] STREAM_OPEN collision for sid=${sid} protocol=${protocol}`,
+						);
+						return;
+					}
+					const stream = new ProtocolStream(this, sid, protocol, false);
+					this.streams.set(sid, stream);
 
-				if (this.onStreamOpenHandler) {
-					this.onStreamOpenHandler(protocol, stream);
-				} else {
-					log(
-						`[${this.addrStr}] STREAM_OPEN for protocol=${protocol} but no handler registered`,
-					);
-					// if no handler, you might choose to immediately close:
-					// stream.close();
+					if (this.onStreamOpenHandler) {
+						try {
+							this.onStreamOpenHandler(protocol, stream);
+						} catch (err: any) {
+							log(
+								`[${this.addrStr}] error in onStreamOpenHandler for protocol=${protocol}, sid=${sid}: ${
+									err?.message || String(err)
+								}`,
+							);
+							this.emit("error", err);
+							// close the stream if handler blows up
+							try {
+								stream.close();
+							} catch {
+								// ignore
+							}
+							this.streams.delete(sid);
+						}
+					} else {
+						log(
+							`[${this.addrStr}] STREAM_OPEN for protocol=${protocol} but no handler registered`,
+						);
+						// if no handler, you might choose to immediately close:
+						try {
+							stream.close();
+						} catch {
+							// ignore
+						}
+					}
+					break;
 				}
-				break;
-			}
 
-			case "STREAM_DATA": {
-				const { sid, data } = pkt.payload;
-				const stream = this.streams.get(sid);
-				if (!stream) {
-					log(`[${this.addrStr}] STREAM_DATA for unknown sid=${sid}`);
-					return;
+				case "STREAM_DATA": {
+					const { sid, data } = pkt.payload;
+					const stream = this.streams.get(sid);
+					if (!stream) {
+						log(`[${this.addrStr}] STREAM_DATA for unknown sid=${sid}`);
+						return;
+					}
+					try {
+						stream._onData(data);
+					} catch (err: any) {
+						log(
+							`[${this.addrStr}] error delivering STREAM_DATA to sid=${sid}: ${
+								err?.message || String(err)
+							}`,
+						);
+						this.emit("error", err);
+						// optional: you could close the stream on handler error
+					}
+					break;
 				}
-				stream._onData(data);
-				break;
-			}
 
-			case "STREAM_CLOSE": {
-				const { sid } = pkt.payload;
-				const stream = this.streams.get(sid);
-				if (!stream) {
-					// already closed or never existed
-					return;
+				case "STREAM_CLOSE": {
+					const { sid } = pkt.payload;
+					const stream = this.streams.get(sid);
+					if (!stream) {
+						// already closed or never existed
+						return;
+					}
+					try {
+						stream._onRemoteClose();
+					} catch (err: any) {
+						log(
+							`[${this.addrStr}] error handling STREAM_CLOSE for sid=${sid}: ${
+								err?.message || String(err)
+							}`,
+						);
+						this.emit("error", err);
+					}
+					// ProtocolStream will call back into _removeStream when fully closed.
+					break;
 				}
-				stream._onRemoteClose();
-				// ProtocolStream will call back into _removeStream when fully closed.
-				break;
 			}
+		} catch (err: any) {
+			log(
+				`[${this.addrStr}] error in handleStreamPacket (${pkt.t}): ${
+					err?.message || String(err)
+				}`,
+			);
+			this.emit("error", err);
+			// depending on how strict you want to be, you might:
+			// this.socket.destroy();
 		}
 	}
 
 	public onClose() {
-		this.socket.end();
 		// Close all streams
 		for (const [sid, stream] of this.streams.entries()) {
-			stream._onRemoteClose();
+			try {
+				stream._onRemoteClose();
+			} catch {
+				// ignore individual stream errors on shutdown
+			}
 			this.streams.delete(sid);
+		}
+
+		if (!this.socket.destroyed) {
+			this.socket.end();
 		}
 	}
 }

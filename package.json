@@ -15,6 +15,7 @@
 	},
 	"dependencies": {
 		"@biomejs/biome": "^2.3.4",
+		"@hono/node-server": "^1.19.6",
 		"@libp2p/interface-connection": "^5.1.1",
 		"@libp2p/interfaces": "^3.3.2",
 		"@multiformats/multiaddr": "^13.0.1",
@@ -22,6 +23,8 @@
 		"@noble/curves": "1.4.0",
 		"@peculiar/webcrypto": "^1.5.0",
 		"@peculiar/x509": "^1.14.0",
+		"elysia": "^1.4.16",
+		"hono": "^4.10.6",
 		"it-stream-types": "^2.0.2",
 		"multiformats": "^13.4.1",
 		"protons-runtime": "^5.6.0",

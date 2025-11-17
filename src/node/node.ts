@@ -2,11 +2,10 @@ import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import { EventEmitter } from "events";
 import { Rendezvous } from "../discovery/rendevous/rendevous";
-import {
-	mkBroadcastAdvert,
-	mkDiscoveryRequest,
-	mkPing,
-} from "../packet/packets";
+import { createKadApi } from "../http/api";
+import type { KadRoutingTableDump } from "../kademlia/kademlia";
+import { KademliaDHT, type KadNodeInfo } from "../kademlia/kademlia";
+import { mkBroadcastAdvert } from "../packet/packets";
 import type { Packet } from "../packet/types";
 import type { ProtocolHandler } from "../protocol/protocol-manager";
 import { ProtocolManager } from "../protocol/protocol-manager";
@@ -22,12 +21,8 @@ import { Transport } from "./transport/transport";
 
 const log = debug("p2p:node");
 
-// target degree band
-const DEGREE_MIN = 12;
-const DEGREE_MAX = 16;
-
-// backoff for failing peers (ms)
-const DIAL_BACKOFF_MS = 5_000;
+const MIN_KAD_BOOTSTRAP_PEERS = 30;
+const DIAL_BACKOFF_MS = 35_000;
 
 type NodeMetrics = {
 	firstConnectLatencies: Map<string, number>; // per-peer first connect ms
@@ -58,6 +53,7 @@ export class PeerNode extends EventEmitter {
 	public address: Multiaddr;
 	private listener: TransportListener;
 	private coreHandler: CoreMessageHandler;
+	public kad: KademliaDHT;
 
 	private router: MessageRouter;
 	public protocolManager: ProtocolManager;
@@ -69,7 +65,7 @@ export class PeerNode extends EventEmitter {
 		super();
 		this.nodeOptions = nodeOptions;
 		this.transport = new Transport(nodeOptions.privateKey, {
-			maxActiveDials: 16,
+			maxActiveDials: 24,
 		});
 		this.peerId = peerIdFromPrivateKey(nodeOptions.privateKey);
 
@@ -81,6 +77,12 @@ export class PeerNode extends EventEmitter {
 		this.protocolManager = new ProtocolManager();
 		this.coreHandler = new CoreMessageHandler(this);
 
+		this.kad = new KademliaDHT(this, {
+			k: 20,
+			alpha: 6,
+			maxBuckets: 256,
+		});
+
 		this.router = new MessageRouter();
 		this.router.register(this.protocolManager.handle);
 		this.router.register(this.rendezvous.handle);
@@ -91,13 +93,14 @@ export class PeerNode extends EventEmitter {
 			streamOpenHandler: (protocol, stream) =>
 				this.protocolManager.onIncomingStream(protocol, stream),
 		});
+
+		createKadApi(this, 4000 + nodeOptions.port);
 	}
 
 	public async start() {
 		try {
 			await this.startListening();
 			this.runAdvertLoop();
-			this.runDiscoveryLoop();
 			this.runContactLoop();
 		} catch (error) {
 			log(`Failed to start ${String(this.address)}`);
@@ -105,10 +108,14 @@ export class PeerNode extends EventEmitter {
 		}
 	}
 
+	private startListening() {
+		return this.listener.listen(this.address);
+	}
+
 	public async dial(addrKey: string) {
 		try {
 			const mAddr = multiaddr(addrKey);
-			const conn = await this.getExistingOrNewConnection(mAddr, true, 10_000);
+			const conn = await this.getExistingOrNewConnection(mAddr, true);
 			return safeResult(conn);
 		} catch (error) {
 			return safeError(error);
@@ -147,6 +154,20 @@ export class PeerNode extends EventEmitter {
 		};
 	}
 
+	public getKadRoutingTable(): KadRoutingTableDump {
+		return this.kad.dumpRoutingTable();
+	}
+
+	public getKadPeers(): KadNodeInfo[] {
+		return this.kad.getKnownKadPeers();
+	}
+
+	public async kadBootstrap() {
+		const bootstrapAddrs = this.rendezvous.getKnownAdvertPeers();
+		this.kad.addBootstrapPeers(bootstrapAddrs);
+		await this.kad.bootstrapLookup();
+	}
+
 	public async broadcastAdvert() {
 		this.rendezvous.refreshAdvertIfNeeded();
 		const advert = this.rendezvous.getCurrentAdvert();
@@ -155,58 +176,31 @@ export class PeerNode extends EventEmitter {
 			.getAdvertBroadcastTargets()
 			.filter(this.filterKnownAndSelfAddrs);
 
-		targets.forEach(async (addr) => {
-			try {
-				const conn = await this.getExistingOrNewConnection(addr, false);
-				conn.send(mkBroadcastAdvert(JSON.stringify(advert)));
-				log(`📢 Advert sent to ${addr.toString()}`);
-			} catch {}
-		});
-	}
-
-	public async discoverPeers(maxNewConnections = 50) {
-		const degree = this.connections.size;
-		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
-
-		if (remainingBudget === 0 || degree >= DEGREE_MIN) return;
-
-		this.rendezvous.refreshAdvertIfNeeded();
-		const slots = this.rendezvous.getDiscoverySlots();
-
-		const targets = this.rendezvous
-			.getDiscoveryTargets(Math.min(maxNewConnections, remainingBudget))
-			.filter(this.filterKnownAndSelfAddrs);
-
-		targets.forEach(async (addr) => {
-			try {
-				const conn = await this.getExistingOrNewConnection(addr, false);
-				conn.send(mkDiscoveryRequest(slots, this.address.toString()));
-				log(`Sent DISCOVERY_REQUEST to ${addr.toString()}`);
-			} catch {}
-		});
+		await Promise.all(
+			targets.map(async (addr) => {
+				try {
+					const conn = await this.getExistingOrNewConnection(addr, false);
+					conn.send(mkBroadcastAdvert(JSON.stringify(advert)));
+					log(`📢 Advert sent to ${addr.toString()}`);
+					conn.socket.end();
+				} catch {}
+			}),
+		);
 	}
 
 	public async connectToAdvertisedPeers() {
-		const degree = this.connections.size;
-		const remainingBudget = Math.max(0, DEGREE_MAX - degree);
-		if (remainingBudget === 0 || degree >= DEGREE_MIN) return;
-
 		const allAdverts = this.rendezvous.getKnownAdvertPeers();
-		const candidates = allAdverts.filter(this.filterKnownAndSelfAddrs);
 
-		for (const addr of candidates.slice(0, remainingBudget)) {
-			try {
-				const conn = await this.getExistingOrNewConnection(addr, true, 5_000);
-				conn.send(mkPing(this.address.toString()));
-				log(`Connected to ${addr.toString()} (from adverts)`);
-			} catch {}
-		}
+		this.kad.addBootstrapPeers(allAdverts);
+
+		// Start walking the graph over UDP
+		await this.kad.bootstrapLookup();
 	}
 
 	private async getExistingOrNewConnection(
 		mAddr: Multiaddr,
 		storeConnection = true,
-		timeoutMs = 10_000,
+		timeoutMs = 60_000,
 	) {
 		const key = mAddr.toString();
 
@@ -239,6 +233,9 @@ export class PeerNode extends EventEmitter {
 		this.connections.set(key, conn);
 		log(`connection established to ${key} (total: ${this.connections.size})`);
 
+		// feed Kad with this peer
+		this.kad.noteConnectedPeer(addr);
+
 		conn.setOnFrame((frame: Packet) => {
 			this.router.handle(conn, frame);
 		});
@@ -255,6 +252,8 @@ export class PeerNode extends EventEmitter {
 
 		return conn;
 	}
+
+	// ---------- dial backoff / helpers ----------
 
 	private canDialPeer(addr: Multiaddr): boolean {
 		const key = addr.toString();
@@ -284,28 +283,26 @@ export class PeerNode extends EventEmitter {
 		return baseMs + (Math.random() * 2 - 1) * delta;
 	}
 
-	private startListening() {
-		return this.listener.listen(this.address);
-	}
-
-	private runAdvertLoop() {
-		loopInterval(
-			async () => await this.broadcastAdvert(),
-			this.withJitter(10_000),
-		);
-	}
-
-	private runDiscoveryLoop() {
-		loopInterval(
-			async () => await this.discoverPeers(),
-			this.withJitter(15_000),
-		);
+	private async runAdvertLoop() {
+		while (true) {
+			await this.broadcastAdvert();
+			await new Promise((resolve) =>
+				setTimeout(
+					resolve,
+					this.withJitter(
+						this.getKadPeers().length < MIN_KAD_BOOTSTRAP_PEERS
+							? 10_000
+							: 120_000,
+					),
+				),
+			);
+		}
 	}
 
 	private runContactLoop() {
-		loopInterval(
-			async () => await this.connectToAdvertisedPeers(),
-			this.withJitter(20_000),
-		);
+		loopInterval(async () => {
+			await this.connectToAdvertisedPeers();
+			await this.kad.randomNodeLookup(8);
+		}, this.withJitter(20_000));
 	}
 }

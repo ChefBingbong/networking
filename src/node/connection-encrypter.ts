@@ -74,7 +74,9 @@ export class Encrypter {
 			// If we have a cached remoteInfo for this peer certificate, use it
 			const peer = tlsSock.getPeerCertificate(true);
 			if (!peer || !peer.raw) {
-				tlsSock.destroy();
+				try {
+					tlsSock.destroy();
+				} catch {}
 				throw new Error("no peer certificate presented");
 			}
 			const fp = this.fingerprint(peer.raw);
@@ -93,7 +95,9 @@ export class Encrypter {
 			this.trustedCache.set(fp, remoteInfo);
 			return { socket: tlsSock, remoteInfo };
 		} catch (e) {
-			tlsSock.destroy();
+			try {
+				tlsSock.destroy();
+			} catch {}
 			throw e;
 		}
 	}

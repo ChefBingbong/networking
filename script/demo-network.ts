@@ -7,7 +7,7 @@ import { generateTestPrivateKey } from "./test-keys";
 
 const HOST = "127.0.0.1";
 const BASE_PORT = 4000;
-const NODE_COUNT = 50;
+const NODE_COUNT = 200;
 
 // ---- helpers ----
 
@@ -207,6 +207,17 @@ Largest component size: ${largestComponent}`,
 
 		console.log("Node metrics:");
 		summarizeNetworkMetrics(nodes);
+
+		for (const node of nodes) {
+			const rt = node.getKadRoutingTable();
+			console.log(
+				node.address.toString(),
+				"| kadPeers =",
+				rt.totalPeers,
+				"| buckets =",
+				rt.nonEmptyBuckets,
+			);
+		}
 	}, intervalMs);
 }
 

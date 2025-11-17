@@ -23,13 +23,14 @@ export enum MessageType {
 
 export const DEFAULT_RENDEZVOUS_CONFIG: RendezvousConfig = {
 	namespace: "P2P-NETWORK-V1",
-	epochSeconds: 15, // was 60
-	slotsPerNode: 10, // was 8
-	querySlots: 64, // was 32
-	discoveryBasePort: 4000,
-	discoveryPortRange: 64, // wide enough for your 50-node cluster
+	epochSeconds: 60, // calmer churn; adverts live ~120s
+	slotsPerNode: 64, // lower advert spam, still enough overlap
+	querySlots: 100, // better spread when querying
+	discoveryBasePort: 4000, // or overridden per-node as you already do
+	discoveryPortRange: 400, // wide enough for 250+ nodes
 	discoveryHost: "127.0.0.1",
 };
+
 export class Rendezvous {
 	public cfg: RendezvousConfig;
 	public peerId: PeerId;
@@ -38,7 +39,7 @@ export class Rendezvous {
 	private selfAddr: Multiaddr;
 
 	// adverts & slots
-	private adverts = new Map<string, SignedAdvert>();
+	public adverts = new Map<string, SignedAdvert>();
 	private slotIndex = new Map<string, Set<string>>();
 
 	// self advert
@@ -56,8 +57,8 @@ export class Rendezvous {
 			`/ip4/${options.host}/tcp/${options.port}/p2p/${this.peerId.toString()}`,
 		);
 
-		const basePort = Math.max(1024, options.port - 32); // slightly wider band
-		const discoveryRange = 64; // enough to cover ~50 nodes around you
+		const basePort = Math.max(1024, options.port - 100); // slightly wider band
+		const discoveryRange = 400; // enough to cover ~50 nodes around you
 
 		this.cfg = {
 			...DEFAULT_RENDEZVOUS_CONFIG,
@@ -233,6 +234,7 @@ export class Rendezvous {
 		this.adverts.set(key, advert);
 		this.indexAdvertSlots(key, advert);
 		log(`Discovered advert from ${key}`);
+		return this.adverts.values().toArray();
 	}
 
 	private indexAdvertSlots(addrKey: string, advert: SignedAdvert) {
@@ -398,7 +400,7 @@ export class Rendezvous {
 
 	deriveCandidateAddresses(count = this.cfg.querySlots): Multiaddr[] {
 		const epoch = this.epochFor();
-		const seed = `${this.cfg.namespace}|${epoch}`;
+		const seed = `${this.cfg.namespace}|${epoch}|${this.peerId.toString()}`;
 		const slots = this.computeQuerySlots(epoch, seed, count);
 
 		const basePort = this.cfg.discoveryBasePort!;
@@ -409,9 +411,8 @@ export class Rendezvous {
 			const hashNum = parseInt(slot.slice(0, 4), 16); // 16 bits
 			const portOffset = hashNum % range;
 			const port = basePort + portOffset;
-			const peerSuffix = this.peerId.toString();
 
-			return multiaddr(`/ip4/${host}/tcp/${port}/p2p/${peerSuffix}`);
+			return multiaddr(`/ip4/${host}/tcp/${port}`);
 		});
 	}
 

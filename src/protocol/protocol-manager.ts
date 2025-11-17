@@ -28,7 +28,11 @@ export class ProtocolManager {
 		const handler = this.handlers.get(protocol);
 		if (!handler) {
 			// no handler registered, politely close
-			stream.close();
+			try {
+				stream.close();
+			} catch {
+				// ignore
+			}
 			return;
 		}
 

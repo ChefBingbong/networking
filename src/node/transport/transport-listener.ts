@@ -73,10 +73,12 @@ export class TransportListener {
 
 	private onSocket = async (sock: Socket) => {
 		sock.setNoDelay(true);
-		sock.setKeepAlive(true, 10_000);
+		sock.setKeepAlive(true, 60_000);
 
 		if (this.status.code !== "ACTIVE") {
-			sock.destroy();
+			try {
+				sock.destroy();
+			} catch {}
 			throw new Error("Server is not listening yet");
 		}
 		try {
@@ -87,7 +89,9 @@ export class TransportListener {
 			);
 			if (encryptionError) {
 				log(`TLS encryption failed: ${encryptionError}`);
-				sock.destroy();
+				try {
+					sock.destroy();
+				} catch {}
 				return;
 			}
 
@@ -107,7 +111,9 @@ export class TransportListener {
 			});
 		} catch (err) {
 			log(`Error handling socket: ${err}`);
-			sock.destroy();
+			try {
+				sock.destroy();
+			} catch {}
 		}
 	};
 

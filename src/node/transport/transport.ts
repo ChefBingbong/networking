@@ -48,7 +48,7 @@ export class Transport {
 		this.dialOpts = dialOpts;
 	}
 
-	async dial(peerId: Multiaddr, timeoutMs = 10_000) {
+	async dial(peerId: Multiaddr, timeoutMs = 60_000) {
 		const peerIdStr = peerId.toString();
 		const netOptions = multiaddrToNetConfig(peerId) as TcpSocketConnectOpts;
 
@@ -58,8 +58,15 @@ export class Transport {
 		const dialPromise = this.scheduleDial(async () => {
 			const sock = net.createConnection(netOptions);
 
+			sock.on("error", (err) => {
+				log(`dial socket error to ${peerId.toString()}: ${err.message}`);
+				try {
+					sock.destroy();
+				} catch {}
+			});
+
 			sock.setNoDelay(true);
-			sock.setKeepAlive(true, 10_000);
+			sock.setKeepAlive(true, 60_000);
 
 			return await new Promise<SafeResult<MuxedConnection> | SafeError<Error>>(
 				(resolve) => {
@@ -71,7 +78,9 @@ export class Transport {
 
 					const onError = (err: Error) => {
 						cleanup();
-						sock.destroy(err);
+						try {
+							sock.destroy();
+						} catch {}
 						resolve(safeError(err));
 					};
 					const onConnect = async () => {
@@ -84,7 +93,9 @@ export class Transport {
 					const onTimeout = () => {
 						const err = new Error(`connection timeout after ${timeoutMs}ms`);
 						cleanup();
-						sock.destroy(err);
+						try {
+							sock.destroy();
+						} catch {}
 						resolve(safeError(err));
 					};
 
@@ -135,6 +146,13 @@ export class Transport {
 		connection.socket.once("close", () => {
 			this.connectionCache.delete(peerId.toString());
 		});
+		connection.socket.on("error", (err) => {
+			log(`dial socket error to ${peerId.toString()}: ${err.message}`);
+			try {
+				connection.socket.destroy();
+			} catch {}
+		});
+
 		return safeResult(connection);
 	};
 

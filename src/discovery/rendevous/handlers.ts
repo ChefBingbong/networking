@@ -17,10 +17,13 @@ export class BroadcastAdvertHandler {
 	private onAdvert: (
 		addr: Multiaddr,
 		advert: SignedAdvert,
-	) => Promise<void> | void;
+	) => Promise<SignedAdvert[]>;
 
 	constructor(
-		onAdvert: (addr: Multiaddr, advert: SignedAdvert) => Promise<void> | void,
+		onAdvert: (
+			addr: Multiaddr,
+			advert: SignedAdvert,
+		) => Promise<SignedAdvert[]>,
 	) {
 		this.onAdvert = onAdvert;
 	}
@@ -40,7 +43,10 @@ export class BroadcastAdvertHandler {
 			}
 
 			const addr = multiaddr(signed.advert.addr);
-			await this.onAdvert(addr, signed);
+			const adverts = await this.onAdvert(addr, signed);
+			const serialized = adverts.map((a) => JSON.stringify(a));
+			const peers = adverts.map((a) => a.advert.addr);
+			conn.send(mkDiscoveryResponse(serialized, peers));
 			log("Handled broadcast advert from", addr.toString());
 		}
 
