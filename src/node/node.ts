@@ -22,7 +22,7 @@ import { Transport } from "./transport/transport";
 const log = debug("p2p:node");
 
 const MIN_KAD_BOOTSTRAP_PEERS = 30;
-const DIAL_BACKOFF_MS = 35_000;
+const DIAL_BACKOFF_MS = 5_000;
 
 type NodeMetrics = {
 	firstConnectLatencies: Map<string, number>; // per-peer first connect ms
@@ -65,7 +65,7 @@ export class PeerNode extends EventEmitter {
 		super();
 		this.nodeOptions = nodeOptions;
 		this.transport = new Transport(nodeOptions.privateKey, {
-			maxActiveDials: 24,
+			maxActiveDials: 50,
 		});
 		this.peerId = peerIdFromPrivateKey(nodeOptions.privateKey);
 

@@ -1,7 +1,10 @@
 // src/protocol/protocol-stream.ts
 
+import debug from "debug";
 import EventEmitter from "events";
 import type { MuxedConnection } from "../node/connection";
+
+const log = debug("p2p:protocol-stream");
 
 export interface StreamMessageEvent {
 	data: any;
@@ -36,6 +39,10 @@ export class ProtocolStream extends EventEmitter {
 		this.id = id;
 		this.protocol = protocol;
 		this.initiator = initiator;
+
+		log(
+			`created ProtocolStream id=${this.id} protocol=${this.protocol} initiator=${this.initiator}`,
+		);
 	}
 
 	/**
@@ -45,6 +52,11 @@ export class ProtocolStream extends EventEmitter {
 	private _emitError(err: unknown) {
 		const error =
 			err instanceof Error ? err : new Error(String(err ?? "Unknown error"));
+
+		log(
+			`stream error id=${this.id} protocol=${this.protocol}: ${error.message}`,
+			error,
+		);
 
 		if (this.listenerCount("error") > 0) {
 			this.emit("error", error);
@@ -65,13 +77,23 @@ export class ProtocolStream extends EventEmitter {
 	send(data: any) {
 		if (this.closedLocal) {
 			const err = new Error("Cannot send on a closed stream");
+			log(
+				`attempted send on closed stream id=${this.id} protocol=${this.protocol}`,
+			);
 			this._emitError(err);
 			throw err;
 		}
 
 		try {
+			log(
+				`sending data on stream id=${this.id} protocol=${this.protocol}, closedRemote=${this.closedRemote}`,
+			);
 			this.conn._sendStreamData(this.id, data);
 		} catch (err) {
+			console.log(
+				`_sendStreamData threw for stream id=${this.id} protocol=${this.protocol}`,
+				err,
+			);
 			this._emitError(err);
 			// Optionally mark our side closed on fatal send failure
 			this.closedLocal = true;
@@ -85,14 +107,24 @@ export class ProtocolStream extends EventEmitter {
 	 * For now we treat it as fully closed (both directions) and clean up.
 	 */
 	close() {
-		if (this.closedLocal) return;
+		if (this.closedLocal) {
+			log(
+				`close() called but stream already closed locally id=${this.id} protocol=${this.protocol}`,
+			);
+			return;
+		}
 		this.closedLocal = true;
+		log(`closing local side of stream id=${this.id} protocol=${this.protocol}`);
 
 		try {
 			this.conn._sendStreamClose(this.id, "both");
 		} catch (err) {
 			// Closing shouldn't normally throw, but if it does,
 			// surface it as a stream error.
+			console.log(
+				`_sendStreamClose threw for stream id=${this.id} protocol=${this.protocol}`,
+				err,
+			);
 			this._emitError(err);
 		}
 
@@ -104,10 +136,17 @@ export class ProtocolStream extends EventEmitter {
 	 */
 	_onData(data: any) {
 		try {
+			log(
+				`received data on stream id=${this.id} protocol=${this.protocol}, closedLocal=${this.closedLocal} closedRemote=${this.closedRemote}`,
+			);
 			const evt: StreamMessageEvent = { data };
 			this.emit("message", evt);
 		} catch (err) {
 			// If user message handler throws, treat it as a stream error
+			console.log(
+				`message handler threw for stream id=${this.id} protocol=${this.protocol}`,
+				err,
+			);
 			this._emitError(err);
 		}
 	}
@@ -115,14 +154,26 @@ export class ProtocolStream extends EventEmitter {
 	/**
 	 * Internal: called by MuxedConnection when remote sends STREAM_CLOSE.
 	 */
-
 	_onRemoteClose() {
-		if (this.closedRemote) return;
+		if (this.closedRemote) {
+			log(
+				`_onRemoteClose called but stream already closedRemote=true id=${this.id} protocol=${this.protocol}`,
+			);
+			return;
+		}
 		this.closedRemote = true;
+
+		log(
+			`remote closed its side of stream id=${this.id} protocol=${this.protocol}`,
+		);
 
 		try {
 			this.emit("remoteCloseWrite");
 		} catch (err) {
+			console.log(
+				`remoteCloseWrite listener threw for stream id=${this.id} protocol=${this.protocol}`,
+				err,
+			);
 			this._emitError(err);
 		}
 
@@ -131,10 +182,17 @@ export class ProtocolStream extends EventEmitter {
 
 	private _checkFullyClosed() {
 		if (this.closedLocal && this.closedRemote) {
+			log(
+				`stream fully closed (local+remote) id=${this.id} protocol=${this.protocol}, removing from mux`,
+			);
 			try {
 				this.emit("close");
 				this.conn._removeStream(this.id);
 			} catch (err) {
+				console.log(
+					`error during final close/cleanup for stream id=${this.id} protocol=${this.protocol}`,
+					err,
+				);
 				this._emitError(err);
 			}
 		}

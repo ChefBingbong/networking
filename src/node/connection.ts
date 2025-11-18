@@ -72,7 +72,7 @@ export class MuxedConnection extends (EventEmitter as {
 		});
 		sock.on("error", (err) => {
 			log(`[${this.addrStr}] socket error: ${err?.message || err}`);
-			this.emit("error", err);
+			sock.destroySoon();
 		});
 	}
 
@@ -102,7 +102,7 @@ export class MuxedConnection extends (EventEmitter as {
 			);
 			this.emit("error", err);
 			// encoding or write failure usually means something is badly wrong
-			this.socket.destroy();
+			this.socket.destroySoon();
 		}
 	}
 
@@ -150,6 +150,7 @@ export class MuxedConnection extends (EventEmitter as {
 			this.emit("error", err);
 			// best-effort cleanup of the stream entry
 			this.streams.delete(sid);
+			this.socket.destroySoon();
 			throw err;
 		}
 
@@ -174,6 +175,7 @@ export class MuxedConnection extends (EventEmitter as {
 				}`,
 			);
 			this.emit("error", err);
+			this.socket.destroySoon();
 		}
 	}
 

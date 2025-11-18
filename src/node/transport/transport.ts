@@ -143,15 +143,6 @@ export class Transport {
 			return safeError(connectionError);
 		}
 		this.connectionCache.set(peerId.toString(), connection);
-		connection.socket.once("close", () => {
-			this.connectionCache.delete(peerId.toString());
-		});
-		connection.socket.on("error", (err) => {
-			log(`dial socket error to ${peerId.toString()}: ${err.message}`);
-			try {
-				connection.socket.destroy();
-			} catch {}
-		});
 
 		return safeResult(connection);
 	};
