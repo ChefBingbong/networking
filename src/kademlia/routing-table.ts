@@ -39,7 +39,7 @@ export class RoutingTable {
 	}
 
 	addPeer(peer: KadPeer) {
-		if (peer.id.toString() === this.localId) return;
+		if (peer.addr.toString() === this.localId) return;
 		const dist = xorDistance(this.localId, peer.id.toString());
 		const idx = bucketIndexForDistance(dist);
 		const bucket = this.buckets[idx];

@@ -53,14 +53,16 @@ export function generateSecp256k1PrivateKey(): Uint8Array {
 	return secp.utils.randomPrivateKey();
 }
 
-export function generateSecp256k1KeyPrivPubPair(): PeerKeyPair {
-	const privateKey = generateSecp256k1PrivateKey();
+export function generateSecp256k1KeyPrivPubPair(overridePk?: Uint8Array<ArrayBufferLike>): PeerKeyPair {
+	const privateKey = overridePk ?? generateSecp256k1PrivateKey();
 	const publicKey = computeSecp256k1PublicKey(privateKey);
 	return {
 		privateKey: new Secp256k1PrivateKey(privateKey, publicKey),
 		publicKey: new Secp256k1PublicKey(publicKey),
 	};
 }
+
+
 
 export type PeerKeyPair = {
 	privateKey: Secp256k1PrivateKey;
