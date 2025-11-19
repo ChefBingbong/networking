@@ -1,8 +1,11 @@
 // core-handler.ts
 import debug from "debug";
+import type {
+	ConnectionHandler,
+	MuxedConnection,
+} from "../connection/connection";
 import { mkPong } from "../packet/packets";
 import type { Packet } from "../packet/types";
-import type { ConnectionHandler, MuxedConnection } from "./connection";
 import type { PeerNode } from "./node";
 
 const log = debug("p2p:core");

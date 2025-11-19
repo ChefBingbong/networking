@@ -1,7 +1,7 @@
 import debug from "debug";
 import { createNode } from "../src//node/createNode";
+import type { ProtocolStream } from "../src/connection/protocol-stream";
 import type { PeerNode } from "../src/node";
-import type { ProtocolStream } from "../src/protocol/protocol-stream";
 import { startCLI } from "./cli";
 
 debug.enable("p2p*");

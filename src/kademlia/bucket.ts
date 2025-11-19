@@ -1,7 +1,11 @@
 // src/kademlia/bucket.ts
 import { EventEmitter } from "events";
-import type { KadNodeInfo } from "./kademlia";
-import type { BucketEventEmitter, KadEntry, KadEntryFull } from "./types";
+import type {
+	BucketEventEmitter,
+	KadEntry,
+	KadEntryFull,
+	KadNodeInfo,
+} from "./types";
 import { EntryStatus, InsertResult, UpdateResult } from "./types";
 
 /**

@@ -1,32 +1,16 @@
 // scripts/demo-network.ts
 
-import { type NodeMetricsSnapshot, PeerNode } from "../src/node/node";
-import type { PeerInfo } from "../src/session/nodeInfo";
+import { createNode } from "../src/node/createNode";
+import { PeerNode } from "../src/node/node";
+import type { NodeMetricsSnapshot } from "../src/node/types";
+
 // TODO: replace this with whatever you already use to generate Secp256k1 keys
-import { generateTestPrivateKey } from "./test-keys";
 
 const HOST = "127.0.0.1";
-const BASE_PORT = 4000;
+const BASE_PORT = 4001;
 const NODE_COUNT = 200;
 
-// ---- helpers ----
-
-async function createNode(index: number): Promise<PeerNode> {
-	const port = BASE_PORT + index;
-
-	const privateKey = await generateTestPrivateKey(index); // <--- your impl
-
-	const info: PeerInfo = {
-		host: HOST,
-		port,
-		privateKey,
-		// if your PeerInfo has extra fields like id / name, fill them here:
-		id: `node-${index}`,
-	} as any;
-
-	const node = new PeerNode(info);
-	return node;
-}
+// ---- helpers ---
 
 function buildAdjacency(nodes: PeerNode[]) {
 	const addrToIndex = new Map<string, number>();
@@ -254,7 +238,12 @@ async function main() {
 
 	// 1. Create all nodes
 	for (let i = 0; i < NODE_COUNT; i++) {
-		const node = await createNode(i);
+		const node = await createNode({
+			host: HOST,
+			port: BASE_PORT + i,
+			start: false,
+			nodeTypes: "peer",
+		});
 		nodes.push(node);
 	}
 

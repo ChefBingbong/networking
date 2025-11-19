@@ -1,47 +1,13 @@
-import type { AbortOptions } from "@libp2p/interfaces/dist/src";
-import { type Multiaddr } from "@multiformats/multiaddr";
+import type { Multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
-import net, { type Server, type Socket } from "net";
+import net, { type Server, type Socket } from "node:net";
+import { MuxedConnection } from "../../connection/connection";
 import type { NetConfig } from "../../utils/getNetConfig";
-import { safeError, safeTry } from "../../utils/safe";
 import { multiaddrToNetConfig } from "../../utils/utils";
-import {
-	type ConnectionHandler,
-	MuxedConnection,
-	type StreamOpenHandler,
-} from "../connection";
-import { Encrypter } from "../connection-encrypter";
+import type { Context, Status } from "./types";
 
 const log = debug("p2p:transport");
 
-export interface TCPSocketOptions extends AbortOptions {
-	noDelay?: boolean;
-	keepAlive?: boolean;
-	allowHalfOpen?: boolean;
-}
-export interface CreateListenerOptions {
-	upgrader: Encrypter;
-}
-export interface TCPCreateListenerOptions
-	extends CreateListenerOptions,
-		TCPSocketOptions {}
-
-type Status =
-	| { code: "INACTIVE" }
-	| {
-			code: "ACTIVE";
-			listeningAddr: Multiaddr;
-			netConfig: NetConfig;
-	  };
-
-interface Context extends TCPCreateListenerOptions {
-	socketInactivityTimeout?: number;
-	socketCloseTimeout?: number;
-	maxConnections?: number;
-	backlog?: number;
-	frameHandler: ConnectionHandler;
-	streamOpenHandler: StreamOpenHandler;
-}
 export class TransportListener {
 	public server: Server;
 	private addr: string = "unknown";
@@ -50,19 +16,9 @@ export class TransportListener {
 
 	constructor(context: Context) {
 		this.context = context;
-		this.server = net.createServer(context, this.onSocket);
+		this.server = net.createServer(context, this.onSocket.bind(this));
 		this.server
-			.on("listening,", () => {
-				const address = this.server.address();
-
-				if (address == null) {
-					this.addr = "unknown";
-				} else if (typeof address === "string") {
-					this.addr = address;
-				} else {
-					this.addr = `${address.address}:${address.port}`;
-				}
-			})
+			.on("listening,", this.onListen.bind(this))
 			.on("error", (err) => {
 				log(`[server error: ${err?.message || err}`);
 			})
@@ -72,48 +28,25 @@ export class TransportListener {
 	}
 
 	private onSocket = async (sock: Socket) => {
-		sock.setNoDelay(true);
-		sock.setKeepAlive(true, 60_000);
+		let connection: MuxedConnection;
 
 		if (this.status.code !== "ACTIVE") {
-			try {
-				sock.destroy();
-			} catch {}
+			sock.destroy();
 			throw new Error("Server is not listening yet");
 		}
 		try {
-			let socketToUse = sock;
-
-			const [encryptionError, result] = await safeTry(() =>
-				this.context.upgrader.encrypt(sock, true),
-			);
-			if (encryptionError) {
-				log(`TLS encryption failed: ${encryptionError}`);
-				try {
-					sock.destroy();
-				} catch {}
-				return;
-			}
-
-			socketToUse = result.socket;
-			const connection = new MuxedConnection(
-				this.status.listeningAddr,
-				socketToUse,
-			);
+			const upgraded = await this.context.upgrader.encrypt(sock, true);
+			connection = new MuxedConnection(upgraded.socket, {
+				localAddr: this.status.listeningAddr,
+			});
 
 			connection.setOnFrame((f) => this.context.frameHandler(connection, f));
 			connection.setOnStreamOpen((protocol, stream) =>
 				this.context.streamOpenHandler(protocol, stream),
 			);
-
-			socketToUse.once("close", () => {
-				log(`[node] socket closed`);
-			});
 		} catch (err) {
 			log(`Error handling socket: ${err}`);
-			try {
-				sock.destroy();
-			} catch {}
+			connection.onClose();
 		}
 	};
 
@@ -121,36 +54,47 @@ export class TransportListener {
 		if (this.status.code === "ACTIVE") {
 			throw new Error("server is already listening");
 		}
+		try {
+			this.status = {
+				code: "ACTIVE",
+				listeningAddr: peerId,
+				netConfig: multiaddrToNetConfig(peerId) as NetConfig,
+			};
 
-		this.status = {
-			code: "ACTIVE",
-			listeningAddr: peerId,
-			peerId,
-			netConfig: multiaddrToNetConfig(peerId),
-		};
-
-		await this.resume();
-		log("listening on %s", this.server.address());
+			await this.resume();
+		} catch (error) {
+			log("listening on %s", this.server.address());
+			this.status = { code: "INACTIVE" };
+			throw error;
+		}
 	}
 
 	async resume() {
-		if (this.server.listening || this.status.code === "INACTIVE") {
-			return;
-		}
+		if (this.status.code === "INACTIVE") return;
+		if (this.server.listening) return;
 
 		const netConfig = this.status.netConfig;
-
-		const [error, _] = await safeTry(() => {
-			return new Promise<void>((resolve, reject) => {
-				this.server.once("error", reject);
-				this.server.listen(netConfig, resolve);
-			});
+		await new Promise<void>((resolve, reject) => {
+			this.server.once("error", reject);
+			this.server.listen(netConfig, resolve);
 		});
-		if (error) return safeError(error);
+
 		this.status = { ...this.status, code: "ACTIVE" };
 	}
 
 	async pause() {
 		this.server.close();
+	}
+
+	private onListen() {
+		const address = this.server.address();
+
+		if (address == null) {
+			this.addr = "unknown";
+		} else if (typeof address === "string") {
+			this.addr = address;
+		} else {
+			this.addr = `${address.address}:${address.port}`;
+		}
 	}
 }

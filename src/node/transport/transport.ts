@@ -2,6 +2,8 @@ import type { Multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import type { TcpSocketConnectOpts } from "net";
 import net from "node:net";
+import { Encrypter } from "../../connection";
+import { MuxedConnection } from "../../connection/connection";
 import type { Secp256k1PrivateKey } from "../../secp256k1/secp256k1";
 import {
 	type SafeError,
@@ -13,26 +15,10 @@ import {
 	safeTry,
 } from "../../utils/safe";
 import { multiaddrToNetConfig } from "../../utils/utils";
-import {
-	type ConnectionHandler,
-	MuxedConnection,
-	type StreamOpenHandler,
-} from "../connection";
-import { Encrypter } from "../connection-encrypter";
 import { TransportListener } from "./transport-listener";
+import type { CreateTransportOptions, TransportDialOpts } from "./types";
 
 const log = debug("p2p:transport");
-
-type TransportDialOpts = {
-	timeoutMs?: number;
-	shouldCreateConnection?: boolean;
-	maxActiveDials: number;
-};
-
-export type CreateTransportOptions = {
-	frameHandler: ConnectionHandler;
-	streamOpenHandler?: StreamOpenHandler;
-};
 
 export class Transport {
 	private encrypter: Encrypter;
@@ -64,9 +50,6 @@ export class Transport {
 					sock.destroy();
 				} catch {}
 			});
-
-			sock.setNoDelay(true);
-			sock.setKeepAlive(true, 60_000);
 
 			return await new Promise<SafeResult<MuxedConnection> | SafeError<Error>>(
 				(resolve) => {
@@ -136,7 +119,7 @@ export class Transport {
 			return safeError(encryptionError);
 		}
 		const [connectionError, connection] = safeSyncTry(
-			() => new MuxedConnection(peerId, result.socket),
+			() => new MuxedConnection(result.socket, { remoteAddr: peerId }),
 		);
 
 		if (connectionError) {

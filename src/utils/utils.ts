@@ -1,5 +1,5 @@
 import type { Multiaddr } from "@multiformats/multiaddr";
-import { CODE_UNIX } from "@multiformats/multiaddr";
+import { CODE_UNIX, multiaddr } from "@multiformats/multiaddr";
 import { Unix } from "@multiformats/multiaddr-matcher";
 import type {
 	IpcSocketConnectOpts,
@@ -45,4 +45,15 @@ export function multiaddrToNetConfig(
 		ipv6Only: config.type !== "ip4",
 		...options,
 	};
+}
+
+export function multiaddrFromIp(ip: string, port: number | string) {
+	if (!ip || !port) {
+		throw new Error(`Invalid ip or port: ${ip}:${port}`);
+	}
+	try {
+		return multiaddr(`/ip4/${ip}/tcp/${port}`);
+	} catch {
+		throw new Error(`Could not create tcp multiaddr from ${ip}:${port}`);
+	}
 }
