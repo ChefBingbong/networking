@@ -62,11 +62,7 @@ export class PeerNode extends EventEmitter {
 		this.coreHandler = new CoreMessageHandler(this);
 
 		// --- Kademlia is now independent of the TCP transport ---
-		this.kad = new KademliaDHT({
-			localId: this.address.toString(),
-			udpHost: nodeOptions.host,
-			udpPort: nodeOptions.port, // UDP + TCP share the same port in your setup
-			selfAddr: this.address,
+		this.kad = new KademliaDHT(this, {
 			k: 16,
 			alpha: 3,
 			maxBuckets: 256,
@@ -92,7 +88,7 @@ export class PeerNode extends EventEmitter {
 			);
 			await this.startListening();
 			await this.kadBootstrap();
-			this.runKadMaintenanceLoop();
+			this.runContactLoop();
 		} catch (error) {
 			log(`Failed to start ${String(this.address)}`);
 			throw error;
@@ -161,15 +157,17 @@ export class PeerNode extends EventEmitter {
 
 	public async kadBootstrap() {
 		// BOOTSTRAP_ADDRS should be full multiaddrs with /p2p/<id>
-		this.kad.addBootstrapAddrs(BOOTSTRAP_ADDRS);
+		this.kad.addBootstrapPeers(BOOTSTRAP_ADDRS);
 		await this.kad.bootstrapLookup();
 	}
 
-	private runKadMaintenanceLoop() {
+	private runContactLoop() {
 		loopInterval(async () => {
-			// Periodically walk the graph and enrich the table
+			// regular Kad maintenance:
+			//  - ping some stale peers
+			//  - run a random FIND_NODE walk
 			await this.kad.bootstrapLookup();
-			await this.kad.randomNodeLookup(3);
+			await this.kad.maintenanceTick();
 		}, this.withJitter(10_000));
 	}
 

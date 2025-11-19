@@ -3,8 +3,10 @@
 import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import type { RemoteInfo } from "dgram";
+import type { PeerNode } from "../node";
 import { KadUdpTransport } from "./kad-udp-transport";
 import { type KadRoutingTableDump, RoutingTable } from "./routing-table";
+import { xorDistance } from "./xor";
 
 const log = debug("p2p:kad");
 
@@ -35,20 +37,6 @@ export interface KademliaConfig {
 	maxBuckets: number;
 }
 
-export interface KademliaOptions extends Partial<KademliaConfig> {
-	/** Node id in the Kad keyspace (e.g. your libp2p PeerId string). */
-	localId: string;
-	/** UDP bind host for Kad. */
-	udpHost: string;
-	/** UDP bind port for Kad. */
-	udpPort: number;
-	/**
-	 * Canonical advertised multiaddr for this node (usually TCP with /p2p/),
-	 * used when we return ourselves in NODES / VALUE replies.
-	 */
-	selfAddr?: Multiaddr;
-}
-
 type StoredValue = {
 	value: any;
 	storedAt: number;
@@ -68,87 +56,65 @@ type PendingRpc =
 	  };
 
 export class KademliaDHT {
+	private readonly node: PeerNode;
 	private readonly localId: string;
 	private readonly cfg: KademliaConfig;
 	private readonly table: RoutingTable;
 	private readonly store = new Map<string, StoredValue>();
 
-	private readonly udp: KadUdpTransport;
-	private readonly selfAddr?: Multiaddr;
+	// UDP transport
+	private udp: KadUdpTransport;
 
 	// pending RPCs keyed by rpcId
 	private pending = new Map<string, PendingRpc>();
 
-	constructor(opts: KademliaOptions) {
-		this.localId = opts.localId;
-		this.selfAddr = opts.selfAddr;
+	// maintenance
+	private maintenanceRunning = false;
+	private readonly staleAfterMs = 60000; // consider peers stale after 60s of no traffic
 
+	constructor(node: PeerNode, cfg?: Partial<KademliaConfig>) {
+		this.node = node;
+		this.localId = node.peerId.toString();
 		this.cfg = {
-			k: opts.k ?? 16,
-			alpha: opts.alpha ?? 3,
-			maxBuckets: opts.maxBuckets ?? 256,
+			k: cfg?.k ?? 16,
+			alpha: cfg?.alpha ?? 5,
+			maxBuckets: cfg?.maxBuckets ?? 256,
 		};
-
 		this.table = new RoutingTable(
 			this.localId,
 			this.cfg.k,
 			this.cfg.maxBuckets,
 		);
 
-		this.udp = new KadUdpTransport(opts.udpHost, opts.udpPort, (msg, rinfo) =>
+		const { host, port } = this.parseHostPort(node.address);
+		this.udp = new KadUdpTransport(host, port, (msg, rinfo) =>
 			this.onUdpMessage(msg, rinfo),
 		);
-
-		log(
-			`Kad DHT started for id=${this.localId} on udp://${opts.udpHost}:${opts.udpPort}`,
-		);
 	}
 
-	// ---------- basic peer injection APIs ----------
+	// ---------- integration hooks from PeerNode ----------
 
-	/** Add / refresh a Kad peer (id + addr) in the routing table. */
-	public notePeer(id: string, addr: Multiaddr) {
-		this.table.addPeer({
-			id,
-			addr,
-			lastSeen: Date.now(),
-		});
-	}
-
-	/** Convenience: feed a TCP multiaddr that includes /p2p/<peerId>. */
 	public noteConnectedPeer(addr: Multiaddr) {
 		const idStr = this.extractPeerId(addr);
 		if (!idStr) return;
-		this.notePeer(idStr, addr);
+		this.table.addPeer({
+			id: idStr,
+			addr,
+			lastSeen: Date.now(),
+			status: "connected",
+		});
 	}
 
-	/** Add bootstrap nodes with explicit id + addr (usually static config). */
-	public addBootstrapNodes(nodes: KadNodeInfo[]) {
-		const now = Date.now();
-		for (const n of nodes) {
-			try {
-				const addr = multiaddr(n.addr);
-				this.table.addPeer({
-					id: n.id,
-					addr,
-					lastSeen: now,
-				});
-			} catch {
-				continue;
-			}
-		}
-	}
-
-	/** Convenience: add bootstrap from full multiaddrs containing /p2p/<id>. */
-	public addBootstrapAddrs(addrs: Multiaddr[]) {
+	public addBootstrapPeers(addrs: Multiaddr[]) {
 		const now = Date.now();
 		for (const addr of addrs) {
-			const id = this.extractPeerId(addr);
-			if (!id) continue;
+			const idStr = this.extractPeerId(addr);
+			if (!idStr) continue;
 			this.table.addPeer({
-				id,
+				id: idStr,
 				addr,
 				lastSeen: now,
+				status: "questionable",
 			});
 		}
 	}
@@ -201,6 +167,7 @@ export class KademliaDHT {
 							id: n.id,
 							addr,
 							lastSeen: now,
+							status: "connected",
 						});
 						const after = this.table.getAllPeers().length;
 						if (after > before) addedAny = true;
@@ -249,6 +216,7 @@ export class KademliaDHT {
 							id: n.id,
 							addr,
 							lastSeen: now,
+							status: "connected",
 						});
 						const after = this.table.getAllPeers().length;
 						if (after > before) addedAny = true;
@@ -271,7 +239,30 @@ export class KademliaDHT {
 		}));
 	}
 
-	// ---------- VALUE STORE / LOOKUP ----------
+	// ---------- inspection APIs ----------
+
+	public dumpRoutingTable(): KadRoutingTableDump {
+		return this.table.dump();
+	}
+
+	public getKnownKadPeers(): KadNodeInfo[] {
+		return this.table.getAllPeers().map((p) => ({
+			id: p.id.toString(),
+			addr: p.addr.toString(),
+		}));
+	}
+
+	public getPeerCount(): number {
+		return this.table.getAllPeers().length;
+	}
+
+	// ---------- node lookup (iterative) ----------
+
+	private isCloser(targetId: string, aId: string, bId: string): boolean {
+		const da = xorDistance(aId, targetId);
+		const db = xorDistance(bId, targetId);
+		return Buffer.compare(da, db) < 0;
+	}
 
 	private putLocal(key: string, value: any) {
 		this.store.set(key, { value, storedAt: Date.now() });
@@ -306,7 +297,6 @@ export class KademliaDHT {
 			}
 		}
 
-		const now = Date.now();
 		for (const r of replies) {
 			if (!r.nodes) continue;
 			for (const n of r.nodes) {
@@ -315,7 +305,8 @@ export class KademliaDHT {
 					this.table.addPeer({
 						id: n.id,
 						addr,
-						lastSeen: now,
+						lastSeen: Date.now(),
+						status: "connected",
 					});
 				} catch {}
 			}
@@ -330,13 +321,13 @@ export class KademliaDHT {
 		const msg = raw as KadMessage;
 		if (!msg || typeof msg !== "object" || !msg.type) return;
 
-		// Track sender as a peer (id from msg.from, addr from rinfo).
-		const remoteAddr = this.multiaddrFromUdp(rinfo);
-		if (remoteAddr && msg.from) {
+		let handledByPending = false;
+		if (msg.from) {
 			this.table.addPeer({
 				id: msg.from,
-				addr: multiaddr(msg.from),
+				addr: multiaddr(`${this.multiaddrFromUdp(rinfo)}/p2p/${msg.from}`),
 				lastSeen: Date.now(),
+				status: "connected",
 			});
 		}
 
@@ -347,40 +338,29 @@ export class KademliaDHT {
 
 			clearTimeout(pending.timer);
 
-			// ✅ NEW: ingest all nodes from NODES replies into the routing table
-			if (msg.type === "NODES" && msg.nodes && msg.nodes.length > 0) {
-				const now = Date.now();
-				for (const n of msg.nodes) {
-					try {
-						const addr = multiaddr(n.addr);
-						this.table.addPeer({
-							id: n.id,
-							addr,
-							lastSeen: now,
-						});
-					} catch {
-						// ignore bad multiaddrs
-					}
-				}
-			}
-
 			if (pending.type === "FIND_NODE" && msg.type === "NODES") {
 				pending.resolve(msg.nodes);
-				return;
+				handledByPending = true;
 			}
 
 			if (pending.type === "FIND_VALUE") {
 				if (msg.type === "VALUE") {
 					pending.resolve({ value: msg.value });
-					return;
+					handledByPending = true;
 				} else if (msg.type === "NODES") {
 					pending.resolve({ nodes: msg.nodes });
-					return;
+					handledByPending = true;
 				}
 			}
-			// fall through to normal handling too if you want
+			// IMPORTANT: no return here – we still fall through
 		}
 
+		// Optional: liveness mark based on msg.from
+		if (msg.from) {
+			this.table.markPeerAlive(msg.from);
+		}
+
+		// normal Kad behaviour (respond to requests / ingest nodes)
 		await this.handleKadMessage(msg, async (reply) => {
 			const targetHost = rinfo.address;
 			const targetPort = rinfo.port;
@@ -404,9 +384,11 @@ export class KademliaDHT {
 				break;
 			}
 
-			case "PONG":
-				// could mark sender as alive; we already bump lastSeen above
+			case "PONG": {
+				this.table.markPeerAlive(msg.from);
+				// We've already markPeerAlive in onUdpMessage via msg.from
 				break;
+			}
 
 			case "FIND_NODE": {
 				const closest = this.table.getClosestPeers(msg.target, this.cfg.k);
@@ -414,13 +396,11 @@ export class KademliaDHT {
 					id: p.id.toString(),
 					addr: p.addr.toString(),
 				}));
-
-				if (this.selfAddr) {
-					nodes.push({
-						id: this.localId,
-						addr: this.selfAddr.toString(),
-					});
-				}
+				// Include ourselves
+				nodes.push({
+					id: this.localId,
+					addr: this.node.address.toString(),
+				});
 
 				await send({
 					type: "NODES",
@@ -432,24 +412,19 @@ export class KademliaDHT {
 			}
 
 			case "NODES": {
-				// Ingest all nodes we got back into the routing table
+				// Even if it wasn't a response we awaited, ingest into the table
 				if (msg.nodes && msg.nodes.length > 0) {
 					const now = Date.now();
 					for (const n of msg.nodes) {
 						try {
-							// n.addr is a string; turn it into a Multiaddr
 							const addr = multiaddr(n.addr);
-
-							// Avoid inserting obviously bogus / self entries if you want
-							// if (n.id === this.peerId.toString()) continue;
-
 							this.table.addPeer({
 								id: n.id,
 								addr,
 								lastSeen: now,
+								status: "questionable",
 							});
 						} catch (err) {
-							// Bad multiaddr etc – just ignore this entry
 							log(
 								`failed to add peer from NODES: id=${n.id} addr=${n.addr} err=${
 									(err as Error).message
@@ -458,9 +433,6 @@ export class KademliaDHT {
 						}
 					}
 				}
-
-				// You can still log it for debugging if you like
-				// console.log("NODES msg:", msg);
 				break;
 			}
 
@@ -485,13 +457,11 @@ export class KademliaDHT {
 						id: p.id.toString(),
 						addr: p.addr.toString(),
 					}));
-
-					if (this.selfAddr) {
-						nodes.push({
-							id: this.localId,
-							addr: this.selfAddr.toString(),
-						});
-					}
+					console.log("FIND_VALUE NODES:", nodes);
+					nodes.push({
+						id: this.localId,
+						addr: this.node.address.toString(),
+					});
 
 					await send({
 						type: "NODES",
@@ -504,7 +474,7 @@ export class KademliaDHT {
 			}
 
 			case "VALUE":
-				// handled as replies by caller
+				// handled mainly via pending FIND_VALUE
 				break;
 		}
 	}
@@ -513,6 +483,32 @@ export class KademliaDHT {
 
 	private genRpcId(): string {
 		return Math.random().toString(36).slice(2) + Date.now().toString(36);
+	}
+
+	private getHostPortFromMultiaddr(addr: Multiaddr): {
+		host: string;
+		port: number;
+	} {
+		const s = addr.toString(); // /ip4/127.0.0.1/tcp/4000/p2p/...
+		const parts = s.split("/");
+		const hostIdx = parts.indexOf("ip4") + 1;
+		const tcpIdx = parts.indexOf("tcp") + 1;
+		const host = parts[hostIdx] ?? "127.0.0.1";
+		const port = parseInt(parts[tcpIdx] ?? "0", 10);
+		return { host, port };
+	}
+
+	private async sendPingUdp(addr: Multiaddr): Promise<void> {
+		const { host, port } = this.getHostPortFromMultiaddr(addr);
+		const msg: KadMessage = {
+			type: "PING",
+			from: this.localId,
+		};
+		try {
+			await this.udp.send(msg, host, port);
+		} catch (err) {
+			log(`PING UDP to ${addr.toString()} failed:`, err);
+		}
 	}
 
 	private async sendFindNodeUdp(
@@ -528,7 +524,6 @@ export class KademliaDHT {
 			target,
 			rpcId,
 		} as any;
-
 		const nodes: KadNodeInfo[] = [];
 
 		const promise = new Promise<KadNodeInfo[]>((resolve) => {
@@ -601,21 +596,6 @@ export class KademliaDHT {
 		return promise;
 	}
 
-	// ---------- helpers ----------
-
-	private getHostPortFromMultiaddr(addr: Multiaddr): {
-		host: string;
-		port: number;
-	} {
-		const s = addr.toString(); // /ip4/127.0.0.1/tcp/4000/p2p/...
-		const parts = s.split("/");
-		const hostIdx = parts.indexOf("ip4") + 1;
-		const tcpIdx = parts.indexOf("tcp") + 1;
-		const host = parts[hostIdx] ?? "127.0.0.1";
-		const port = parseInt(parts[tcpIdx] ?? "0", 10);
-		return { host, port };
-	}
-
 	private multiaddrFromUdp(rinfo: RemoteInfo): Multiaddr | null {
 		try {
 			// We *assume* TCP and UDP share the same port in your dev setup.
@@ -623,6 +603,55 @@ export class KademliaDHT {
 		} catch {
 			return null;
 		}
+	}
+	// ---------- maintenance helpers ----------
+
+	public async randomNodeLookup(rounds = 3) {
+		for (let i = 0; i < rounds; i++) {
+			const targetId = this.randomKadId();
+			await this.findNode(targetId);
+		}
+	}
+
+	private randomKadId(): string {
+		// random 160-bit hex string
+		const bytes = new Uint8Array(20);
+		for (let i = 0; i < bytes.length; i++) {
+			bytes[i] = Math.floor(Math.random() * 256);
+		}
+		return Buffer.from(bytes).toString("hex");
+	}
+
+	/**
+	 * One "maintenance tick" – ping some stale peers and perform one random lookup.
+	 * Call this periodically from PeerNode.
+	 */
+	public async maintenanceTick() {
+		if (this.maintenanceRunning) return;
+		this.maintenanceRunning = true;
+		try {
+			// 1) ping stale peers to refresh liveness
+			const stale = this.table.getStalePeers(this.staleAfterMs, this.cfg.alpha);
+			await Promise.all(stale.map((p) => this.sendPingUdp(p.addr)));
+
+			// 2) choose a target for FIND_NODE
+			const randomPeers = this.table.getRandomPeers(1);
+			if (randomPeers.length > 0) {
+				// look for nodes near a random known peer
+				await this.findNode(randomPeers[0]!.id);
+			} else {
+				// or completely random if table empty-ish
+				await this.randomNodeLookup(1);
+			}
+		} finally {
+			this.maintenanceRunning = false;
+		}
+	}
+
+	// ---------- helpers ----------
+
+	private parseHostPort(addr: Multiaddr): { host: string; port: number } {
+		return this.getHostPortFromMultiaddr(addr);
 	}
 
 	private extractPeerId(addr: Multiaddr): string | null {
@@ -634,34 +663,6 @@ export class KademliaDHT {
 		} catch {
 			return null;
 		}
-	}
-
-	// ---------- inspection ----------
-
-	public dumpRoutingTable(): KadRoutingTableDump {
-		return this.table.dump();
-	}
-
-	public getKnownKadPeers(): KadNodeInfo[] {
-		return this.table.getAllPeers().map((p) => ({
-			id: p.id.toString(),
-			addr: p.addr.toString(),
-		}));
-	}
-
-	public async randomNodeLookup(rounds = 3) {
-		for (let i = 0; i < rounds; i++) {
-			const targetId = this.randomKadId();
-			await this.findNode(targetId);
-		}
-	}
-
-	private randomKadId(): string {
-		const bytes = new Uint8Array(20);
-		for (let i = 0; i < bytes.length; i++) {
-			bytes[i] = Math.floor(Math.random() * 256);
-		}
-		return Buffer.from(bytes).toString("hex");
 	}
 }
 
