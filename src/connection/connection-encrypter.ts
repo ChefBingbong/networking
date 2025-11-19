@@ -12,7 +12,7 @@ import { generateBoundCertificate, verifyPeerCertificate } from "./cert";
 const log = debug("p2p:encrypter");
 
 export class Encrypter {
-	private trustedCache: Map<string, any> = new Map(); // fingerprint -> remoteInfo
+	private trustedCache: Map<string, any> = new Map();
 
 	constructor(private keyPair: Secp256k1PrivateKey) {}
 
@@ -20,15 +20,6 @@ export class Encrypter {
 		return createHash("sha256").update(raw).digest("hex");
 	}
 
-	/**
-	 * Encrypt (wrap) a raw socket into TLS. We always perform the TLS handshake;
-	 * however, to avoid repeated expensive verification of the peer certificate,
-	 * we cache verified peer info keyed by the certificate raw fingerprint.
-	 *
-	 * If `isServer` === true we act as server side of TLS, otherwise client.
-	 *
-	 * Returns: { socket: TLSSocket, remoteInfo } where remoteInfo is result of verifyPeerCertificate
-	 */
 	async encrypt(raw: Socket, isServer: boolean) {
 		const creds = await generateBoundCertificate(this.keyPair);
 		const baseOpts: TLSSocketOptions = {
@@ -71,7 +62,6 @@ export class Encrypter {
 		});
 
 		try {
-			// If we have a cached remoteInfo for this peer certificate, use it
 			const peer = tlsSock.getPeerCertificate(true);
 			if (!peer || !peer.raw) {
 				try {
@@ -81,7 +71,6 @@ export class Encrypter {
 			}
 			const fp = this.fingerprint(peer.raw);
 
-			// If cached, return cached result (skip expensive verify)
 			if (this.trustedCache.has(fp)) {
 				const remoteInfo = this.trustedCache.get(fp);
 				log(

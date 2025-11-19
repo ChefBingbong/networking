@@ -24,6 +24,7 @@
 		"@peculiar/webcrypto": "^1.5.0",
 		"@peculiar/x509": "^1.14.0",
 		"elysia": "^1.4.16",
+		"ethereum-cryptography": "^3.2.0",
 		"hono": "^4.10.6",
 		"it-stream-types": "^2.0.2",
 		"multiformats": "^13.4.1",

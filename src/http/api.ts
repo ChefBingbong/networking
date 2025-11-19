@@ -1,13 +1,10 @@
-// src/http/kad-api-hono.ts
-
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import type { PeerNode } from "../node"; // adjust import path if needed
+import type { PeerNode } from "../node";
 
 export function createKadApi(node: PeerNode, port = 3001) {
 	const app = new Hono();
 
-	// Basic info
 	app.get("/", (c) =>
 		c.json({
 			nodeId: node.peerId.toString(),
@@ -15,25 +12,21 @@ export function createKadApi(node: PeerNode, port = 3001) {
 		}),
 	);
 
-	// Full routing table
 	app.get("/kad/table", (c) => {
 		const rt = node.kad.dumpRoutingTable();
 		return c.json(rt);
 	});
 
-	// Buckets only
 	app.get("/kad/buckets", (c) => {
 		const rt = node.kad.dumpRoutingTable();
 		return c.json(rt.buckets);
 	});
 
-	// Flattened Kad peers
 	app.get("/kad/peers", (c) => {
 		const peers = node.kad.getKnownKadPeers();
 		return c.json(peers);
 	});
 
-	// PUT value
 	app.post("/kad/put", async (c) => {
 		const body = (await c.req.json().catch(() => null)) as {
 			key?: string;
@@ -48,7 +41,6 @@ export function createKadApi(node: PeerNode, port = 3001) {
 		return c.json({ ok: true });
 	});
 
-	// FIND value
 	app.get("/kad/value/:key", async (c) => {
 		const key = c.req.param("key");
 		const value = await node.kad.findValue(key);

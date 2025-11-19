@@ -1,6 +1,5 @@
 // src/kademlia/types.ts
 import type { EventEmitter } from "events";
-import type { KadNodeInfo } from "./kademlia"; // your existing type (id, addr, lastSeen, ...)
 
 /**
  * Status of a peer in the bucket.
@@ -82,17 +81,15 @@ export type KadRoutingTableDump = {
 		peers: KadNodeInfo[];
 	}[];
 };
-
 export const KADEMLIA_PROTOCOL = "/kad/1.0.0";
 
 export interface KadNodeInfo {
 	id: string;
 	addr: string;
 }
-
-interface KadBase {
+export interface KadBase {
 	from: string;
-	rpcId?: string; // used for UDP request/response matching
+	rpcId?: string;
 }
 
 export type KadMessage =
@@ -108,6 +105,7 @@ export interface KademliaConfig {
 	k: number;
 	alpha: number;
 	maxBuckets: number;
+	pendingTimeoutMs?: number;
 }
 
 export type StoredValue = {
@@ -115,7 +113,6 @@ export type StoredValue = {
 	storedAt: number;
 };
 
-// For UDP RPC matching
 export type PendingRpc =
 	| {
 			type: "FIND_NODE";
@@ -125,5 +122,10 @@ export type PendingRpc =
 	| {
 			type: "FIND_VALUE";
 			resolve: (res: { value?: any; nodes?: KadNodeInfo[] }) => void;
+			timer: NodeJS.Timeout;
+	  }
+	| {
+			type: "PING";
+			resolve: (ok: boolean) => void;
 			timer: NodeJS.Timeout;
 	  };

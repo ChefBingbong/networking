@@ -1,5 +1,8 @@
+import type {
+	ConnectionHandler,
+	MuxedConnection,
+} from "../../connection/connection";
 import type { Packet } from "../../packet/types";
-import type { ConnectionHandler, MuxedConnection } from "../connection";
 
 export class MessageRouter {
 	private handlers: ConnectionHandler[] = [];

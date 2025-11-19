@@ -2,13 +2,14 @@
 import type { Multiaddr } from "@multiformats/multiaddr";
 import { bucketIndexForDistance, xorDistance } from "./xor";
 
-export type KadPeerStatus = "connected" | "questionable" | "dead";
+export type KadEntryStatus = "connected" | "questionable";
 
 export interface KadPeer {
 	id: string;
 	addr: Multiaddr;
 	lastSeen: number;
-	status: KadPeerStatus;
+	// Status is tracked per-bucket; this is just here for debugging/introspection.
+	status?: KadEntryStatus;
 }
 
 export interface KadBucketDump {
@@ -18,7 +19,7 @@ export interface KadBucketDump {
 		id: string;
 		addr: string;
 		lastSeen: number;
-		status: KadPeerStatus;
+		status: KadEntryStatus;
 	}[];
 }
 
@@ -29,81 +30,311 @@ export interface KadRoutingTableDump {
 	buckets: KadBucketDump[];
 }
 
-export interface AddPeerResult {
-	inserted: boolean;
-	updated: boolean;
-	evicted?: KadPeer;
+/**
+ * Internal bucket entry with explicit status.
+ */
+interface BucketEntry {
+	peer: KadPeer;
+	status: KadEntryStatus;
 }
 
-export class RoutingTable {
-	// bucket i holds peers at “distance scale” i
-	private readonly buckets: KadPeer[][] = [];
+/**
+ * A single k-bucket with:
+ *  - LRU ordering (index 0 = least recently seen)
+ *  - simple pending-eviction logic (like discv5, but pared down)
+ *
+ * Pending behaviour:
+ *  - when bucket is full and a new peer arrives:
+ *    - if there is at least one "questionable" entry, we:
+ *      - mark the new peer as "pending"
+ *      - emit onPendingEviction(victim) for the LRU questionable entry
+ *      - start a timer
+ *    - if the victim proves liveness (we call addPeer on it again),
+ *      the pending entry is dropped
+ *    - if the timer fires and victim did *not* prove liveness,
+ *      we evict victim and insert pending, then emit onAppliedEviction
+ */
+// inside src/kademlia/routing-table.ts
+
+class Bucket {
+	private readonly entries: BucketEntry[] = [];
+	private readonly k: number;
+
+	private pending?: {
+		entry: BucketEntry;
+		victimId: string;
+		timer: NodeJS.Timeout;
+	};
 
 	constructor(
-		private readonly localId: string,
-		private readonly k: number, // bucket capacity
-		maxBuckets = 256,
+		k: number,
+		private readonly pendingTimeoutMs: number,
+		private readonly onPendingEviction?: (victim: KadPeer) => void,
+		private readonly onAppliedEviction?: (
+			inserted: KadPeer,
+			evicted?: KadPeer,
+		) => void,
 	) {
-		for (let i = 0; i < maxBuckets; i++) {
-			this.buckets.push([]);
+		this.k = k;
+	}
+
+	// ---------------- add / update ----------------
+
+	addOrUpdate(peer: KadPeer, status: KadEntryStatus = "connected") {
+		const id = peer.id.toString();
+
+		// existing entry → refresh + move to tail
+		const idx = this.entries.findIndex((e) => e.peer.id.toString() === id);
+		if (idx >= 0) {
+			const existing = this.entries.splice(idx, 1)[0]!;
+			existing.peer = { ...peer };
+			existing.status = status;
+
+			// if this was the pending victim and it just proved liveness, drop pending
+			if (
+				this.pending &&
+				this.pending.victimId === id &&
+				status === "connected"
+			) {
+				clearTimeout(this.pending.timer);
+				this.pending = undefined;
+			}
+
+			this.entries.push(existing);
+			return;
 		}
+
+		// bucket has room → just append
+		if (this.entries.length < this.k) {
+			this.entries.push({ peer: { ...peer }, status });
+			return;
+		}
+
+		// bucket full → try pending eviction against a questionable LRU
+		this.maybeAddPending(peer, status);
+	}
+
+	private maybeAddPending(peer: KadPeer, status: KadEntryStatus) {
+		// if we already have a pending candidate, just drop this new peer
+		if (this.pending) return;
+
+		// find the *oldest* questionable entry
+		const victimIdx = this.entries.findIndex(
+			(e) => e.status === "questionable",
+		);
+		if (victimIdx < 0) {
+			// no questionable entries: we keep the existing connected peers
+			return;
+		}
+
+		const victim = this.entries[victimIdx]!.peer;
+
+		// register pending entry
+		const pendingEntry: BucketEntry = { peer: { ...peer }, status };
+		const timer = setTimeout(() => this.applyPending(), this.pendingTimeoutMs);
+
+		this.pending = {
+			entry: pendingEntry,
+			victimId: victim.id.toString(),
+			timer,
+		};
+
+		this.onPendingEviction?.(victim);
+	}
+
+	private applyPending() {
+		if (!this.pending) return;
+
+		// if victim is still present & *not* connected, evict it
+		const victimIdx = this.entries.findIndex(
+			(e) =>
+				e.peer.id.toString() === this.pending!.victimId &&
+				e.status === "questionable",
+		);
+
+		if (victimIdx >= 0) {
+			const evicted = this.entries.splice(victimIdx, 1)[0]!;
+			this.entries.push(this.pending.entry);
+			this.onAppliedEviction?.(this.pending.entry.peer, evicted.peer);
+		}
+
+		clearTimeout(this.pending.timer);
+		this.pending = undefined;
+	}
+
+	// ---------------- removal & pruning ----------------
+
+	/**
+	 * Remove a single peer by id. Returns the removed KadPeer if found.
+	 */
+	removePeer(id: string): KadPeer | undefined {
+		const idx = this.entries.findIndex((e) => e.peer.id.toString() === id);
+		if (idx < 0) return;
+
+		const [removed] = this.entries.splice(idx, 1);
+
+		// if this peer was the pending victim, clear the pending state
+		if (this.pending && this.pending.victimId === id) {
+			clearTimeout(this.pending.timer);
+			this.pending = undefined;
+		}
+
+		return removed.peer;
 	}
 
 	/**
-	 * Insert or update a peer in the appropriate bucket.
-	 * Returns whether it was inserted/updated and (optionally) an evicted peer.
+	 * Bulk prune peers matching a predicate.
+	 * Returns the list of KadPeers that were removed.
 	 */
-	addPeer(peer: KadPeer): AddPeerResult {
-		// Don't add ourselves
-		if (peer.id === this.localId) {
-			return { inserted: false, updated: false };
+	prune(
+		predicate: (peer: KadPeer, status: KadEntryStatus) => boolean,
+	): KadPeer[] {
+		const removed: KadPeer[] = [];
+
+		for (let i = this.entries.length - 1; i >= 0; i--) {
+			const e = this.entries[i]!;
+			if (predicate(e.peer, e.status)) {
+				const [spliced] = this.entries.splice(i, 1);
+				removed.push(spliced.peer);
+			}
 		}
+
+		// if bucket no longer contains the pending victim, drop pending
+		if (this.pending) {
+			const stillHasVictim = this.entries.some(
+				(e) => e.peer.id.toString() === this.pending!.victimId,
+			);
+			if (!stillHasVictim) {
+				clearTimeout(this.pending.timer);
+				this.pending = undefined;
+			}
+		}
+
+		return removed;
+	}
+
+	// ---------------- status & introspection ----------------
+
+	setStatus(id: string, status: KadEntryStatus) {
+		const idx = this.entries.findIndex((e) => e.peer.id.toString() === id);
+		if (idx < 0) return;
+
+		const entry = this.entries[idx]!;
+		entry.status = status;
+
+		// move to tail when we mark as connected (fresh activity)
+		if (status === "connected") {
+			this.entries.splice(idx, 1);
+			this.entries.push(entry);
+
+			if (this.pending && this.pending.victimId === id) {
+				clearTimeout(this.pending.timer);
+				this.pending = undefined;
+			}
+		}
+	}
+
+	getAllPeers(): KadPeer[] {
+		return this.entries.map((e) => ({
+			...e.peer,
+			status: e.status,
+		}));
+	}
+
+	dump(index: number): KadBucketDump | null {
+		if (this.entries.length === 0) return null;
+		return {
+			index,
+			size: this.entries.length,
+			peers: this.entries.map((e) => ({
+				id: e.peer.id.toString(),
+				addr: e.peer.addr.toString(),
+				lastSeen: e.peer.lastSeen,
+				status: e.status,
+			})),
+		};
+	}
+}
+
+export class RoutingTable {
+	private readonly buckets: Bucket[] = [];
+
+	// optional callbacks for higher-level logic (KademliaDHT)
+	public onPendingEviction?: (victim: KadPeer) => void;
+	public onAppliedEviction?: (inserted: KadPeer, evicted?: KadPeer) => void;
+
+	constructor(
+		private readonly localId: string,
+		private readonly k: number,
+		maxBuckets = 256,
+		private readonly pendingTimeoutMs = 5_000,
+	) {
+		for (let i = 0; i < maxBuckets; i++) {
+			this.buckets.push(
+				new Bucket(
+					this.k,
+					this.pendingTimeoutMs,
+					(victim) => this.onPendingEviction?.(victim),
+					(ins, ev) => this.onAppliedEviction?.(ins, ev),
+				),
+			);
+		}
+	}
+
+	addPeer(peer: KadPeer, status: KadEntryStatus = "connected") {
+		// avoid ever inserting ourselves
+		if (peer.id.toString() === this.localId) return;
 
 		const dist = xorDistance(this.localId, peer.id.toString());
 		const idx = bucketIndexForDistance(dist);
 		const bucket = this.buckets[idx];
-		const now = Date.now();
+		bucket.addOrUpdate(peer, status);
+	}
 
-		// already in bucket, refresh
-		const existingIndex = bucket.findIndex((p) => p.id === peer.id);
-		if (existingIndex >= 0) {
-			const existing = bucket.splice(existingIndex, 1)[0]!;
-			existing.addr = peer.addr;
-			existing.lastSeen = now;
-			existing.status = peer.status ?? existing.status;
-			bucket.push(existing);
-			return { inserted: false, updated: true };
+	setPeerStatus(id: string, status: KadEntryStatus) {
+		for (const bucket of this.buckets) {
+			bucket.setStatus(id, status);
 		}
+	}
 
-		// room in bucket
-		if (bucket.length < this.k) {
-			bucket.push({
-				...peer,
-				lastSeen: now,
+	/**
+	 * Remove a single peer by id from whichever bucket it lives in.
+	 * Returns the removed KadPeer if it existed.
+	 */
+	removePeer(id: string): KadPeer | undefined {
+		for (const bucket of this.buckets) {
+			const removed = bucket.removePeer(id);
+			if (removed) return removed;
+		}
+		return undefined;
+	}
+
+	/**
+	 * Prune stale peers across all buckets.
+	 *
+	 * By default we only prune peers that:
+	 *  - are "questionable"
+	 *  - and have lastSeen < now - maxAgeMs
+	 *
+	 * Returns list of removed KadPeers (for logging / metrics).
+	 */
+	pruneStale(maxAgeMs: number, onlyQuestionable = true): KadPeer[] {
+		const cutoff = Date.now() - maxAgeMs;
+		const removed: KadPeer[] = [];
+
+		for (const bucket of this.buckets) {
+			const bucketRemoved = bucket.prune((peer, status) => {
+				if (onlyQuestionable && status !== "questionable") return false;
+				return peer.lastSeen < cutoff;
 			});
-			return { inserted: true, updated: false };
+			removed.push(...bucketRemoved);
 		}
 
-		// bucket full -> evict the LRU *preferably* a non-connected peer
-		let evictIndex = 0;
-		for (let i = 0; i < bucket.length; i++) {
-			if (bucket[i]!.status !== "connected") {
-				evictIndex = i;
-				break;
-			}
-		}
-
-		const evicted = bucket.splice(evictIndex, 1)[0]!;
-		bucket.push({
-			...peer,
-			lastSeen: now,
-		});
-
-		return { inserted: true, updated: false, evicted };
+		return removed;
 	}
 
 	getAllPeers(): KadPeer[] {
-		return this.buckets.flat();
+		return this.buckets.flatMap((b) => b.getAllPeers());
 	}
 
 	getClosestPeers(targetId: string, limit: number): KadPeer[] {
@@ -111,71 +342,40 @@ export class RoutingTable {
 		all.sort((a, b) => {
 			const da = xorDistance(a.id.toString(), targetId);
 			const db = xorDistance(b.id.toString(), targetId);
-			return Buffer.compare(da, db);
+			if (da < db) return -1;
+			if (da > db) return 1;
+			return 0;
 		});
 		return all.slice(0, limit);
 	}
 
-	/**
-	 * Mark a peer as alive / recently seen.
-	 */
-	markPeerAlive(id: string) {
-		const now = Date.now();
-		for (const bucket of this.buckets) {
-			const idx = bucket.findIndex((p) => p.id === id);
-			if (idx === -1) continue;
-
-			const peer = bucket.splice(idx, 1)[0]!;
-			peer.lastSeen = now;
-			peer.status = "connected";
-			bucket.push(peer);
-			return;
-		}
-	}
-
-	/**
-	 * Return peers that haven't been seen in > staleMs, oldest first.
-	 */
-	getStalePeers(staleMs: number, limit: number): KadPeer[] {
-		const now = Date.now();
-		const all = this.getAllPeers();
-		const stale = all.filter((p) => now - p.lastSeen >= staleMs);
-		stale.sort((a, b) => a.lastSeen - b.lastSeen);
-		return stale.slice(0, limit);
-	}
-
-	/**
-	 * Return up to `limit` random peers from random buckets.
-	 */
 	getRandomPeers(limit: number): KadPeer[] {
 		const all = this.getAllPeers();
-		if (all.length <= limit) return all.slice();
-		const copy = all.slice();
-		for (let i = copy.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[copy[i], copy[j]] = [copy[j]!, copy[i]!];
+		if (all.length <= limit) return all;
+
+		const out: KadPeer[] = [];
+		const used = new Set<number>();
+
+		while (out.length < limit && used.size < all.length) {
+			const idx = Math.floor(Math.random() * all.length);
+			if (used.has(idx)) continue;
+			used.add(idx);
+			out.push(all[idx]!);
 		}
-		return copy.slice(0, limit);
+		return out;
 	}
 
 	dump(): KadRoutingTableDump {
 		const buckets: KadBucketDump[] = [];
 		let total = 0;
+
 		for (let i = 0; i < this.buckets.length; i++) {
-			const bucket = this.buckets[i];
-			if (bucket.length === 0) continue;
-			total += bucket.length;
-			buckets.push({
-				index: i,
-				size: bucket.length,
-				peers: bucket.map((p) => ({
-					id: p.id.toString(),
-					addr: p.addr.toString(),
-					lastSeen: p.lastSeen,
-					status: p.status,
-				})),
-			});
+			const d = this.buckets[i]!.dump(i);
+			if (!d) continue;
+			total += d.size;
+			buckets.push(d);
 		}
+
 		return {
 			localId: this.localId,
 			totalPeers: total,

@@ -1,19 +1,17 @@
-// src/node/node.ts (or wherever your PeerNode is)
-
 import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import { EventEmitter } from "events";
+import type { MuxedConnection } from "../connection/connection";
+import type { ProtocolHandler } from "../connection/protocol-manager";
+import { ProtocolManager } from "../connection/protocol-manager";
 import { createKadApi } from "../http/api";
 import type { KadRoutingTableDump } from "../kademlia/kademlia";
-import { KademliaDHT, type KadNodeInfo } from "../kademlia/kademlia";
+import { KademliaDHT } from "../kademlia/kademlia";
 import type { Packet } from "../packet/types";
-import type { ProtocolHandler } from "../protocol/protocol-manager";
-import { ProtocolManager } from "../protocol/protocol-manager";
 import { loopInterval } from "../secp256k1/utils";
 import type { PeerId, PeerInfo } from "../session/nodeInfo";
 import { peerIdFromPrivateKey } from "../session/peer-id";
 import { safeError, safeResult } from "../utils/safe";
-import type { MuxedConnection } from "./connection";
 import { CoreMessageHandler } from "./core-handler";
 import { BOOTSTRAP_ADDRS } from "./createNode"; // Multiaddr[]
 import type { TransportListener } from "./transport";
@@ -44,7 +42,7 @@ export class PeerNode extends EventEmitter {
 	public protocolManager: ProtocolManager;
 	public nodeOptions: PeerInfo;
 
-	private failedPeers = new Map<string, number>(); // addrKey -> nextAllowedDialTs
+	private failedPeers = new Map<string, number>();
 
 	constructor(nodeOptions: PeerInfo) {
 		super();
@@ -61,7 +59,6 @@ export class PeerNode extends EventEmitter {
 		this.protocolManager = new ProtocolManager();
 		this.coreHandler = new CoreMessageHandler(this);
 
-		// --- Kademlia is now independent of the TCP transport ---
 		this.kad = new KademliaDHT(this, {
 			k: 16,
 			alpha: 3,
@@ -98,8 +95,6 @@ export class PeerNode extends EventEmitter {
 	private startListening() {
 		return this.listener.listen(this.address);
 	}
-
-	// ---------- public high-level APIs ----------
 
 	public async dial(addrKey: string) {
 		try {
@@ -143,35 +138,28 @@ export class PeerNode extends EventEmitter {
 		};
 	}
 
-	// ---------- Kad inspection ----------
-
 	public getKadRoutingTable(): KadRoutingTableDump {
 		return this.kad.dumpRoutingTable();
 	}
 
-	public getKadPeers(): KadNodeInfo[] {
+	public getKadPeers() {
 		return this.kad.getKnownKadPeers();
 	}
 
-	// ---------- Kad bootstrap & maintenance ----------
-
 	public async kadBootstrap() {
-		// BOOTSTRAP_ADDRS should be full multiaddrs with /p2p/<id>
 		this.kad.addBootstrapPeers(BOOTSTRAP_ADDRS);
 		await this.kad.bootstrapLookup();
 	}
 
 	private runContactLoop() {
 		loopInterval(async () => {
-			// regular Kad maintenance:
-			//  - ping some stale peers
-			//  - run a random FIND_NODE walk
 			await this.kad.bootstrapLookup();
-			await this.kad.maintenanceTick();
+			await this.kad.randomNodeLookup(20);
+
+			await this.kad.pingRandomPeers(20);
+			this.kad.pruneStalePeers(30_000); // e.g. 2 minutes
 		}, this.withJitter(10_000));
 	}
-
-	// ---------- bridging Kad peers to TCP dials (optional) ----------
 
 	public async connectToKadPeers() {
 		const kadPeers = this.kad.getKnownKadPeers();
@@ -180,13 +168,9 @@ export class PeerNode extends EventEmitter {
 
 			try {
 				await this.dial(p.addr);
-			} catch {
-				// ignore; dial backoff handles noisy peers
-			}
+			} catch {}
 		}
 	}
-
-	// ---------- connection management ----------
 
 	private async getExistingOrNewConnection(
 		mAddr: Multiaddr,
@@ -224,7 +208,6 @@ export class PeerNode extends EventEmitter {
 		this.connections.set(key, conn);
 		log(`connection established to ${key} (total: ${this.connections.size})`);
 
-		// Feed Kad with this TCP peer (addr includes /p2p/, so id is known)
 		this.kad.noteConnectedPeer(addr);
 
 		conn.setOnFrame((frame: Packet) => {
@@ -243,8 +226,6 @@ export class PeerNode extends EventEmitter {
 
 		return conn;
 	}
-
-	// ---------- dial backoff / helpers ----------
 
 	private canDialPeer(addr: Multiaddr): boolean {
 		const key = addr.toString();
