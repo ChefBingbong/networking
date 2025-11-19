@@ -8,7 +8,7 @@ import type { NodeMetricsSnapshot } from "../src/node/types";
 
 const HOST = "127.0.0.1";
 const BASE_PORT = 4001;
-const NODE_COUNT = 100;
+const NODE_COUNT = 200;
 
 // ---- helpers ---
 

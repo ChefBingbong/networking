@@ -34,9 +34,9 @@ export class KademliaDHT {
 		this.peerId = node.peerId;
 		this.cfg = {
 			k: cfg?.k ?? 16,
-			alpha: cfg?.alpha ?? 3,
+			alpha: cfg?.alpha ?? 4,
 			maxBuckets: cfg?.maxBuckets ?? 256,
-			pendingTimeoutMs: cfg?.pendingTimeoutMs ?? 25_000,
+			pendingTimeoutMs: cfg?.pendingTimeoutMs ?? 5_000,
 		};
 
 		this.table = new RoutingTable(

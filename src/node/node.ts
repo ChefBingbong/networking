@@ -154,9 +154,9 @@ export class PeerNode extends EventEmitter {
 	private runContactLoop() {
 		loopInterval(async () => {
 			await this.kad.bootstrapLookup();
-			await this.kad.randomNodeLookup(20);
+			await this.kad.randomNodeLookup(100);
 
-			await this.kad.pingRandomPeers(20);
+			await this.kad.pingRandomPeers(100);
 			this.kad.pruneStalePeers(30_000); // e.g. 2 minutes
 		}, this.withJitter(10_000));
 	}
