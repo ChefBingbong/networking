@@ -1,3 +1,4 @@
+// src/node/node.ts
 import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import { EventEmitter } from "events";
@@ -5,13 +6,14 @@ import type { MuxedConnection } from "../connection/connection";
 import type { ProtocolHandler } from "../connection/protocol-manager";
 import { ProtocolManager } from "../connection/protocol-manager";
 import { createKadApi } from "../http/api";
-import type { KadRoutingTableDump } from "../kademlia/kademlia";
-import { KademliaDHT } from "../kademlia/kademlia";
+import { KademliaNode as KademliaDHT } from "../kademlia/kademlia";
+import { idToKey } from "../kademlia/xor";
 import type { Packet } from "../packet/types";
 import { loopInterval } from "../secp256k1/utils";
 import type { PeerId, PeerInfo } from "../session/nodeInfo";
 import { peerIdFromPrivateKey } from "../session/peer-id";
 import { safeError, safeResult } from "../utils/safe";
+import { getHostPortFromMultiaddr } from "../utils/utils";
 import { CoreMessageHandler } from "./core-handler";
 import { BOOTSTRAP_ADDRS } from "./createNode"; // Multiaddr[]
 import type { TransportListener } from "./transport";
@@ -59,10 +61,12 @@ export class PeerNode extends EventEmitter {
 		this.protocolManager = new ProtocolManager();
 		this.coreHandler = new CoreMessageHandler(this);
 
-		this.kad = new KademliaDHT(this, {
+		this.kad = new KademliaDHT(this, idToKey(this.peerId.toString()), {
 			k: 16,
 			alpha: 3,
-			maxBuckets: 256,
+			idBits: 160,
+			lookupTimeoutMs: 500,
+			port: nodeOptions.port, // UDP bind port
 		});
 
 		this.router = new MessageRouter();
@@ -75,7 +79,7 @@ export class PeerNode extends EventEmitter {
 				this.protocolManager.onIncomingStream(protocol, stream),
 		});
 
-		createKadApi(this, 4001 + nodeOptions.port);
+		createKadApi(this, 4000 + nodeOptions.port);
 	}
 
 	public async start() {
@@ -85,7 +89,7 @@ export class PeerNode extends EventEmitter {
 			);
 			await this.startListening();
 			await this.kadBootstrap();
-			this.runContactLoop();
+			this.runContactLoop(); // now real periodic lookups + pings
 		} catch (error) {
 			log(`Failed to start ${String(this.address)}`);
 			throw error;
@@ -138,37 +142,59 @@ export class PeerNode extends EventEmitter {
 		};
 	}
 
-	public getKadRoutingTable(): KadRoutingTableDump {
-		return this.kad.dumpRoutingTable();
-	}
-
 	public getKadPeers() {
-		return this.kad.getKnownKadPeers();
+		return this.kad.table.allContacts().map((c) => c.addr);
 	}
 
 	public async kadBootstrap() {
-		this.kad.addBootstrapPeers(BOOTSTRAP_ADDRS);
-		await this.kad.bootstrapLookup();
+		// Seed from static bootstrap addresses
+		await this.kad.bootstrap(
+			BOOTSTRAP_ADDRS.map((addr) => {
+				const ma = multiaddr(addr);
+				const { host, port } = getHostPortFromMultiaddr(ma);
+				return {
+					id: idToKey(this.extractPeerIdFromMultiaddr(ma) || ma.toString()),
+					addr: ma.toString(),
+					host,
+					port,
+				};
+			}),
+		);
 	}
 
+	/**
+	 * Periodic Kademlia maintenance:
+	 *  - lookup on our own ID (refresh buckets near us)
+	 *  - random lookups (discover new peers, refresh far buckets)
+	 *  - random pings (liveness maintenance)
+	 */
 	private runContactLoop() {
+		// Refresh own ID region every ~60s
 		loopInterval(async () => {
-			await this.kad.bootstrapLookup();
-			await this.kad.randomNodeLookup(100);
+			await this.kad.refreshSelf();
+		}, this.withJitter(8_000));
 
-			await this.kad.pingRandomPeers(100);
-			this.kad.pruneStalePeers(30_000); // e.g. 2 minutes
+		// Random node lookup every ~30s
+		loopInterval(async () => {
+			const target = this.kad.randomNodeId();
+			await this.kad.nodeLookup(target);
+		}, this.withJitter(10_000));
+
+		// Ping random contacts every ~20s
+		loopInterval(async () => {
+			await this.kad.pingRandom(8);
 		}, this.withJitter(10_000));
 	}
 
 	public async connectToKadPeers() {
-		const kadPeers = this.kad.getKnownKadPeers();
-		for (const p of kadPeers) {
-			if (p.id === this.peerId.toString()) continue;
-
+		// Optionally: dial TCP to DHT-known peers
+		const kadContacts = this.kad.table.allContacts();
+		for (const c of kadContacts) {
 			try {
-				await this.dial(p.addr);
-			} catch {}
+				await this.dial(c.addr);
+			} catch {
+				// best-effort; ignore failures
+			}
 		}
 	}
 
@@ -208,7 +234,25 @@ export class PeerNode extends EventEmitter {
 		this.connections.set(key, conn);
 		log(`connection established to ${key} (total: ${this.connections.size})`);
 
-		this.kad.noteConnectedPeer(addr);
+		// Feed this TCP-connected peer into Kademlia as a contact
+		const remotePeerId = this.extractPeerIdFromMultiaddr(addr);
+		if (remotePeerId) {
+			const { host, port } = getHostPortFromMultiaddr(addr);
+			this.kad
+				.noteContact({
+					id: idToKey(remotePeerId),
+					addr: addr.toString(),
+					host,
+					port,
+				})
+				.catch((err) => {
+					log(
+						`failed to note kad contact for ${key}: ${
+							(err as Error).message ?? String(err)
+						}`,
+					);
+				});
+		}
 
 		conn.setOnFrame((frame: Packet) => {
 			this.router.handle(conn, frame);
@@ -222,9 +266,21 @@ export class PeerNode extends EventEmitter {
 			this.connections.delete(key);
 			this.protocolManager.onConnectionClosed(conn);
 			log(`connection to ${key} closed (total: ${this.connections.size})`);
+			// Optional: you could also mark Kademlia contact as "questionable" here
 		});
 
 		return conn;
+	}
+
+	private extractPeerIdFromMultiaddr(addr: Multiaddr): string | null {
+		try {
+			const s = addr.toString();
+			const parts = s.split("/p2p/");
+			if (parts.length < 2) return null;
+			return parts[1]!;
+		} catch {
+			return null;
+		}
 	}
 
 	private canDialPeer(addr: Multiaddr): boolean {

@@ -57,3 +57,16 @@ export function multiaddrFromIp(ip: string, port: number | string) {
 		throw new Error(`Could not create tcp multiaddr from ${ip}:${port}`);
 	}
 }
+
+export function getHostPortFromMultiaddr(addr: Multiaddr): {
+	host: string;
+	port: number;
+} {
+	const s = addr.toString(); // /ip4/127.0.0.1/tcp/4000/p2p/...
+	const parts = s.split("/");
+	const hostIdx = parts.indexOf("ip4") + 1;
+	const tcpIdx = parts.indexOf("tcp") + 1;
+	const host = parts[hostIdx] ?? "127.0.0.1";
+	const port = parseInt(parts[tcpIdx] ?? "0", 10);
+	return { host, port };
+}

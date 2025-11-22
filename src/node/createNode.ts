@@ -19,7 +19,7 @@ const bootStrapPk = Uint8Array.from([
 
 export const BOOTSTRAP_ADDRS = [
 	multiaddr(
-		"/ip4/127.0.0.1/tcp/4001/p2p/16Uiu2HAm5TNJNrE5UwVFxgzmARvwemmmBBcjcxGvzWkbpgM1Gi1h",
+		"/ip4/127.0.0.1/tcp/4000/p2p/16Uiu2HAm5TNJNrE5UwVFxgzmARvwemmmBBcjcxGvzWkbpgM1Gi1h",
 	),
 ];
 
@@ -29,7 +29,7 @@ export const BOOTSTRAP_ADDRS = [
 
 export async function createNode(options: NodeOptions) {
 	const privateKey = generateSecp256k1KeyPrivPubPair(
-		options.port === 4001 ? bootStrapPk : undefined,
+		options.port === 4000 ? bootStrapPk : undefined,
 	);
 	const nodeInfo = { name: "test-p2p", version: "0.0.0" };
 	const shouldStartAutomatically = (node: PeerNode) => {

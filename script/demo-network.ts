@@ -7,7 +7,7 @@ import type { NodeMetricsSnapshot } from "../src/node/types";
 // TODO: replace this with whatever you already use to generate Secp256k1 keys
 
 const HOST = "127.0.0.1";
-const BASE_PORT = 4001;
+const BASE_PORT = 4000;
 const NODE_COUNT = 200;
 
 // ---- helpers ---
@@ -193,13 +193,13 @@ Largest component size: ${largestComponent}`,
 		summarizeNetworkMetrics(nodes);
 
 		for (const node of nodes) {
-			const rt = node.getKadRoutingTable();
+			const rt = node.kad.table.totalContactCount();
 			console.log(
 				node.address.toString(),
 				"| kadPeers =",
-				rt.totalPeers,
+				rt,
 				"| buckets =",
-				rt.nonEmptyBuckets,
+				node.kad.table.getNonEmptyBucketCount(),
 			);
 		}
 	}, intervalMs);
