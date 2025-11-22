@@ -1,5 +1,6 @@
 // udp-kademlia-transport.ts
 
+import { multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import dgram, { type RemoteInfo } from "dgram";
 import type { Contact, KademliaTransport, KadRpc, NodeId } from "./types";
@@ -128,6 +129,8 @@ export class UdpKademliaTransport implements KademliaTransport {
 			id: msg.from, // must be present on all KadRpc
 			host: rinfo.address,
 			port: rinfo.port,
+			addr: multiaddr(`/ip4/${rinfo.address}/udp/${rinfo.port}`).toString(),
+			lastSeen: Date.now(),
 		};
 
 		let resp: KadRpc | null = null;
