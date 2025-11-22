@@ -108,9 +108,12 @@ export interface KademliaConfig {
 	pendingTimeoutMs?: number;
 }
 
+export type StoredValueOrigin = "publisher" | "cache";
+
 export type StoredValue = {
-	value: any;
+	value: unknown;
 	storedAt: number;
+	origin: StoredValueOrigin;
 };
 
 export type PendingRpc =
@@ -143,6 +146,11 @@ export interface Contact {
 	// You can replace this with Multiaddr or your own type.
 	addr: string;
 	lastSeen?: number;
+	/**
+	 * Last observed RTT to this contact in milliseconds.
+	 * Used for simple clustering / proximity heuristics.
+	 */
+	lastRttMs?: number;
 }
 
 // kad-types.ts
@@ -166,7 +174,78 @@ export type KadRpc =
 			from: NodeId;
 			value?: any;
 			nodes?: Contact[];
+	  }
+	/**
+	 * DSHT (Coral-style sloppy hash table) RPCs.
+	 * We store *pointers* to resources rather than raw content.
+	 */
+	| {
+			type: "DSHT_PUT";
+			from: NodeId;
+			level: number; // cluster level
+			key: Key;
+			pointer: DshtPointer;
+	  }
+	| {
+			type: "DSHT_PUT_RESULT";
+			from: NodeId;
+			level: number;
+			key: Key;
+			ok: boolean;
+			reason?: "full" | "duplicate" | "error";
+	  }
+	| {
+			type: "DSHT_GET";
+			from: NodeId;
+			level: number;
+			key: Key;
+			limit?: number;
+	  }
+	| {
+			type: "DSHT_GET_RESULT";
+			from: NodeId;
+			level: number;
+			key: Key;
+			pointers: DshtPointer[];
 	  };
+
+/**
+ * Pointer to a resource in the DSHT.
+ * In Coral terminology this is a "replica pointer".
+ * See: Freedman & Mazières, “Sloppy hashing and self-organizing clusters”
+ * (`https://www.cs.princeton.edu/~mfreed/docs/coral-iptps03.pdf`).
+ */
+export interface DshtPointer {
+	nodeId: NodeId;
+	addr: string;
+	// Arbitrary metadata about the object being pointed to (e.g. URL, hash, size).
+	metadata?: Record<string, unknown>;
+}
+
+export interface DshtClusterLevelConfig {
+	/**
+	 * Cluster level index (0 = smallest / closest).
+	 */
+	level: number;
+	/**
+	 * Human-friendly name, e.g. "local", "region", "global".
+	 */
+	name: string;
+	/**
+	 * Target maximum RTT within this cluster, in milliseconds.
+	 * This loosely corresponds to cluster diameter in Coral.
+	 */
+	maxRttMs: number;
+	/**
+	 * Maximum number of pointers we will store for a single key
+	 * on a single node *at this level*.
+	 */
+	maxPointersPerKey: number;
+}
+
+export interface DshtConfig {
+	levels: DshtClusterLevelConfig[];
+}
 
 /**
  * The transport abstraction KademliaNode expects.

@@ -43,6 +43,7 @@ export class PeerNode extends EventEmitter {
 	private router: MessageRouter;
 	public protocolManager: ProtocolManager;
 	public nodeOptions: PeerInfo;
+	public blockchainClient?: any; // BlockchainClientState - using any to avoid circular dependency
 
 	private failedPeers = new Map<string, number>();
 
@@ -67,6 +68,35 @@ export class PeerNode extends EventEmitter {
 			idBits: 160,
 			lookupTimeoutMs: 500,
 			port: nodeOptions.port, // UDP bind port
+			// Basic value lifetime / republish settings. For production you
+			// would likely make these configurable.
+			valueTtlMs: 10 * 60 * 1000, // 10 minutes
+			republishIntervalMs: 5 * 60 * 1000, // 5 minutes
+			// DSHT / cluster configuration inspired by Coral measurements:
+			// see Freedman & Mazières, “Sloppy hashing and self-organizing clusters”
+			// (`https://www.cs.princeton.edu/~mfreed/docs/coral-iptps03.pdf`).
+			dsht: {
+				levels: [
+					{
+						level: 0,
+						name: "local",
+						maxRttMs: 30, // LAN / very close
+						maxPointersPerKey: 32,
+					},
+					{
+						level: 1,
+						name: "region",
+						maxRttMs: 100, // intra-continent
+						maxPointersPerKey: 64,
+					},
+					{
+						level: 2,
+						name: "global",
+						maxRttMs: 300, // inter-continent
+						maxPointersPerKey: 128,
+					},
+				],
+			},
 		});
 
 		this.router = new MessageRouter();
@@ -168,6 +198,7 @@ export class PeerNode extends EventEmitter {
 	 *  - lookup on our own ID (refresh buckets near us)
 	 *  - random lookups (discover new peers, refresh far buckets)
 	 *  - random pings (liveness maintenance)
+	 *  - republish locally-published values
 	 */
 	private runContactLoop() {
 		// Refresh own ID region every ~60s
@@ -185,6 +216,15 @@ export class PeerNode extends EventEmitter {
 		loopInterval(async () => {
 			await this.kad.pingRandom(8);
 		}, this.withJitter(10_000));
+
+		// Republish locally-published Kademlia values periodically so that
+		// they remain discoverable even as nodes churn.
+		loopInterval(
+			async () => {
+				await this.kad.republishValues();
+			},
+			this.withJitter(5 * 60_000),
+		);
 	}
 
 	public async connectToKadPeers() {

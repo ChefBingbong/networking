@@ -1,5 +1,6 @@
 // scripts/demo-network.ts
 
+import { idToKey } from "../src/kademlia/xor";
 import { createNode } from "../src/node/createNode";
 import { PeerNode } from "../src/node/node";
 import type { NodeMetricsSnapshot } from "../src/node/types";
@@ -202,6 +203,8 @@ Largest component size: ${largestComponent}`,
 				node.kad.table.getNonEmptyBucketCount(),
 			);
 		}
+
+		printDshtClusterInfo(nodes);
 	}, intervalMs);
 }
 
@@ -255,7 +258,14 @@ async function main() {
 		"Network bootstrap in progress… watch logs and analytics below.\n",
 	);
 
-	// 3. Start analytics loop
+	// Give the DHT a bit of time to bootstrap and measure RTTs.
+	await new Promise((resolve) => setTimeout(resolve, 5_000));
+
+	// 3. Run a one-off DSHT demo: publish a key from a subset of nodes
+	// and resolve it from another node, printing cluster-level info.
+	await runDshtDemo(nodes);
+
+	// 4. Start analytics loop
 	startAnalyticsLoop(nodes, 10_000);
 }
 
@@ -263,3 +273,69 @@ main().catch((err) => {
 	console.error("Demo network crashed:", err);
 	process.exit(1);
 });
+
+// ---- DSHT demo utilities ----
+
+const DSHT_DEMO_KEY = "demo-object-1";
+
+async function runDshtDemo(nodes: PeerNode[]) {
+	if (!nodes.length) return;
+
+	const key = idToKey(DSHT_DEMO_KEY);
+	const publishers = nodes.slice(0, Math.min(10, nodes.length));
+
+	console.log(
+		`\n=== DSHT demo ===\nPublishing DSHT pointers for key "${DSHT_DEMO_KEY}" from ${publishers.length} nodes…`,
+	);
+
+	await Promise.all(
+		publishers.map((node, index) =>
+			node.kad.dshtPut(key, {
+				sourceAddress: node.address.toString(),
+				publisherIndex: index,
+			}),
+		),
+	);
+
+	const reader = nodes[nodes.length - 1];
+	const res = await reader.kad.dshtGetNear(key, 8);
+
+	console.log(
+		`DSHT getNear from ${reader.address.toString()} resolved at level=${res.level} with ${res.pointers.length} pointers:`,
+	);
+
+	for (const p of res.pointers) {
+		const meta =
+			p.metadata && typeof p.metadata === "object"
+				? JSON.stringify(p.metadata)
+				: String(p.metadata);
+		console.log(`  pointer -> nodeId=${p.nodeId} addr=${p.addr} meta=${meta}`);
+	}
+}
+
+function printDshtClusterInfo(nodes: PeerNode[]) {
+	if (!nodes.length) return;
+
+	// Sample a subset of nodes for readability
+	const sample = nodes.slice(0, Math.min(5, nodes.length));
+
+	console.log("\n=== DSHT cluster snapshot (sampled nodes) ===");
+	for (const node of sample) {
+		const snap = node.kad.getDshtDebugSnapshot();
+		if (!snap.enabled) {
+			console.log(node.address.toString(), "DSHT disabled");
+			continue;
+		}
+
+		console.log(`Node ${node.address.toString()} (id=${snap.nodeId})`);
+		for (const lvl of snap.levels) {
+			console.log(
+				`  [level ${lvl.level} "${lvl.name}"] maxRtt=${lvl.maxRttMs}ms, maxPointersPerKey=${lvl.maxPointersPerKey}`,
+			);
+			console.log(
+				`    contacts within/unknown/outside: ${lvl.contactsWithin}/${lvl.contactsUnknown}/${lvl.contactsOutside}`,
+			);
+			console.log(`    total pointers stored at this node: ${lvl.totalPointers}`);
+		}
+	}
+}
