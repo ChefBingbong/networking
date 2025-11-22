@@ -142,6 +142,7 @@ export interface Contact {
 	port: number;
 	// You can replace this with Multiaddr or your own type.
 	addr: string;
+	lastSeen?: number;
 }
 
 // kad-types.ts

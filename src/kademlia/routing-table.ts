@@ -1,10 +1,11 @@
+// src/kademlia/routing-table.ts
 import { KBucket } from "./bucket";
 import type { Contact, NodeId } from "./types";
 import { bucketIndex, xorDist } from "./xor";
 
 export interface RoutingTableConfig {
-	k: number; // bucket size (paper: k ~ 20)
-	idBits: number; // usually 160
+	k: number; // bucket size
+	idBits: number; // number of bits in NodeId keyspace
 }
 
 export class RoutingTable {
@@ -23,47 +24,50 @@ export class RoutingTable {
 	}
 
 	/**
-	 * Paper 2.2: "Updating the k-buckets"
-	 *
-	 * - On any contact with node n:
-	 *   • If n already exists in bucket → move it to tail.
-	 *   • Else if bucket not full → append it.
-	 *   • Else (bucket full) → ping least-recently seen node:
-	 *       if responds, keep existing node and discard n;
-	 *       otherwise, replace it with n.
+	 * Paper 2.2: Updating the k-buckets.
 	 */
 	async update(
 		contact: Contact,
 		pingFn: (c: Contact) => Promise<boolean>,
 	): Promise<void> {
-		if (contact.id === this.selfId) return; // never store ourselves
+		if (contact.id === this.selfId) return;
 
 		const bucket = this.getBucketFor(contact.id);
+		const now = Date.now();
+		const withTs: Contact = { ...contact, lastSeen: contact.lastSeen ?? now };
 
-		if (bucket.has(contact.id)) {
-			bucket.touch(contact);
+		// 1. If n already exists in bucket, move it to tail (most recently seen).
+		if (bucket.has(withTs.id)) {
+			bucket.touch(withTs);
 			return;
 		}
 
+		// 2. If bucket not full, append.
 		if (!bucket.isFull()) {
-			bucket.pushNew(contact);
+			bucket.pushNew(withTs);
 			return;
 		}
 
-		// bucket is full → ping oldest (LRU)
+		// 3. Bucket full: ping least recently seen node.
 		const oldest = bucket.getOldest();
 		if (!oldest) {
-			// should not happen, but just insert
-			bucket.pushNew(contact);
+			// Shouldn't happen, but just insert.
+			bucket.pushNew(withTs);
 			return;
 		}
 
 		const alive = await pingFn(oldest);
+
 		if (!alive) {
-			bucket.replaceOldest(contact);
+			// oldest is dead → replace with new node
+			bucket.replaceOldest(withTs);
 		} else {
-			// oldest still alive → keep it, drop new contact
-			bucket.touch(oldest);
+			// oldest responded → keep it, drop new node
+			const refreshedOldest: Contact = {
+				...oldest,
+				lastSeen: Date.now(),
+			};
+			bucket.touch(refreshedOldest);
 		}
 	}
 

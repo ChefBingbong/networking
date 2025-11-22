@@ -27,12 +27,7 @@ export class UdpKademliaTransport implements KademliaTransport {
 		private readonly localId: NodeId,
 		private readonly bindHost: string,
 		private readonly bindPort: number,
-		/**
-		 * This callback is usually `node.handleRpc`.
-		 * It MUST:
-		 *  - process incoming RPC
-		 *  - return a response KadRpc, or `null` for no response
-		 */
+
 		private readonly onRpc: (
 			msg: KadRpc,
 			from: Contact,

@@ -7,7 +7,7 @@ import {
 	connect as tlsConnect,
 } from "node:tls";
 import type { Secp256k1PrivateKey } from "../secp256k1/secp256k1";
-import { safeError } from "../utils/safe";
+import { safeError, safeResult } from "../utils/safe";
 import { generateBoundCertificate, verifyPeerCertificate } from "./cert";
 import type { EncrypterResult, EncryptionCredentials } from "./types";
 
@@ -27,7 +27,7 @@ export class Encrypter {
 			const creds = await generateBoundCertificate(this.keyPair);
 			const tlsSocket = await this.upgradeToTlsSocket(raw, creds, isServer);
 
-			return await new Promise<EncrypterResult>((resolve, reject) => {
+			const result = await new Promise<EncrypterResult>((resolve, reject) => {
 				const onError = (e: Error) => {
 					tlsSocket.destroy();
 					cleanup();
@@ -45,6 +45,7 @@ export class Encrypter {
 				tlsSocket.once("secure" as any, onReady);
 				tlsSocket.once("error", onError);
 			});
+			return safeResult(result);
 		} catch (error) {
 			log("encryption handshake failed:", error);
 			return safeError(error);

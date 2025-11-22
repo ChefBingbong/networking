@@ -63,7 +63,7 @@ export class PeerNode extends EventEmitter {
 
 		this.kad = new KademliaDHT(this, idToKey(this.peerId.toString()), {
 			k: 16,
-			alpha: 3,
+			alpha: 6,
 			idBits: 160,
 			lookupTimeoutMs: 500,
 			port: nodeOptions.port, // UDP bind port
@@ -157,6 +157,7 @@ export class PeerNode extends EventEmitter {
 					addr: ma.toString(),
 					host,
 					port,
+					lastSeen: Date.now(),
 				};
 			}),
 		);
