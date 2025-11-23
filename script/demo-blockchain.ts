@@ -16,7 +16,7 @@ import { generateSecp256k1KeyPrivPubPair } from "../src/secp256k1/utils";
 
 const HOST = "127.0.0.1";
 const BASE_PORT = 4000;
-const NODE_COUNT = 5;
+const NODE_COUNT = 50;
 
 async function main() {
 	console.log(`Creating ${NODE_COUNT} blockchain nodes...`);
