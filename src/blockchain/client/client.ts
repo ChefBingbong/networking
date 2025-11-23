@@ -4,6 +4,7 @@ import { getGlobalAppInstance } from "../../http";
 import { addBlockchainApiRoutes } from "../../http/blockchain-api";
 import type { PeerNode } from "../../node/node";
 import { blockHash, createBlock } from "../block/block";
+import { createHeader } from "../block/header";
 import { createChain, getCanonicalHead } from "../blockchain/chain";
 import { getChainConfig } from "../config/chain-config";
 import { initializeGenesis } from "../config/genesis";
@@ -13,6 +14,7 @@ import {
 	createCliqueConsensus,
 	setupCliqueConsensus,
 } from "../consensus/clique";
+import { signCliqueHeader } from "../consensus/clique/utils";
 import { createDatabase } from "../db/database";
 import { type EVMState, evmCall } from "../evm/evm";
 import {
@@ -34,6 +36,7 @@ import type {
 	Transaction,
 	Wei,
 } from "../types";
+import { hexToBytes } from "../utils";
 import { mineBlock } from "./miner";
 
 export interface BlockchainClientState {
@@ -60,8 +63,54 @@ export function createBlockchainClient(
 	genesis?: GenesisConfig,
 	minerAddress?: Address,
 	dbPath?: string,
+	minerPrivateKey?: Uint8Array,
+	signerAddresses?: Address[], // For Clique: list of all signer addresses
 ): BlockchainClientState {
 	const config = getChainConfig(configName);
+
+	// Handle Clique genesis extraData setup if Clique is enabled
+	let finalGenesisConfig: GenesisConfig = genesis ?? config.genesis;
+	if (
+		config.clique &&
+		signerAddresses &&
+		signerAddresses.length > 0 &&
+		minerPrivateKey
+	) {
+		// Create genesis extraData with signers (for epoch transition)
+		// Format: [vanity (32 bytes)][signers (20 bytes each)][signature (65 bytes)]
+		const vanity = new Uint8Array(32).fill(0);
+		const signersData = new Uint8Array(signerAddresses.length * 20);
+		for (let i = 0; i < signerAddresses.length; i++) {
+			const signerBytes = Uint8Array.from(
+				Buffer.from(signerAddresses[i]!.slice(2), "hex"),
+			);
+			signersData.set(signerBytes, i * 20);
+		}
+
+		// Create extraData with vanity + signers (without signature)
+		const extraDataWithoutSig = new Uint8Array(32 + signersData.length);
+		extraDataWithoutSig.set(vanity, 0);
+		extraDataWithoutSig.set(signersData, 32);
+
+		// Create a temporary header for signing
+		const tempHeader = createHeader({
+			number: 0n,
+			gasLimit: BigInt(finalGenesisConfig.gasLimit),
+			difficulty: BigInt(finalGenesisConfig.difficulty),
+			timestamp: BigInt(finalGenesisConfig.timestamp),
+			extraData: extraDataWithoutSig,
+		});
+
+		// Sign the header with first signer's private key
+		const signedHeader = signCliqueHeader(tempHeader, minerPrivateKey);
+
+		// Update genesis config with signed extraData
+		finalGenesisConfig = {
+			...finalGenesisConfig,
+			extraData: `0x${Buffer.from(signedHeader.extraData).toString("hex")}`,
+		};
+	}
+
 	const chain = createChain(
 		createBlock(
 			{
@@ -78,12 +127,12 @@ export function createBlockchainClient(
 				receiptsRoot:
 					"0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
 				logsBloom: new Uint8Array(256).fill(0),
-				difficulty: BigInt(config.genesis.difficulty),
+				difficulty: BigInt(finalGenesisConfig.difficulty),
 				number: 0n,
-				gasLimit: BigInt(config.genesis.gasLimit),
+				gasLimit: BigInt(finalGenesisConfig.gasLimit),
 				gasUsed: 0n,
-				timestamp: BigInt(config.genesis.timestamp),
-				extraData: new Uint8Array(0),
+				timestamp: BigInt(finalGenesisConfig.timestamp),
+				extraData: hexToBytes(finalGenesisConfig.extraData),
 				mixHash:
 					"0x0000000000000000000000000000000000000000000000000000000000000000",
 				nonce: 0n,
@@ -94,15 +143,16 @@ export function createBlockchainClient(
 	);
 
 	const stateManager = createStateManager();
-	const genesisConfig = genesis ?? config.genesis;
-	initializeGenesis(chain, genesisConfig, stateManager);
+	initializeGenesis(chain, finalGenesisConfig, stateManager);
 
-	// Initialize database if path provided
+	// Initialize database and Clique if config has Clique enabled
 	let db: ReturnType<typeof createDatabase> | undefined;
 	let clique: CliqueConsensusState | undefined;
 
-	if (dbPath && config.clique) {
-		db = createDatabase(dbPath);
+	if (config.clique) {
+		// Use provided dbPath or generate a default one
+		const finalDbPath = dbPath ?? `./clique/clique-db-default`;
+		db = createDatabase(finalDbPath);
 		clique = createCliqueConsensus(db, {
 			epoch: config.clique.epoch,
 			period: config.clique.period,
@@ -121,6 +171,12 @@ export function createBlockchainClient(
 		clique,
 		db,
 	};
+
+	// Store miner private key for Clique signing if provided
+	if (minerPrivateKey && config.clique) {
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(client as any).minerPrivateKey = minerPrivateKey;
+	}
 
 	return client;
 }

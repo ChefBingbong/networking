@@ -24,6 +24,7 @@ import {
 import { createDatabase } from "../src/blockchain/db/database";
 import type { GenesisConfig } from "../src/blockchain/types";
 import { hexToBytes } from "../src/blockchain/utils";
+import { createNode } from "../src/node/createNode";
 import { generateSecp256k1KeyPrivPubPair } from "../src/secp256k1/utils";
 
 const HOST = "127.0.0.1";
@@ -85,26 +86,13 @@ async function main() {
 	const clients = [];
 	const signerKeys: Array<{ address: string; privateKey: Uint8Array }> = [];
 
-	// Create nodes first and extract their keys to use as signer keys
-	const { createNodeWithKey } = await import("../src/node/createNode");
+	// Generate signer keys first
 	for (let i = 0; i < NODE_COUNT; i++) {
-		const { node, privateKey: nodePrivateKeyBytes } = await createNodeWithKey({
-			host: HOST,
-			port: BASE_PORT + i,
-			start: false,
-			nodeTypes: "peer",
-		});
-
-		await node.start();
-
-		// Use the node's private key as the signer key
-		const signerAddress = addressFromPrivateKey(nodePrivateKeyBytes);
-		signerKeys.push({
-			address: signerAddress,
-			privateKey: nodePrivateKeyBytes,
-		});
-		console.log(`Signer ${i}: ${signerAddress}`);
-		nodes.push(node);
+		const keyPair = generateSecp256k1KeyPrivPubPair();
+		const privateKeyBytes = keyPair.privateKey.raw;
+		const address = addressFromPrivateKey(privateKeyBytes);
+		signerKeys.push({ address, privateKey: privateKeyBytes });
+		console.log(`Signer ${i}: ${address}`);
 	}
 
 	// Create genesis extraData with signers (for epoch transition)
@@ -136,13 +124,15 @@ async function main() {
 	});
 
 	// Sign the header with first signer
-	// signCliqueHeader expects the header to already have extraData set (without signature)
+	// signCliqueHeader will append the signature to the vanity parameter
+	// So we need to pass the full extraData (vanity + signers) as vanity
 	const { signCliqueHeader: signCliqueHeaderUtil } = await import(
 		"../src/blockchain/consensus/clique/utils"
 	);
 	const signedHeader = signCliqueHeaderUtil(
-		tempHeader, // tempHeader already has extraDataWithoutSig set
+		tempHeader,
 		signerKeys[0]!.privateKey,
+		extraDataWithoutSig, // Pass vanity + signers as vanity parameter
 	);
 
 	// Verify the signed header has correct length
@@ -165,9 +155,17 @@ async function main() {
 		alloc: {},
 	};
 
-	// Create blockchain clients with Clique enabled
+	// Create nodes and blockchain clients with Clique enabled
 	for (let i = 0; i < NODE_COUNT; i++) {
-		const node = nodes[i]!;
+		const node = await createNode({
+			host: HOST,
+			port: BASE_PORT + i,
+			start: false,
+			nodeTypes: "peer",
+		});
+
+		await node.start();
+
 		const signerKey = signerKeys[i]!;
 		const dbPath = `${DB_BASE_PATH}-${i}`;
 
@@ -368,8 +366,6 @@ async function main() {
 				console.error(
 					`  ✗ Signer mismatch! Expected ${signerAddress}, got ${signer}`,
 				);
-			} else {
-				console.log(`  ✓ Signer matches: ${signer} === ${signerAddress}`);
 			}
 
 			// Verify difficulty

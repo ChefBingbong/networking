@@ -28,6 +28,7 @@ export function createBlockchainProtocolHandler(
 		try {
 			// Find peer address from connections map
 			let fromPeer = "unknown";
+			console.log(Array.from(client.node.connections.keys()), "connections");
 			for (const [addr, conn] of client.node.connections.entries()) {
 				if (conn === stream.conn) {
 					fromPeer = addr;
@@ -291,6 +292,7 @@ function broadcastBlockToPeers(
 		(addr) => addr !== excludePeer,
 	);
 
+	console.log(peers, "broadcastBlockToPeers");
 	if (peers.length === 0) return;
 
 	// Serialize block to JSON string

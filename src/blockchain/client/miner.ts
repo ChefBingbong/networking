@@ -23,9 +23,11 @@ import {
 	signCliqueHeader,
 } from "../consensus/clique/utils";
 import { BLOCKCHAIN_PROTOCOL } from "../p2p/protocol";
+import { removeTransaction } from "../p2p/tx-pool";
 import { calculateStateRoot } from "../state/state-manager";
+import { recoverSender, validateTransaction } from "../tx/transaction";
 import type { Block, Hash, Transaction } from "../types";
-import { addressFromPrivateKey } from "../utils";
+import { addressFromPrivateKey, txHash } from "../utils";
 import { serializeBlock } from "../utils/serialization";
 import type { BlockchainClientState } from "./client";
 
@@ -39,8 +41,27 @@ export async function mineBlock(
 		return null;
 	}
 
-	console.log(`Preparing block with ${txs.length} transactions`);
-	const block = prepareBlock(client, parent, txs, timestamp);
+	// Filter out invalid transactions (wrong nonce, insufficient balance, etc.)
+	const validTxs = txs.filter((tx) => {
+		if (!validateTransaction(tx, client.stateManager)) {
+			return false;
+		}
+		const from = recoverSender(tx);
+		if (!from) {
+			return false;
+		}
+		// Additional check: ensure nonce matches current account state
+		const account = client.stateManager.accounts.get(from);
+		if (account && account.nonce !== tx.nonce) {
+			return false;
+		}
+		return true;
+	});
+
+	console.log(
+		`Preparing block with ${validTxs.length} transactions (filtered from ${txs.length})`,
+	);
+	const block = prepareBlock(client, parent, validTxs, timestamp);
 	if (!block) {
 		console.log("Failed to prepare block");
 		return null;
@@ -93,6 +114,12 @@ export async function mineBlock(
 		`Block added and processed successfully, gasUsed: ${processResult.gasUsed.toString()}`,
 	);
 
+	// Remove successfully mined transactions from the pool
+	for (const tx of minedBlock.transactions) {
+		const hash = txHash(tx);
+		removeTransaction(client.txPool, hash);
+	}
+
 	// Broadcast block to peers
 	broadcastBlock(client, minedBlock);
 
@@ -100,9 +127,9 @@ export async function mineBlock(
 }
 
 function broadcastBlock(client: BlockchainClientState, block: Block): void {
-	const peers = client.node.getKadPeers();
+	const peers = client.node.connections.keys().toArray();
 
-	console.log(peers);
+	console.log(peers, "kad peers");
 	if (peers.length === 0) {
 		console.log("[broadcastBlock] No peers to broadcast to");
 		return;
