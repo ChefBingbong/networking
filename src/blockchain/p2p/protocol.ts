@@ -1,6 +1,7 @@
 // src/blockchain/p2p/protocol.ts
-import type { Block, Hash, Transaction } from "../types";
+
 import type { PeerNode } from "../../node/node";
+import type { Block, Hash, Transaction } from "../types";
 
 export const BLOCKCHAIN_PROTOCOL = "/blockchain/1.0.0";
 
@@ -8,8 +9,8 @@ export type BlockchainMessage =
 	| { type: "Status"; chainId: bigint; headHash: Hash; headNumber: bigint }
 	| { type: "NewBlockHashes"; hashes: Hash[] }
 	| { type: "GetBlocks"; hashes: Hash[] }
-	| { type: "Blocks"; blocks: Block[] }
-	| { type: "NewBlock"; block: Block }
+	| { type: "Blocks"; blocks: string } // JSON-serialized blocks array string
+	| { type: "NewBlock"; block: string } // JSON-serialized block string
 	| { type: "GetBlockHeaders"; startHash: Hash; maxHeaders: number }
 	| { type: "BlockHeaders"; headers: Block[] }
 	| { type: "GetBlockBodies"; hashes: Hash[] }
@@ -70,4 +71,3 @@ export async function sendBlocks(
 	// Send via protocol manager
 	// await node.protocolManager.send(to, BLOCKCHAIN_PROTOCOL, msg);
 }
-

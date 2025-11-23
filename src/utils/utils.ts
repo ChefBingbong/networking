@@ -70,3 +70,32 @@ export function getHostPortFromMultiaddr(addr: Multiaddr): {
 	const port = parseInt(parts[tcpIdx] ?? "0", 10);
 	return { host, port };
 }
+
+export function stringifyWithBigInt(value: unknown, space?: number) {
+	const seen = new WeakSet<object>();
+
+	const replacer = (_key: string, val: unknown) => {
+		if (typeof val === "bigint") return val.toString();
+		if (typeof val === "object" && val !== null) {
+			if (seen.has(val as object)) return undefined; // drop circular refs
+			seen.add(val as object);
+		}
+		return val as unknown;
+	};
+
+	return JSON.stringify(value, replacer, space);
+}
+
+export function parseWithBigInt(jsonString: string): unknown {
+	return JSON.parse(jsonString, (_key, value) => {
+	  if (typeof value === 'string' && /^\d+$/.test(value)) {
+		try {
+		  const num = BigInt(value);
+		  if (num > Number.MAX_SAFE_INTEGER || num < Number.MIN_SAFE_INTEGER) {
+			return num;
+		  }
+		} catch {}
+	  }
+	  return value;
+	});
+  }

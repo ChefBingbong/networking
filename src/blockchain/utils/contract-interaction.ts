@@ -6,6 +6,7 @@ import { clientCall, clientSendTransaction } from "../client/client";
 import { getAccount } from "../state/state-manager";
 import { createTransaction, signTransaction } from "../tx/transaction";
 import type { Address, Wei } from "../types";
+import { txHash } from "../utils";
 import { createGetValueCallData, decodeUint256ReturnData } from "./contracts";
 
 /**
@@ -71,7 +72,6 @@ export function sendContractTransaction(
 	}
 
 	// Return transaction hash
-	const { txHash } = require("../utils");
 	return txHash(signedTx);
 }
 

@@ -1,15 +1,24 @@
 // src/blockchain/p2p/handler.ts
 import type { ProtocolStream } from "../../connection/protocol-stream";
+import { parseWithBigInt, stringifyWithBigInt } from "../../utils/utils";
 import { blockHash } from "../block/block";
 import {
 	getBlock,
 	getCanonicalHead,
 	validateAndAddBlock,
 } from "../blockchain/chain";
+import { processBlock } from "../blockchain/processor";
 import type { BlockchainClientState } from "../client/client";
-import type { Block } from "../types";
+import type { Block, Transaction } from "../types";
 import { txHash } from "../utils";
+import {
+	deserializeBlock,
+	deserializeBlocks,
+	serializeBlock,
+	serializeBlocks,
+} from "../utils/serialization";
 import type { BlockchainMessage } from "./protocol";
+import { BLOCKCHAIN_PROTOCOL } from "./protocol";
 import { addTransaction, getPendingTransactions } from "./tx-pool";
 
 export function createBlockchainProtocolHandler(
@@ -17,6 +26,15 @@ export function createBlockchainProtocolHandler(
 ): (stream: ProtocolStream) => Promise<void> {
 	return async (stream: ProtocolStream) => {
 		try {
+			// Find peer address from connections map
+			let fromPeer = "unknown";
+			for (const [addr, conn] of client.node.connections.entries()) {
+				if (conn === stream.conn) {
+					fromPeer = addr;
+					break;
+				}
+			}
+
 			// Send initial status
 			const head = getCanonicalHead(client.chain);
 			if (head) {
@@ -26,20 +44,37 @@ export function createBlockchainProtocolHandler(
 					headHash: blockHash(head),
 					headNumber: head.header.number,
 				};
-				stream.send(Buffer.from(JSON.stringify(statusMsg), "utf-8"));
+				stream.send(Buffer.from(stringifyWithBigInt(statusMsg), "utf-8"));
 			}
 
 			// Listen for incoming messages
-			stream.addEventListener("message", async (evt: { data: any }) => {
+			stream.addEventListener("message", async (evt: { data: Uint8Array }) => {
 				try {
 					const data = evt.data;
-					const msg = JSON.parse(
+					const msg = parseWithBigInt(
 						Buffer.from(data).toString("utf-8"),
 					) as BlockchainMessage;
 
-					// Extract peer info from stream connection
-					const fromPeer =
-						(stream.conn as any).remoteAddr?.toString() || "unknown";
+					// Convert block JSON string back to Block object if it's a NewBlock message
+					if (msg.type === "NewBlock" && typeof msg.block === "string") {
+						const block = deserializeBlock(msg.block);
+						// Create decoded message with Block object
+						const decodedMsg = {
+							type: "NewBlock" as const,
+							block,
+						};
+						console.log(decodedMsg, "decodedMsg");
+						const response = await handleBlockchainMessageForClient(
+							client,
+							decodedMsg as unknown as BlockchainMessage,
+							fromPeer,
+						);
+						if (response) {
+							stream.send(Buffer.from(stringifyWithBigInt(response), "utf-8"));
+						}
+						return;
+					}
+
 					const response = await handleBlockchainMessageForClient(
 						client,
 						msg,
@@ -47,7 +82,7 @@ export function createBlockchainProtocolHandler(
 					);
 
 					if (response) {
-						stream.send(Buffer.from(JSON.stringify(response), "utf-8"));
+						stream.send(Buffer.from(stringifyWithBigInt(response), "utf-8"));
 					}
 				} catch (err) {
 					console.error("Error handling blockchain message:", err);
@@ -70,6 +105,7 @@ export async function handleBlockchainMessageForClient(
 	fromPeer?: string,
 ): Promise<BlockchainMessage | null> {
 	// Track received message
+
 	client.receivedMessages.push({
 		timestamp: Date.now(),
 		type: msg.type,
@@ -81,7 +117,6 @@ export async function handleBlockchainMessageForClient(
 	if (client.receivedMessages.length > 1000) {
 		client.receivedMessages.shift();
 	}
-
 	switch (msg.type) {
 		case "Status": {
 			// Handle status message - compare chains
@@ -107,23 +142,45 @@ export async function handleBlockchainMessageForClient(
 					blocks.push(block);
 				}
 			}
+			// Serialize blocks to JSON string
+			const blocksJson = serializeBlocks(blocks);
 			return {
 				type: "Blocks",
-				blocks,
+				blocks: blocksJson,
 			};
 		}
 
 		case "Blocks": {
-			// Process incoming blocks
-			for (const block of msg.blocks) {
-				validateAndAddBlock(client.chain, block);
+			// Deserialize blocks from JSON string
+			const blocks = deserializeBlocks(msg.blocks);
+			for (const block of blocks) {
+				const result = validateAndAddBlock(client.chain, block);
+				if (result) {
+					// Process block to update state
+					processBlock(client.chain, block, client.stateManager);
+					console.log(
+						`[handler] Processed ${blocks.length} blocks from ${fromPeer}`,
+					);
+				}
 			}
 			return null;
 		}
 
 		case "NewBlock": {
-			// Process new block
-			validateAndAddBlock(client.chain, msg.block);
+			// Process new block - msg.block is Block object (decoded from hex string in handler)
+			const block = (msg as unknown as { type: "NewBlock"; block: Block })
+				.block;
+			const result = validateAndAddBlock(client.chain, block);
+			if (result) {
+				// Process block to update state
+				processBlock(client.chain, block, client.stateManager);
+				console.log(
+					`[handler] Processed new block #${block.header.number.toString()} from ${fromPeer}`,
+				);
+
+				// Broadcast to other peers (gossip)
+				broadcastBlockToPeers(client, block, fromPeer);
+			}
 			return null;
 		}
 
@@ -139,13 +196,102 @@ export async function handleBlockchainMessageForClient(
 
 		case "PooledTransactions": {
 			// Add transactions to pool
+			let added = 0;
 			for (const tx of msg.transactions) {
-				addTransaction(client.txPool, tx, client.stateManager);
+				if (addTransaction(client.txPool, tx, client.stateManager)) {
+					added++;
+				}
+			}
+			if (added > 0) {
+				console.log(`[handler] Added ${added} transactions from ${fromPeer}`);
+				// Broadcast to other peers (gossip)
+				broadcastTransactionsToPeers(client, msg.transactions, fromPeer);
 			}
 			return null;
 		}
 
 		default:
 			return null;
+	}
+}
+
+/**
+ * Broadcast block to all connected peers (except sender)
+ */
+function broadcastBlockToPeers(
+	client: BlockchainClientState,
+	block: Block,
+	excludePeer?: string,
+): void {
+	const peers = Array.from(client.node.connections.keys()).filter(
+		(addr) => addr !== excludePeer,
+	);
+
+	if (peers.length === 0) return;
+
+	// Serialize block to JSON string
+	const blockJson = serializeBlock(block);
+
+	const msg: BlockchainMessage = {
+		type: "NewBlock",
+		block: blockJson,
+	};
+
+	for (const peerAddr of peers) {
+		const conn = client.node.connections.get(peerAddr);
+		if (!conn) continue;
+
+		client.node.protocolManager
+			.initOutgoing(conn, BLOCKCHAIN_PROTOCOL)
+			.then((stream) => {
+				stream.send(Buffer.from(stringifyWithBigInt(msg), "utf-8"));
+				setTimeout(() => {
+					try {
+						stream.close();
+					} catch {}
+				}, 1000);
+			})
+			.catch(() => {
+				// Ignore errors
+			});
+	}
+}
+
+/**
+ * Broadcast transactions to all connected peers (except sender)
+ */
+function broadcastTransactionsToPeers(
+	client: BlockchainClientState,
+	txs: Transaction[],
+	excludePeer?: string,
+): void {
+	const peers = Array.from(client.node.connections.keys()).filter(
+		(addr) => addr !== excludePeer,
+	);
+
+	if (peers.length === 0 || txs.length === 0) return;
+
+	const msg: BlockchainMessage = {
+		type: "PooledTransactions",
+		transactions: txs,
+	};
+
+	for (const peerAddr of peers) {
+		const conn = client.node.connections.get(peerAddr);
+		if (!conn) continue;
+
+		client.node.protocolManager
+			.initOutgoing(conn, BLOCKCHAIN_PROTOCOL)
+			.then((stream) => {
+				stream.send(Buffer.from(stringifyWithBigInt(msg), "utf-8"));
+				setTimeout(() => {
+					try {
+						stream.close();
+					} catch {}
+				}, 1000);
+			})
+			.catch(() => {
+				// Ignore errors
+			});
 	}
 }

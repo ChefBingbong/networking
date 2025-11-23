@@ -45,4 +45,5 @@ export * from "./client/miner";
 export * from "./utils/merkle";
 export * from "./utils/contracts";
 export * from "./utils/contract-interaction";
+export * from "./utils/serialization";
 

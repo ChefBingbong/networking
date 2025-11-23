@@ -1,5 +1,7 @@
 // src/blockchain/client/miner.ts
 
+import { multiaddr } from "@multiformats/multiaddr";
+import { stringifyWithBigInt } from "../../utils/utils";
 import { blockHash, createBlock } from "../block/block";
 import { createHeader } from "../block/header";
 import { validateAndAddBlock } from "../blockchain/chain";
@@ -8,8 +10,10 @@ import {
 	calculateTransactionsRoot,
 	processBlock,
 } from "../blockchain/processor";
+import { BLOCKCHAIN_PROTOCOL } from "../p2p/protocol";
 import { calculateStateRoot } from "../state/state-manager";
 import type { Block, Hash, Transaction } from "../types";
+import { serializeBlock } from "../utils/serialization";
 import type { BlockchainClientState } from "./client";
 
 export function mineBlock(
@@ -72,29 +76,35 @@ export function mineBlock(
 }
 
 function broadcastBlock(client: BlockchainClientState, block: Block): void {
-	const peers = Array.from(client.node.connections.keys());
+	const peers = client.node.getKadPeers();
+
+	console.log(peers);
+	if (peers.length === 0) {
+		console.log("[broadcastBlock] No peers to broadcast to");
+		return;
+	}
+
+	// Serialize block to JSON string
+	const blockJson = serializeBlock(block);
+
 	const msg = {
 		type: "NewBlock",
-		block,
+		block: blockJson,
 	};
-	console.log(peers, "peers");
-	for (const peerAddr of peers) {
-		const conn = client.node.connections.get(peerAddr);
-		console.log(conn, "conn");
-		if (!conn) continue;
 
-		client.node.protocolManager
-			.initOutgoing(conn, "/blockchain/1.0.0")
+	console.log(
+		`[broadcastBlock] Broadcasting block #${block.header.number.toString()} to ${peers.length} peers`,
+	);
+	for (const peerAddr of peers) {
+		client.node
+			.dialProtocol(multiaddr(peerAddr), BLOCKCHAIN_PROTOCOL)
 			.then((stream) => {
-				stream.send(Buffer.from(JSON.stringify(msg), "utf-8"));
+				stream.send(Buffer.from(stringifyWithBigInt(msg), "utf-8"));
 				setTimeout(() => {
 					try {
 						stream.close();
 					} catch {}
 				}, 1000);
-			})
-			.catch(() => {
-				// Ignore errors
 			});
 	}
 }

@@ -19,7 +19,14 @@ import {
 	getPendingTransactions,
 } from "../p2p/tx-pool";
 import { createStateManager, getAccount } from "../state/state-manager";
-import type { Address, Block, ChainConfig, Transaction, Wei } from "../types";
+import type {
+	Address,
+	Block,
+	ChainConfig,
+	GenesisConfig,
+	Transaction,
+	Wei,
+} from "../types";
 import { mineBlock } from "./miner";
 
 export interface BlockchainClientState {
@@ -34,14 +41,14 @@ export interface BlockchainClientState {
 		timestamp: number;
 		type: string;
 		from?: string;
-		data?: any;
+		data?: BlockchainMessage;
 	}>;
 }
 
 export function createBlockchainClient(
 	node: PeerNode,
 	configName: string,
-	genesis?: any,
+	genesis?: GenesisConfig,
 	minerAddress?: Address,
 ): BlockchainClientState {
 	const config = getChainConfig(configName);
@@ -103,6 +110,7 @@ export async function clientStart(
 	client.syncing = true;
 
 	// Store blockchain client on node for API access
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(client.node as any).blockchainClient = client;
 
 	// Add blockchain routes to existing API if it exists
@@ -116,7 +124,29 @@ export async function clientStart(
 }
 
 function startSyncLoop(client: BlockchainClientState): void {
-	// Periodically sync with peers
+	// Periodically discover and connect to peers via Kademlia
+	setInterval(async () => {
+		if (!client.syncing) return;
+
+		// Use Kademlia to discover new peers
+		try {
+			const target = client.node.kad.randomNodeId();
+			const discoveredPeers = await client.node.kad.nodeLookup(target);
+
+			// Connect to discovered peers
+			for (const contact of discoveredPeers) {
+				try {
+					await client.node.dial(contact.addr);
+				} catch {
+					// Ignore connection errors
+				}
+			}
+		} catch {
+			// Ignore discovery errors
+		}
+	}, 10000); // Discover peers every 10 seconds
+
+	// Periodically sync blockchain state with connected peers
 	setInterval(async () => {
 		if (!client.syncing) return;
 
@@ -129,7 +159,7 @@ function startSyncLoop(client: BlockchainClientState): void {
 
 		try {
 			await syncWithPeer(client, peerAddr);
-		} catch (err) {
+		} catch {
 			// Ignore sync errors
 		}
 	}, 5000); // Sync every 5 seconds
@@ -161,13 +191,13 @@ async function syncWithPeer(
 		}
 
 		// Listen for responses
-		stream.addEventListener("message", async (evt: { data: any }) => {
+		stream.addEventListener("message", async (evt: { data: Uint8Array }) => {
 			try {
 				const msg = JSON.parse(
 					Buffer.from(evt.data).toString("utf-8"),
 				) as BlockchainMessage;
-				await handleBlockchainMessageForClient(client, msg);
-			} catch (err) {
+				await handleBlockchainMessageForClient(client, msg, peerAddr);
+			} catch {
 				// Ignore errors
 			}
 		});
@@ -176,9 +206,11 @@ async function syncWithPeer(
 		setTimeout(() => {
 			try {
 				stream.close();
-			} catch {}
+			} catch {
+				// Ignore close errors
+			}
 		}, 10000);
-	} catch (err) {
+	} catch {
 		// Ignore connection errors
 	}
 }
@@ -263,7 +295,7 @@ export function clientCall(
 }
 
 export function clientEstimateGas(
-	client: BlockchainClientState,
+	_client: BlockchainClientState,
 	tx: Transaction,
 ): bigint {
 	// Simplified - would actually run transaction with gas metering

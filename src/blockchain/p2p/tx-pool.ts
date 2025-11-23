@@ -1,8 +1,9 @@
 // src/blockchain/p2p/tx-pool.ts
-import type { Transaction, Hash } from "../types";
-import { txHash } from "../utils";
-import { validateTransaction } from "../tx/transaction";
+
 import type { StateManagerState } from "../state/state-manager";
+import { validateTransaction } from "../tx/transaction";
+import type { Hash, Transaction } from "../types";
+import { txHash } from "../utils";
 
 export interface TxPoolState {
 	pending: Map<Hash, Transaction>;
@@ -20,6 +21,7 @@ export function addTransaction(
 	pool: TxPoolState,
 	tx: Transaction,
 	stateManager: StateManagerState,
+	broadcastCallback?: (tx: Transaction) => void,
 ): boolean {
 	const hash = txHash(tx);
 
@@ -35,6 +37,12 @@ export function addTransaction(
 
 	// Add to pending
 	pool.pending.set(hash, tx);
+
+	// Broadcast to peers if callback provided
+	if (broadcastCallback) {
+		broadcastCallback(tx);
+	}
+
 	return true;
 }
 
@@ -50,4 +58,3 @@ export function getPendingTransactions(pool: TxPoolState): Transaction[] {
 export function getQueuedTransactions(pool: TxPoolState): Transaction[] {
 	return Array.from(pool.queued.values());
 }
-
