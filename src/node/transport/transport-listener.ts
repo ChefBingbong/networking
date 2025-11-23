@@ -35,7 +35,8 @@ export class TransportListener {
 			throw new Error("Server is not listening yet");
 		}
 		try {
-			const upgraded = await this.context.upgrader.encrypt(sock, true);
+			const [error, upgraded] = await this.context.upgrader.encrypt(sock, true);
+			if (error) throw error;
 			connection = new MuxedConnection(upgraded.socket, {
 				localAddr: this.status.listeningAddr,
 			});
@@ -46,7 +47,7 @@ export class TransportListener {
 			);
 		} catch (err) {
 			log(`Error handling socket: ${err}`);
-			connection.onClose();
+			sock.destroy();
 		}
 	};
 

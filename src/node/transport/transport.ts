@@ -12,7 +12,6 @@ import {
 	safeError,
 	safeResult,
 	safeSyncTry,
-	safeTry,
 } from "../../utils/safe";
 import { multiaddrToNetConfig } from "../../utils/utils";
 import { TransportListener } from "./transport-listener";
@@ -112,8 +111,9 @@ export class Transport {
 	}
 
 	private onConnect = async (socket: net.Socket, peerId: Multiaddr) => {
-		const [encryptionError, result] = await safeTry(() =>
-			this.encrypter.encrypt(socket, false),
+		const [encryptionError, result] = await this.encrypter.encrypt(
+			socket,
+			false,
 		);
 		if (encryptionError) {
 			return safeError(encryptionError);
