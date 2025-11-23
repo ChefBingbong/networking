@@ -63,7 +63,6 @@ export function createBlockchainProtocolHandler(
 							type: "NewBlock" as const,
 							block,
 						};
-						console.log(decodedMsg, "decodedMsg");
 						const response = await handleBlockchainMessageForClient(
 							client,
 							decodedMsg as unknown as BlockchainMessage,
@@ -163,7 +162,11 @@ export async function handleBlockchainMessageForClient(
 					continue;
 				}
 
-				const result = validateAndAddBlock(client.chain, block);
+				const result = await validateAndAddBlock(
+					client.chain,
+					block,
+					client.clique,
+				);
 				if (result) {
 					// Only process if it extends canonical head
 					const newHead = getCanonicalHead(client.chain);
@@ -208,7 +211,11 @@ export async function handleBlockchainMessageForClient(
 				return null;
 			}
 
-			const result = validateAndAddBlock(client.chain, block);
+			const result = await validateAndAddBlock(
+				client.chain,
+				block,
+				client.clique,
+			);
 			if (result) {
 				// Only process if it extends canonical head
 				const newHead = getCanonicalHead(client.chain);

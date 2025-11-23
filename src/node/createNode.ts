@@ -53,3 +53,33 @@ export async function createNode(options: NodeOptions) {
 			throw new Error(`Unknown node type: ${options.nodeTypes}`);
 	}
 }
+
+export async function createNodeWithKey(options: NodeOptions) {
+	const privateKey = generateSecp256k1KeyPrivPubPair(
+		options.port === 4000 ? bootStrapPk : undefined,
+	);
+	const nodeInfo = { name: "test-p2p", version: "0.0.0" };
+	const shouldStartAutomatically = (node: PeerNode) => {
+		if (options.start) node.start();
+		return node;
+	};
+
+	switch (options.nodeTypes) {
+		case "peer": {
+			const node = new PeerNode({
+				host: options.host,
+				port: options.port,
+				id: "options.id,",
+				peerId: peerIdFromPrivateKey(privateKey.privateKey),
+				privateKey: privateKey.privateKey,
+				nodeInfo,
+			});
+			return {
+				node: shouldStartAutomatically(node),
+				privateKey: privateKey.privateKey.raw,
+			};
+		}
+		default:
+			throw new Error(`Unknown node type: ${options.nodeTypes}`);
+	}
+}

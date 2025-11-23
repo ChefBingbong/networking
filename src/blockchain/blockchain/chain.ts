@@ -1,7 +1,14 @@
 // src/blockchain/blockchain/chain.ts
-import type { Block, BlockHeader, Hash, ChainConfig } from "../types";
+
 import { blockHash, validateBlock } from "../block/block";
 import { validateHeader } from "../block/header";
+import type { CliqueConsensusState } from "../consensus/clique";
+import {
+	cliqueBuildSnapshots,
+	validateCliqueConsensus,
+	validateCliqueDifficulty,
+} from "../consensus/clique";
+import type { Block, BlockHeader, ChainConfig, Hash } from "../types";
 
 export interface ChainState {
 	blocks: Map<Hash, Block>;
@@ -12,10 +19,7 @@ export interface ChainState {
 	config: ChainConfig;
 }
 
-export function createChain(
-	genesis: Block,
-	config: ChainConfig,
-): ChainState {
+export function createChain(genesis: Block, config: ChainConfig): ChainState {
 	const genesisHash = blockHash(genesis);
 	const chain: ChainState = {
 		blocks: new Map(),
@@ -69,32 +73,54 @@ export function getCanonicalHead(chain: ChainState): Block | undefined {
 	return chain.blocks.get(chain.canonicalHead);
 }
 
-export function validateAndAddBlock(
+export async function validateAndAddBlock(
 	chain: ChainState,
 	block: Block,
-): boolean {
+	clique?: CliqueConsensusState,
+): Promise<boolean> {
 	// Get parent
 	const parent = getHeader(chain, block.header.parentHash);
 	if (!parent && block.header.number !== 0n) {
-		console.log(`[validateAndAddBlock] No parent found for block ${block.header.number.toString()}`);
+		console.log(
+			`[validateAndAddBlock] No parent found for block ${block.header.number.toString()}`,
+		);
 		return false;
 	}
 
 	// Validate block
 	if (!validateBlock(block, parent, chain.config)) {
-		console.log(`[validateAndAddBlock] Block validation failed for block ${block.header.number.toString()}`);
+		console.log(
+			`[validateAndAddBlock] Block validation failed for block ${block.header.number.toString()}`,
+		);
 		return false;
 	}
 
 	// Validate header
 	if (!validateHeader(block.header, parent, chain.config)) {
-		console.log(`[validateAndAddBlock] Header validation failed for block ${block.header.number.toString()}`);
+		console.log(
+			`[validateAndAddBlock] Header validation failed for block ${block.header.number.toString()}`,
+		);
 		return false;
+	}
+
+	// Validate Clique consensus if configured
+	if (clique && chain.config.clique) {
+		try {
+			await validateCliqueConsensus(clique, block);
+			await validateCliqueDifficulty(clique, block.header);
+		} catch (err: any) {
+			console.log(
+				`[validateAndAddBlock] Clique validation error: ${err.message}`,
+			);
+			return false;
+		}
 	}
 
 	// Check if block number is sequential
 	if (parent && block.header.number !== parent.number + 1n) {
-		console.log(`[validateAndAddBlock] Block number not sequential: expected ${(parent.number + 1n).toString()}, got ${block.header.number.toString()}`);
+		console.log(
+			`[validateAndAddBlock] Block number not sequential: expected ${(parent.number + 1n).toString()}, got ${block.header.number.toString()}`,
+		);
 		return false;
 	}
 
@@ -102,10 +128,17 @@ export function validateAndAddBlock(
 	putBlock(chain, block);
 
 	// Update canonical head if this block is on the longest chain
-	if (!parent || block.header.number > getHeader(chain, chain.canonicalHead)!.number) {
+	if (
+		!parent ||
+		block.header.number > getHeader(chain, chain.canonicalHead)!.number
+	) {
 		chain.canonicalHead = blockHash(block);
+	}
+
+	// Update Clique snapshots if configured
+	if (clique && chain.config.clique) {
+		await cliqueBuildSnapshots(clique, block.header);
 	}
 
 	return true;
 }
-

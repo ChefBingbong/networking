@@ -131,7 +131,7 @@ async function main() {
 
 	// Mine a block with the transaction
 	console.log("\nMining block with transaction...");
-	const block = await clientMineBlock(clients[0]!);
+	const block = clientMineBlock(clients[0]!);
 	if (block) {
 		console.log(
 			`Block mined: ${block.header.number}, gasUsed: ${block.header.gasUsed}`,

@@ -54,13 +54,18 @@ export function getChainConfig(name: string): ChainConfig {
 					eips: [1559, 3198, 3529, 3541],
 				},
 			],
-			genesis: {
-				timestamp: "0x0",
-				gasLimit: "0x1c9c380",
-				difficulty: "0x1", // Very low difficulty for demo (was 0x400 = 1024)
-				extraData: "0x",
-				alloc: {},
-			},
+		genesis: {
+			timestamp: "0x0",
+			gasLimit: "0x1c9c380",
+			difficulty: "0x1", // Very low difficulty for demo (was 0x400 = 1024)
+			extraData: "0x",
+			alloc: {},
+		},
+		// Clique consensus configuration (optional - comment out to use PoW)
+		// clique: {
+		// 	epoch: 30000, // Number of blocks between epoch transitions
+		// 	period: 15, // Minimum time between blocks (seconds)
+		// },
 		};
 	}
 

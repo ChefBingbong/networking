@@ -13,12 +13,12 @@ import {
 	keccak256Hash,
 	rlpDecode,
 	rlpEncode,
-	txFromRLP,
-	txToRLP,
+	txFromArray,
+	txToArray,
 	blockHash as utilsBlockHash,
 	validateBlockHeader,
 } from "../utils";
-import { headerFromRLP, headerToRLP as headerRLP } from "./header";
+import { headerFromArray, headerToArray } from "./header";
 
 export function createBlock(
 	header: BlockHeader,
@@ -33,12 +33,14 @@ export function createBlock(
 }
 
 export function blockToRLP(block: Block): Uint8Array {
-	const headerRLPBytes = headerRLP(block.header);
-	const txsRLP = block.transactions.map((tx) => txToRLP(tx));
-	const ommersRLP = block.ommers
-		? block.ommers.map((ommer) => headerRLP(ommer))
+	// Use raw arrays (Ganache pattern) instead of pre-encoded bytes
+	const headerArray = headerToArray(block.header);
+	const txsArray = block.transactions.map((tx) => txToArray(tx));
+	const ommersArray = block.ommers
+		? block.ommers.map((ommer) => headerToArray(ommer))
 		: [];
-	return rlpEncode([headerRLPBytes, txsRLP, ommersRLP]);
+	// Single RLP encode of raw arrays
+	return rlpEncode([headerArray, txsArray, ommersArray]);
 }
 
 export function blockFromRLP(data: Uint8Array): Block {
@@ -48,43 +50,34 @@ export function blockFromRLP(data: Uint8Array): Block {
 		throw new Error("Invalid block RLP data");
 	}
 
-	// First element is header RLP (as Uint8Array)
-	console.log(decoded, "decoded");
-	const headerRLP = decoded[0];
-	if (!(headerRLP instanceof Uint8Array)) {
-		console.error(
-			"[blockFromRLP] Header RLP is not Uint8Array:",
-			typeof headerRLP,
-			headerRLP,
-		);
-		throw new Error("Invalid block header RLP: not Uint8Array");
+	// First element is header array (raw array of field values)
+	const headerArray = decoded[0];
+	if (!Array.isArray(headerArray)) {
+		throw new Error("Invalid block header: expected array");
 	}
-	console.log(
-		`[blockFromRLP] Decoding header RLP, length: ${headerRLP.length}`,
-	);
-	const header = headerFromRLP(headerRLP);
+	const header = headerFromArray(headerArray);
 
-	// Second element is transactions array (array of RLP-encoded transactions)
-	const txsRLP = decoded[1];
-	if (!Array.isArray(txsRLP)) {
-		throw new Error("Invalid transactions RLP");
+	// Second element is transactions array (array of transaction arrays)
+	const txsArray = decoded[1];
+	if (!Array.isArray(txsArray)) {
+		throw new Error("Invalid transactions: expected array");
 	}
 	const transactions: Transaction[] = [];
-	for (const txRLP of txsRLP) {
-		if (txRLP instanceof Uint8Array) {
-			transactions.push(txFromRLP(txRLP));
+	for (const txArray of txsArray) {
+		if (Array.isArray(txArray)) {
+			transactions.push(txFromArray(txArray));
 		}
 	}
 
-	// Third element is ommers array (optional, array of RLP-encoded headers)
+	// Third element is ommers array (optional, array of ommer header arrays)
 	let ommers: BlockHeader[] | undefined;
 	if (decoded.length > 2 && decoded[2]) {
-		const ommersRLP = decoded[2];
-		if (Array.isArray(ommersRLP)) {
+		const ommersArray = decoded[2];
+		if (Array.isArray(ommersArray)) {
 			ommers = [];
-			for (const ommerRLP of ommersRLP) {
-				if (ommerRLP instanceof Uint8Array) {
-					ommers.push(headerFromRLP(ommerRLP));
+			for (const ommerArray of ommersArray) {
+				if (Array.isArray(ommerArray)) {
+					ommers.push(headerFromArray(ommerArray));
 				}
 			}
 			if (ommers.length === 0) {
@@ -106,7 +99,7 @@ export { getBlockHash as blockHash };
 export function validateBlock(
 	block: Block,
 	parent?: BlockHeader,
-	chainConfig?: ChainConfig,
+	_chainConfig?: ChainConfig,
 ): boolean {
 	// Validate header
 	if (!validateBlockHeader(block.header, parent)) {

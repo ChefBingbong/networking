@@ -7,6 +7,13 @@ import { blockHash, createBlock } from "../block/block";
 import { createChain, getCanonicalHead } from "../blockchain/chain";
 import { getChainConfig } from "../config/chain-config";
 import { initializeGenesis } from "../config/genesis";
+import {
+	type CliqueConsensusState,
+	cliqueGenesisInit,
+	createCliqueConsensus,
+	setupCliqueConsensus,
+} from "../consensus/clique";
+import { createDatabase } from "../db/database";
 import { type EVMState, evmCall } from "../evm/evm";
 import {
 	createBlockchainProtocolHandler,
@@ -43,6 +50,8 @@ export interface BlockchainClientState {
 		from?: string;
 		data?: BlockchainMessage;
 	}>;
+	clique?: CliqueConsensusState;
+	db?: ReturnType<typeof createDatabase>;
 }
 
 export function createBlockchainClient(
@@ -50,6 +59,7 @@ export function createBlockchainClient(
 	configName: string,
 	genesis?: GenesisConfig,
 	minerAddress?: Address,
+	dbPath?: string,
 ): BlockchainClientState {
 	const config = getChainConfig(configName);
 	const chain = createChain(
@@ -87,6 +97,18 @@ export function createBlockchainClient(
 	const genesisConfig = genesis ?? config.genesis;
 	initializeGenesis(chain, genesisConfig, stateManager);
 
+	// Initialize database if path provided
+	let db: ReturnType<typeof createDatabase> | undefined;
+	let clique: CliqueConsensusState | undefined;
+
+	if (dbPath && config.clique) {
+		db = createDatabase(dbPath);
+		clique = createCliqueConsensus(db, {
+			epoch: config.clique.epoch,
+			period: config.clique.period,
+		});
+	}
+
 	const client: BlockchainClientState = {
 		chain,
 		stateManager,
@@ -96,6 +118,8 @@ export function createBlockchainClient(
 		syncing: false,
 		minerAddress: minerAddress ?? "0x0000000000000000000000000000000000000000",
 		receivedMessages: [],
+		clique,
+		db,
 	};
 
 	return client;
@@ -104,6 +128,13 @@ export function createBlockchainClient(
 export async function clientStart(
 	client: BlockchainClientState,
 ): Promise<void> {
+	// Initialize Clique consensus if configured
+	if (client.clique && client.db) {
+		await setupCliqueConsensus(client.clique);
+		const genesisBlock = client.chain.genesis;
+		await cliqueGenesisInit(client.clique, genesisBlock);
+	}
+
 	// Register blockchain protocol handler
 	const handler = createBlockchainProtocolHandler(client);
 	client.node.handleProtocol(BLOCKCHAIN_PROTOCOL, handler);
@@ -219,13 +250,13 @@ export function clientStop(client: BlockchainClientState): void {
 	client.syncing = false;
 }
 
-export function clientMineBlock(
+export async function clientMineBlock(
 	client: BlockchainClientState,
 	txs?: Transaction[],
-): Block | null {
+): Promise<Block | null> {
 	const transactions = txs ?? getPendingTransactions(client.txPool);
 	console.log(transactions, "transactions");
-	return mineBlock(client, transactions);
+	return await mineBlock(client, transactions);
 }
 
 export function clientSendTransaction(
