@@ -4,11 +4,14 @@
 	"type": "module",
 	"private": true,
 	"scripts": {
-		"format": "biome format . --write"
+		"format": "biome format . --write",
+		"test": "vitest",
+		"test:run": "vitest run"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",
-		"tsx": "^4.20.6"
+		"tsx": "^4.20.6",
+		"vitest": "^4.0.13"
 	},
 	"peerDependencies": {
 		"typescript": "^5"
