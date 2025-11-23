@@ -78,7 +78,7 @@ async function main() {
 		gasPrice: 1000000000n,
 		gasLimit: 1000000n,
 		to: undefined,
-		value: 100n,
+		value: 0n,
 		data: contractBytecode,
 		chainId: client.config.chainId,
 	});

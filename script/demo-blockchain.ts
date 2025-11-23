@@ -10,7 +10,7 @@ import {
 	createTransaction,
 	signTransaction,
 } from "../src/blockchain";
-import { getAccount, putAccount } from "../src/blockchain/state/state-manager";
+import type { GenesisConfig } from "../src/blockchain/types";
 import { createNode } from "../src/node/createNode";
 import { generateSecp256k1KeyPrivPubPair } from "../src/secp256k1/utils";
 
@@ -57,35 +57,59 @@ async function main() {
 		);
 	}
 
-	// Wait for network to bootstrap
-	console.log("\nWaiting for network to bootstrap...");
-	await new Promise((resolve) => setTimeout(resolve, 3000));
-
-	// Mine genesis block on first node
-	console.log("\nMining genesis block...");
-	const genesisBlock = clientMineBlock(clients[0]!);
-
-	console.log(genesisBlock);
-	if (genesisBlock) {
-		console.log(`Genesis block mined: ${genesisBlock.header.number}`);
-	}
-
-	// Create and send a transaction
-	console.log("\nCreating transaction...");
+	// Create sender/receiver addresses
 	const senderKey = generateSecp256k1KeyPrivPubPair();
 	const senderAddress = addressFromPrivateKey(senderKey.privateKey.raw);
 
 	const receiverKey = generateSecp256k1KeyPrivPubPair();
 	const receiverAddress = addressFromPrivateKey(receiverKey.privateKey.raw);
 
-	// Give sender some initial balance by mining a block that allocates it
-	// For demo purposes, we'll manually set the balance
-	const senderAccount = getAccount(clients[0]!.stateManager, senderAddress);
-	senderAccount.balance = 2000000000000000000n; // 2 ETH
-	putAccount(clients[0]!.stateManager, senderAddress, senderAccount);
+	// Create genesis config with balance allocation
+	// All nodes will use this same genesis, ensuring consistent initial state
+	const genesisConfig: GenesisConfig = {
+		timestamp: "0x0",
+		gasLimit: "0x1c9c380",
+		difficulty: "0x1",
+		extraData: "0x",
+		alloc: {
+			[senderAddress]: {
+				balance: "0x1bc16d674ec80000", // 2 ETH in hex (2000000000000000000 wei)
+			},
+		},
+	};
+
 	console.log(
-		`Allocated ${senderAccount.balance} wei to sender ${senderAddress}`,
+		`\nRe-initializing genesis on all nodes with allocation for ${senderAddress}...`,
 	);
+
+	// Re-initialize genesis on all nodes with the allocation
+	// This ensures all nodes have the same initial state from genesis
+	for (let i = 0; i < NODE_COUNT; i++) {
+		const { initializeGenesis } = await import(
+			"../src/blockchain/config/genesis"
+		);
+		initializeGenesis(
+			clients[i]!.chain,
+			genesisConfig,
+			clients[i]!.stateManager,
+		);
+		// Update genesis block state root
+		const { calculateStateRoot } = await import(
+			"../src/blockchain/state/state-manager"
+		);
+		const stateRoot = calculateStateRoot(clients[i]!.stateManager);
+		clients[i]!.chain.genesis.header.stateRoot = stateRoot;
+	}
+
+	console.log(`Allocated 2 ETH to sender ${senderAddress} via genesis`);
+
+	// Wait for network to bootstrap
+	console.log("\nWaiting for network to bootstrap...");
+	await new Promise((resolve) => setTimeout(resolve, 3000));
+
+	// All nodes now have the same genesis state
+	// When blocks are broadcast, all nodes will verify and process them independently
+	console.log("\nAll nodes initialized with same genesis state");
 
 	const tx = createTransaction({
 		type: "legacy",

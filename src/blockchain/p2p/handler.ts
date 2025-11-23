@@ -154,13 +154,41 @@ export async function handleBlockchainMessageForClient(
 			// Deserialize blocks from JSON string
 			const blocks = deserializeBlocks(msg.blocks);
 			for (const block of blocks) {
+				// Check if block extends canonical head before processing
+				const currentHead = getCanonicalHead(client.chain);
+				if (currentHead && block.header.parentHash !== blockHash(currentHead)) {
+					console.log(
+						`[handler] Block #${block.header.number.toString()} does not extend canonical head (${block.header.parentHash} !== ${blockHash(currentHead)}), skipping`,
+					);
+					continue;
+				}
+
 				const result = validateAndAddBlock(client.chain, block);
 				if (result) {
-					// Process block to update state
-					processBlock(client.chain, block, client.stateManager);
-					console.log(
-						`[handler] Processed ${blocks.length} blocks from ${fromPeer}`,
-					);
+					// Only process if it extends canonical head
+					const newHead = getCanonicalHead(client.chain);
+					if (newHead && blockHash(block) === blockHash(newHead)) {
+						// Process block to update state
+						const processResult = processBlock(
+							client.chain,
+							block,
+							client.stateManager,
+						);
+						if (processResult.success) {
+							console.log(
+								`[handler] Processed block #${block.header.number.toString()} from ${fromPeer}`,
+							);
+						} else {
+							console.log(
+								`[handler] Failed to process block #${block.header.number.toString()}`,
+							);
+							// Remove block from chain if processing failed
+							client.chain.blocks.delete(blockHash(block));
+							if (currentHead) {
+								client.chain.canonicalHead = blockHash(currentHead);
+							}
+						}
+					}
 				}
 			}
 			return null;
@@ -170,16 +198,45 @@ export async function handleBlockchainMessageForClient(
 			// Process new block - msg.block is Block object (decoded from hex string in handler)
 			const block = (msg as unknown as { type: "NewBlock"; block: Block })
 				.block;
+
+			// Check if block extends canonical head before processing
+			const currentHead = getCanonicalHead(client.chain);
+			if (currentHead && block.header.parentHash !== blockHash(currentHead)) {
+				console.log(
+					`[handler] NewBlock #${block.header.number.toString()} does not extend canonical head (${block.header.parentHash} !== ${blockHash(currentHead)}), skipping`,
+				);
+				return null;
+			}
+
 			const result = validateAndAddBlock(client.chain, block);
 			if (result) {
-				// Process block to update state
-				processBlock(client.chain, block, client.stateManager);
-				console.log(
-					`[handler] Processed new block #${block.header.number.toString()} from ${fromPeer}`,
-				);
+				// Only process if it extends canonical head
+				const newHead = getCanonicalHead(client.chain);
+				if (newHead && blockHash(block) === blockHash(newHead)) {
+					// Process block to update state
+					const processResult = processBlock(
+						client.chain,
+						block,
+						client.stateManager,
+					);
+					if (processResult.success) {
+						console.log(
+							`[handler] Processed new block #${block.header.number.toString()} from ${fromPeer}`,
+						);
 
-				// Broadcast to other peers (gossip)
-				broadcastBlockToPeers(client, block, fromPeer);
+						// Broadcast to other peers (gossip)
+						broadcastBlockToPeers(client, block, fromPeer);
+					} else {
+						console.log(
+							`[handler] Failed to process new block #${block.header.number.toString()}`,
+						);
+						// Remove block from chain if processing failed
+						client.chain.blocks.delete(blockHash(block));
+						if (currentHead) {
+							client.chain.canonicalHead = blockHash(currentHead);
+						}
+					}
+				}
 			}
 			return null;
 		}
