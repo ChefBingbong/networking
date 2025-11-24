@@ -117,7 +117,7 @@ async function main() {
 		gasPrice: 1000000000n, // 1 gwei
 		gasLimit: 21000n,
 		to: receiverAddress,
-		value: 1000000000000000000n, // 1 ETH
+		value: 500000000000000000n, // 1 ETH
 		data: new Uint8Array(0),
 		chainId: clients[0]!.config.chainId, // Set chainId for EIP-155
 	});
