@@ -129,7 +129,7 @@ export class UdpKademliaTransport implements KademliaTransport {
 			id: msg.from, // must be present on all KadRpc
 			host: rinfo.address,
 			port: rinfo.port,
-			addr: multiaddr(`/ip4/${rinfo.address}/udp/${rinfo.port}`).toString(),
+			addr: multiaddr(`/ip4/${rinfo.address}/tcp/${rinfo.port}`).toString(),
 			lastSeen: Date.now(),
 		};
 

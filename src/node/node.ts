@@ -2,6 +2,7 @@
 import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import { EventEmitter } from "events";
+import type { BlockchainClientState } from "../blockchain/client/client";
 import type { MuxedConnection } from "../connection/connection";
 import type { ProtocolHandler } from "../connection/protocol-manager";
 import { ProtocolManager } from "../connection/protocol-manager";
@@ -108,8 +109,6 @@ export class PeerNode extends EventEmitter {
 			streamOpenHandler: (protocol, stream) =>
 				this.protocolManager.onIncomingStream(protocol, stream),
 		});
-
-		createKadApi(this, 4000 + nodeOptions.port);
 	}
 
 	public async start() {
@@ -117,6 +116,7 @@ export class PeerNode extends EventEmitter {
 			log(
 				`starting node ${this.peerId.toString()} at ${this.address.toString()}`,
 			);
+			createKadApi(this, 4000 + this.nodeOptions.port, this.blockchainClient);
 			await this.startListening();
 			await this.kadBootstrap();
 			this.runContactLoop(); // now real periodic lookups + pings
@@ -271,7 +271,7 @@ export class PeerNode extends EventEmitter {
 	}
 
 	private attachConnectionHandlers(addr: Multiaddr, conn: MuxedConnection) {
-		const key = addr.toString();
+		const key = addr.toString().split("/p2p/")[0]!;
 		this.connections.set(key, conn);
 		log(`connection established to ${key} (total: ${this.connections.size})`);
 
@@ -343,5 +343,9 @@ export class PeerNode extends EventEmitter {
 	private withJitter(baseMs: number, jitterFraction = 0.2) {
 		const delta = baseMs * jitterFraction;
 		return baseMs + (Math.random() * 2 - 1) * delta;
+	}
+
+	public setBlockchainClient(blockchainClient: BlockchainClientState) {
+		this.blockchainClient = blockchainClient;
 	}
 }

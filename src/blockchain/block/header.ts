@@ -1,8 +1,10 @@
 // src/blockchain/block/header.ts
 import type { Address, BlockHeader, ChainConfig, Hash } from "../types";
 import {
+	bigIntToBytes,
 	bytesToBigInt,
 	hashToHex,
+	hexToBytes,
 	rlpDecode,
 	blockHash as utilsBlockHash,
 	headerToRLP as utilsHeaderToRLP,
@@ -47,29 +49,51 @@ export function headerToRLP(header: BlockHeader): Uint8Array {
 	return utilsHeaderToRLP(header);
 }
 
-export function headerFromRLP(data: Uint8Array): BlockHeader {
-	const decoded = rlpDecode(data) as Uint8Array[];
+/**
+ * Convert BlockHeader to raw RLP array (for use in block encoding)
+ * Returns array of field values that can be directly RLP-encoded
+ */
+export function headerToArray(header: BlockHeader): Uint8Array[] {
+	return [
+		hexToBytes(header.parentHash),
+		hexToBytes(header.ommersHash),
+		hexToBytes(header.beneficiary),
+		hexToBytes(header.stateRoot),
+		hexToBytes(header.transactionsRoot),
+		hexToBytes(header.receiptsRoot),
+		header.logsBloom,
+		bigIntToBytes(header.difficulty),
+		bigIntToBytes(header.number),
+		bigIntToBytes(header.gasLimit),
+		bigIntToBytes(header.gasUsed),
+		bigIntToBytes(header.timestamp),
+		header.extraData,
+		hexToBytes(header.mixHash),
+		bigIntToBytes(header.nonce),
+	];
+}
+
+/**
+ * Convert raw RLP array to BlockHeader
+ * Accepts either a Uint8Array (pre-encoded) or array of Uint8Arrays (raw array)
+ */
+export function headerFromArray(data: Uint8Array | Uint8Array[]): BlockHeader {
+	let decoded: Uint8Array[];
+	if (data instanceof Uint8Array) {
+		// Pre-encoded bytes - decode first
+		decoded = rlpDecode(data) as Uint8Array[];
+	} else {
+		// Already an array
+		decoded = data;
+	}
 
 	if (!Array.isArray(decoded)) {
-		console.error(
-			"[headerFromRLP] Decoded data is not an array:",
-			typeof decoded,
-			decoded,
-		);
-		throw new Error("Invalid header RLP data: not an array");
+		throw new Error("Invalid header data: not an array");
 	}
 
 	if (decoded.length < 15) {
-		console.error(
-			`[headerFromRLP] Invalid header RLP data: expected 15 fields, got ${decoded.length}`,
-		);
-		console.error("[headerFromRLP] Data length:", data.length);
-		console.error(
-			"[headerFromRLP] First 100 bytes:",
-			Buffer.from(data.slice(0, 100)).toString("hex"),
-		);
 		throw new Error(
-			`Invalid header RLP data: expected 15 fields, got ${decoded.length}`,
+			`Invalid header data: expected 15 fields, got ${decoded.length}`,
 		);
 	}
 
@@ -92,6 +116,11 @@ export function headerFromRLP(data: Uint8Array): BlockHeader {
 	};
 }
 
+export function headerFromRLP(data: Uint8Array): BlockHeader {
+	// Use headerFromArray for backward compatibility
+	return headerFromArray(data);
+}
+
 export function headerHash(header: BlockHeader): Hash {
 	return utilsBlockHash(header);
 }
@@ -99,7 +128,7 @@ export function headerHash(header: BlockHeader): Hash {
 export function validateHeader(
 	header: BlockHeader,
 	parent?: BlockHeader,
-	chainConfig?: ChainConfig,
+	_chainConfig?: ChainConfig,
 ): boolean {
 	return validateHeaderUtil(header, parent);
 }

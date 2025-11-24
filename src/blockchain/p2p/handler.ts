@@ -28,6 +28,7 @@ export function createBlockchainProtocolHandler(
 		try {
 			// Find peer address from connections map
 			let fromPeer = "unknown";
+			console.log(Array.from(client.node.connections.keys()), "connections");
 			for (const [addr, conn] of client.node.connections.entries()) {
 				if (conn === stream.conn) {
 					fromPeer = addr;
@@ -63,7 +64,6 @@ export function createBlockchainProtocolHandler(
 							type: "NewBlock" as const,
 							block,
 						};
-						console.log(decodedMsg, "decodedMsg");
 						const response = await handleBlockchainMessageForClient(
 							client,
 							decodedMsg as unknown as BlockchainMessage,
@@ -163,7 +163,11 @@ export async function handleBlockchainMessageForClient(
 					continue;
 				}
 
-				const result = validateAndAddBlock(client.chain, block);
+				const result = await validateAndAddBlock(
+					client.chain,
+					block,
+					client.clique,
+				);
 				if (result) {
 					// Only process if it extends canonical head
 					const newHead = getCanonicalHead(client.chain);
@@ -208,7 +212,11 @@ export async function handleBlockchainMessageForClient(
 				return null;
 			}
 
-			const result = validateAndAddBlock(client.chain, block);
+			const result = await validateAndAddBlock(
+				client.chain,
+				block,
+				client.clique,
+			);
 			if (result) {
 				// Only process if it extends canonical head
 				const newHead = getCanonicalHead(client.chain);
@@ -284,6 +292,7 @@ function broadcastBlockToPeers(
 		(addr) => addr !== excludePeer,
 	);
 
+	console.log(peers, "broadcastBlockToPeers");
 	if (peers.length === 0) return;
 
 	// Serialize block to JSON string

@@ -16,7 +16,7 @@ import { generateSecp256k1KeyPrivPubPair } from "../src/secp256k1/utils";
 
 const HOST = "127.0.0.1";
 const BASE_PORT = 4000;
-const NODE_COUNT = 50;
+const NODE_COUNT = 5;
 
 async function main() {
 	console.log(`Creating ${NODE_COUNT} blockchain nodes...`);
@@ -131,7 +131,7 @@ async function main() {
 
 	// Mine a block with the transaction
 	console.log("\nMining block with transaction...");
-	const block = clientMineBlock(clients[0]!);
+	const block = await clientMineBlock(clients[0]!);
 	if (block) {
 		console.log(
 			`Block mined: ${block.header.number}, gasUsed: ${block.header.gasUsed}`,

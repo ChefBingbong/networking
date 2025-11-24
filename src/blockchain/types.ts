@@ -162,6 +162,10 @@ export interface ChainConfig {
 	name: string;
 	hardforks: Hardfork[];
 	genesis: GenesisConfig;
+	clique?: {
+		epoch: number; // Number of blocks between epoch transitions
+		period: number; // Minimum time between blocks (seconds)
+	};
 }
 
 /**

@@ -30,7 +30,7 @@ export async function processIncomingBlocks(
 ): Promise<number> {
 	let added = 0;
 	for (const block of blocks) {
-		if (validateAndAddBlock(chain, block)) {
+		if (await validateAndAddBlock(chain, block, undefined)) {
 			added++;
 		}
 	}

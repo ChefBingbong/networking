@@ -10,24 +10,58 @@ import {
 	calculateTransactionsRoot,
 	processBlock,
 } from "../blockchain/processor";
+import {
+	cliqueActiveSigners,
+	cliqueSignerInTurn,
+} from "../consensus/clique/clique";
+import {
+	CLIQUE_DIFF_INTURN,
+	CLIQUE_DIFF_NOTURN,
+} from "../consensus/clique/types";
+import {
+	cliqueIsEpochTransition,
+	signCliqueHeader,
+} from "../consensus/clique/utils";
 import { BLOCKCHAIN_PROTOCOL } from "../p2p/protocol";
+import { removeTransaction } from "../p2p/tx-pool";
 import { calculateStateRoot } from "../state/state-manager";
+import { recoverSender, validateTransaction } from "../tx/transaction";
 import type { Block, Hash, Transaction } from "../types";
+import { addressFromPrivateKey, txHash } from "../utils";
 import { serializeBlock } from "../utils/serialization";
 import type { BlockchainClientState } from "./client";
 
-export function mineBlock(
+export async function mineBlock(
 	client: BlockchainClientState,
 	txs: Transaction[],
 	timestamp?: bigint,
-): Block | null {
+): Promise<Block | null> {
 	const parent = client.chain.blocks.get(client.chain.canonicalHead);
 	if (!parent) {
 		return null;
 	}
 
-	console.log(`Preparing block with ${txs.length} transactions`);
-	const block = prepareBlock(client, parent, txs, timestamp);
+	// Filter out invalid transactions (wrong nonce, insufficient balance, etc.)
+	const validTxs = txs.filter((tx) => {
+		if (!validateTransaction(tx, client.stateManager)) {
+			return false;
+		}
+		const from = recoverSender(tx);
+		if (!from) {
+			return false;
+		}
+		// Additional check: ensure nonce matches current account state
+		const account = client.stateManager.accounts.get(from);
+		if (account && account.nonce !== tx.nonce) {
+			return false;
+		}
+		return true;
+	});
+
+	console.log(
+		`Preparing block with ${validTxs.length} transactions (filtered from ${txs.length})`,
+	);
+	const block = prepareBlock(client, parent, validTxs, timestamp);
 	if (!block) {
 		console.log("Failed to prepare block");
 		return null;
@@ -35,20 +69,31 @@ export function mineBlock(
 
 	console.log(`Block prepared with ${block.transactions.length} transactions`);
 
-	// Mine the block
-	const minedBlock = mineHeader(block, block.header.difficulty);
-	if (!minedBlock) {
-		return null;
-	}
+	// Handle Clique consensus vs PoW mining
+	let minedBlock: Block | null;
+	if (client.clique && client.config.clique) {
+		// Clique consensus: sign the block instead of mining
+		minedBlock = await signCliqueBlock(client, block);
+		if (!minedBlock) {
+			console.log("Failed to sign Clique block");
+			return null;
+		}
+	} else {
+		// PoW: mine the block
+		minedBlock = mineHeader(block, block.header.difficulty);
+		if (!minedBlock) {
+			return null;
+		}
 
-	// Validate mined block
-	if (!validateMinedBlock(minedBlock, block.header.difficulty)) {
-		console.log("Mined block is not valid");
-		return null;
+		// Validate mined block
+		if (!validateMinedBlock(minedBlock, block.header.difficulty)) {
+			console.log("Mined block is not valid");
+			return null;
+		}
 	}
 
 	// Add block to chain
-	if (!validateAndAddBlock(client.chain, minedBlock)) {
+	if (!validateAndAddBlock(client.chain, minedBlock, client.clique)) {
 		console.log("Failed to add block to chain");
 		return null;
 	}
@@ -69,6 +114,12 @@ export function mineBlock(
 		`Block added and processed successfully, gasUsed: ${processResult.gasUsed.toString()}`,
 	);
 
+	// Remove successfully mined transactions from the pool
+	for (const tx of minedBlock.transactions) {
+		const hash = txHash(tx);
+		removeTransaction(client.txPool, hash);
+	}
+
 	// Broadcast block to peers
 	broadcastBlock(client, minedBlock);
 
@@ -76,9 +127,9 @@ export function mineBlock(
 }
 
 function broadcastBlock(client: BlockchainClientState, block: Block): void {
-	const peers = client.node.getKadPeers();
+	const peers = client.node.connections.keys().toArray();
 
-	console.log(peers);
+	console.log(peers, "kad peers");
 	if (peers.length === 0) {
 		console.log("[broadcastBlock] No peers to broadcast to");
 		return;
@@ -226,11 +277,17 @@ export function prepareBlock(
 		);
 	}
 
-	// Calculate difficulty adjustment
-	const newDifficulty = calculateDifficulty(
-		parent,
-		timestamp ?? BigInt(Math.floor(Date.now() / 1000)),
-	);
+	// Calculate difficulty (Clique uses INTURN/NOTURN, PoW uses difficulty adjustment)
+	let newDifficulty: bigint;
+	if (client.clique && client.config.clique) {
+		// Clique difficulty will be set during signing
+		newDifficulty = CLIQUE_DIFF_INTURN; // Placeholder, will be set correctly in signCliqueBlock
+	} else {
+		newDifficulty = calculateDifficulty(
+			parent,
+			timestamp ?? BigInt(Math.floor(Date.now() / 1000)),
+		);
+	}
 
 	// Adjust gas limit (simplified - target 50% usage)
 	const gasLimit = adjustGasLimit(parent.header.gasLimit, result.gasUsed);
@@ -250,6 +307,99 @@ export function prepareBlock(
 	});
 
 	return createBlock(header, txs);
+}
+
+/**
+ * Sign a Clique block header
+ */
+async function signCliqueBlock(
+	client: BlockchainClientState,
+	block: Block,
+): Promise<Block | null> {
+	if (!client.clique || !client.config.clique) {
+		return null;
+	}
+
+	// Get miner private key
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	const minerPrivateKey = (client as any).minerPrivateKey as
+		| Uint8Array
+		| undefined;
+	if (!minerPrivateKey) {
+		console.error("Miner private key not found for Clique signing");
+		return null;
+	}
+
+	// Verify the private key matches the miner address
+	const derivedAddress = addressFromPrivateKey(minerPrivateKey);
+	console.log(
+		`[signCliqueBlock] Miner address: ${client.minerAddress}, derived from key: ${derivedAddress}`,
+	);
+	if (derivedAddress.toLowerCase() !== client.minerAddress.toLowerCase()) {
+		console.error(
+			`Miner address mismatch! Expected ${client.minerAddress}, derived ${derivedAddress} from private key`,
+		);
+		return null;
+	}
+
+	// Get current signers
+	const signers = cliqueActiveSigners(client.clique, block.header.number);
+	if (signers.length === 0) {
+		console.error("No signers available for Clique block");
+		return null;
+	}
+
+	// Check if this is an epoch transition block
+	const isEpoch = cliqueIsEpochTransition(
+		block.header,
+		client.config.clique.epoch,
+	);
+
+	// Prepare extraData (vanity + signers if epoch transition)
+	const vanity = new Uint8Array(32).fill(0); // 32 bytes of zeros
+	let extraDataWithoutSig: Uint8Array;
+
+	if (isEpoch) {
+		// Epoch transition: include signers in extraData
+		// Format: [vanity (32)][signers (20 bytes each)]
+		const signersBytes = new Uint8Array(signers.length * 20);
+		for (let i = 0; i < signers.length; i++) {
+			const signerBytes = Uint8Array.from(
+				Buffer.from(signers[i]!.slice(2), "hex"),
+			);
+			signersBytes.set(signerBytes, i * 20);
+		}
+		extraDataWithoutSig = new Uint8Array(32 + signersBytes.length);
+		extraDataWithoutSig.set(vanity, 0);
+		extraDataWithoutSig.set(signersBytes, 32);
+	} else {
+		// Normal block: just vanity
+		extraDataWithoutSig = vanity;
+	}
+
+	// Determine difficulty (INTURN or NOTURN)
+	const inTurn = await cliqueSignerInTurn(
+		client.clique,
+		client.minerAddress,
+		block.header.number,
+	);
+	const difficulty = inTurn ? CLIQUE_DIFF_INTURN : CLIQUE_DIFF_NOTURN;
+
+	// Update header with difficulty and extraData (without signature)
+	const headerWithoutSig = {
+		...block.header,
+		difficulty,
+		extraData: extraDataWithoutSig,
+	};
+
+	// Sign the header (headerWithoutSig already has extraData set correctly)
+	const signedHeader = signCliqueHeader(headerWithoutSig, minerPrivateKey);
+
+	console.log(
+		`Signed Clique block #${block.header.number} (${inTurn ? "INTURN" : "NOTURN"})`,
+	);
+
+	return createBlock(signedHeader, block.transactions);
 }
 
 export function mineHeader(block: Block, difficulty: bigint): Block | null {

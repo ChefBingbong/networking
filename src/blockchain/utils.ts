@@ -290,13 +290,98 @@ export function headerToRLP(header: BlockHeader): Uint8Array {
 	return blockToRLP(header);
 }
 
-export function txFromRLP(data: Uint8Array): Transaction {
-	const decoded = rlpDecode(data) as Uint8Array[];
+/**
+ * Convert Transaction to raw RLP array (for use in block encoding)
+ * Returns array of field values that can be directly RLP-encoded
+ */
+export function txToArray(tx: Transaction): Uint8Array[] {
+	if (tx.type === "legacy") {
+		const isUnsigned = tx.v === 0n && tx.r === 0n && tx.s === 0n;
 
-	if (!Array.isArray(decoded)) {
-		throw new Error("Invalid transaction RLP data");
+		if (isUnsigned && tx.chainId) {
+			// EIP-155 unsigned transaction encoding
+			return [
+				bigIntToBytes(tx.nonce),
+				bigIntToBytes(tx.gasPrice),
+				bigIntToBytes(tx.gasLimit),
+				tx.to ? hexToBytes(tx.to) : Uint8Array.of(),
+				bigIntToBytes(tx.value),
+				tx.data,
+				bigIntToBytes(tx.chainId),
+				Uint8Array.of(0), // r = 0
+				Uint8Array.of(0), // s = 0
+			];
+		}
+
+		if (isUnsigned && !tx.chainId) {
+			// Non-EIP-155 unsigned transaction encoding
+			return [
+				bigIntToBytes(tx.nonce),
+				bigIntToBytes(tx.gasPrice),
+				bigIntToBytes(tx.gasLimit),
+				tx.to ? hexToBytes(tx.to) : Uint8Array.of(),
+				bigIntToBytes(tx.value),
+				tx.data,
+			];
+		}
+
+		// Signed transaction encoding
+		return [
+			bigIntToBytes(tx.nonce),
+			bigIntToBytes(tx.gasPrice),
+			bigIntToBytes(tx.gasLimit),
+			tx.to ? hexToBytes(tx.to) : Uint8Array.of(),
+			bigIntToBytes(tx.value),
+			tx.data,
+			bigIntToBytes(tx.v),
+			bigIntToBytes(tx.r),
+			bigIntToBytes(tx.s),
+		];
 	}
 
+	// EIP1559
+	return [
+		bigIntToBytes(tx.chainId),
+		bigIntToBytes(tx.nonce),
+		bigIntToBytes(tx.maxPriorityFeePerGas),
+		bigIntToBytes(tx.maxFeePerGas),
+		bigIntToBytes(tx.gasLimit),
+		tx.to ? hexToBytes(tx.to) : Uint8Array.of(),
+		bigIntToBytes(tx.value),
+		tx.data,
+		Uint8Array.of(), // access list (empty for now)
+		bigIntToBytes(tx.v),
+		bigIntToBytes(tx.r),
+		bigIntToBytes(tx.s),
+	];
+}
+
+/**
+ * Convert raw RLP array to Transaction
+ * Accepts either a Uint8Array (pre-encoded) or array of Uint8Arrays (raw array)
+ */
+export function txFromArray(data: Uint8Array | Uint8Array[]): Transaction {
+	let decoded: Uint8Array[];
+	if (data instanceof Uint8Array) {
+		// Pre-encoded bytes - decode first
+		decoded = rlpDecode(data) as Uint8Array[];
+	} else {
+		// Already an array
+		decoded = data;
+	}
+
+	if (!Array.isArray(decoded)) {
+		throw new Error("Invalid transaction data: not an array");
+	}
+	return txFromRLPArray(decoded);
+}
+
+export function txFromRLP(data: Uint8Array): Transaction {
+	// Use txFromArray for backward compatibility
+	return txFromArray(data);
+}
+
+function txFromRLPArray(decoded: Uint8Array[]): Transaction {
 	// Determine transaction type based on field count
 	// Legacy signed: 9 fields [nonce, gasPrice, gasLimit, to, value, data, v, r, s]
 	// Legacy unsigned EIP-155: 9 fields [nonce, gasPrice, gasLimit, to, value, data, chainId, 0, 0]

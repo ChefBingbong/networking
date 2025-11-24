@@ -1,5 +1,5 @@
 // src/blockchain/config/chain-config.ts
-import type { ChainConfig, Hardfork, GenesisConfig } from "../types";
+import type { ChainConfig } from "../types";
 
 export function getChainConfig(name: string): ChainConfig {
 	// Default local development chain
@@ -60,6 +60,77 @@ export function getChainConfig(name: string): ChainConfig {
 				difficulty: "0x1", // Very low difficulty for demo (was 0x400 = 1024)
 				extraData: "0x",
 				alloc: {},
+			},
+			// Clique consensus configuration (optional - comment out to use PoW)
+			// clique: {
+			// 	epoch: 30000, // Number of blocks between epoch transitions
+			// 	period: 15, // Minimum time between blocks (seconds)
+			// },
+		};
+	}
+
+	// Clique local development chain
+	if (name === "clique" || name === "clique-local") {
+		return {
+			chainId: 1337n,
+			name: "clique-test",
+			hardforks: [
+				{
+					name: "frontier",
+					block: 0n,
+					eips: [],
+				},
+				{
+					name: "homestead",
+					block: 0n,
+					eips: [2, 7, 8],
+				},
+				{
+					name: "tangerineWhistle",
+					block: 0n,
+					eips: [150],
+				},
+				{
+					name: "spuriousDragon",
+					block: 0n,
+					eips: [155, 158],
+				},
+				{
+					name: "byzantium",
+					block: 0n,
+					eips: [100, 140, 196, 197, 198],
+				},
+				{
+					name: "constantinople",
+					block: 0n,
+					eips: [145, 1014, 1052],
+				},
+				{
+					name: "istanbul",
+					block: 0n,
+					eips: [152, 1108, 1344, 1884, 2028, 2200],
+				},
+				{
+					name: "berlin",
+					block: 0n,
+					eips: [2565, 2929, 2930],
+				},
+				{
+					name: "london",
+					block: 0n,
+					eips: [1559, 3198, 3529, 3541],
+				},
+			],
+			genesis: {
+				timestamp: "0x0",
+				gasLimit: "0x1c9c380",
+				difficulty: "0x1",
+				extraData: "0x", // Will be filled by createBlockchainClient for Clique
+				alloc: {},
+			},
+			clique: {
+				epoch: 1, // Number of blocks between epoch transitions
+				period: 0, // Minimum time between blocks (seconds)
 			},
 		};
 	}
@@ -151,4 +222,3 @@ export function isEIPActive(
 	}
 	return false;
 }
-
