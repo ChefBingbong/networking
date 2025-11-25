@@ -3,6 +3,7 @@ import { secp256k1 } from "ethereum-cryptography/secp256k1";
 import {
 	Address,
 	BIGINT_0,
+	bigIntMax,
 	bigIntToUnpaddedBytes,
 	bytesToHex,
 	ecrecover,
@@ -42,13 +43,32 @@ export function isSigned(tx: LegacyTxInterface): boolean {
  * The amount of gas paid for the data in this tx
  */
 export function getDataGas(tx: LegacyTxInterface): bigint {
-	// Default gas costs: 4 gas per zero byte, 16 gas per non-zero byte (Istanbul hardfork)
-	const txDataZero = BigInt(4);
-	const txDataNonZero = BigInt(16);
+	if (tx.cache.dataFee && tx.cache.dataFee.hardfork === tx.common.hardfork()) {
+		return tx.cache.dataFee.value;
+	}
+
+	const txDataZero = tx.common.param("txDataZeroGas");
+	const txDataNonZero = tx.common.param("txDataNonZeroGas");
 
 	let cost = BIGINT_0;
 	for (let i = 0; i < tx.data.length; i++) {
-		cost += tx.data[i] === 0 ? txDataZero : txDataNonZero;
+		tx.data[i] === 0 ? (cost += txDataZero) : (cost += txDataNonZero);
+	}
+
+	if (
+		(tx.to === undefined || tx.to === null) &&
+		tx.common.isActivatedEIP(3860)
+	) {
+		const dataLength = BigInt(Math.ceil(tx.data.length / 32));
+		const initCodeCost = tx.common.param("initCodeWordGas") * dataLength;
+		cost += initCodeCost;
+	}
+
+	if (Object.isFrozen(tx)) {
+		tx.cache.dataFee = {
+			value: cost,
+			hardfork: tx.common.hardfork(),
+		};
 	}
 
 	return cost;
@@ -61,23 +81,19 @@ export function getDataGas(tx: LegacyTxInterface): bigint {
  * to be paid for access lists (EIP-2930) and authority lists (EIP-7702).
  */
 export function getIntrinsicGas(tx: LegacyTxInterface): bigint {
-	const txFee = tx?.common?.param("txGas");
-	let fee = BIGINT_0;
-	if (txFee) {
-		fee = txFee;
-	} else {
-		// Default base transaction gas cost (21000) + contract creation cost (32000) if creating contract
-		const baseTxGas = BigInt(21000);
-		const contractCreationGas = BigInt(32000);
-		// If to is undefined/null/empty, it's a contract creation
-		if (tx.to === undefined || tx.to === null) {
-			fee = baseTxGas + contractCreationGas;
-		} else {
-			fee = baseTxGas;
-		}
+	const txFee = tx.common.param("txGas");
+	let fee = tx.getDataGas();
+	if (txFee) fee += txFee;
+	let isContractCreation = false;
+	try {
+		isContractCreation = tx.toCreationAddress();
+	} catch {
+		isContractCreation = false;
 	}
-	// Add data gas cost
-	fee += tx.getDataGas();
+	if (tx.common.gteHardfork("homestead") && isContractCreation) {
+		const txCreationFee = tx.common.param("txCreationGas");
+		if (txCreationFee) fee += txCreationFee;
+	}
 	return fee;
 }
 
@@ -105,7 +121,7 @@ export function hash(tx: LegacyTxInterface): Uint8Array {
 		throw new Error(msg);
 	}
 
-	const keccakFunction = keccak256;
+	const keccakFunction = tx.common.customCrypto.keccak256 ?? keccak256;
 
 	if (Object.isFrozen(tx)) {
 		tx.cache.hash ??= keccakFunction(tx.serialize());
@@ -122,7 +138,7 @@ export function hash(tx: LegacyTxInterface): Uint8Array {
 export function validateHighS(tx: LegacyTxInterface): void {
 	const { s } = tx;
 	if (
-		tx?.common?.gteHardfork("homestead") &&
+		tx.common.gteHardfork("homestead") &&
 		s !== undefined &&
 		s > SECP256K1_ORDER_DIV_2
 	) {
@@ -152,7 +168,7 @@ export function getSenderPublicKey(tx: LegacyTxInterface): Uint8Array {
 	validateHighS(tx);
 
 	try {
-		const ecrecoverFunction = ecrecover;
+		const ecrecoverFunction = tx.common.customCrypto.ecrecover ?? ecrecover;
 		const sender = ecrecoverFunction(
 			msgHash,
 			v!,
@@ -204,16 +220,16 @@ export function getValidationErrors(tx: LegacyTxInterface): string[] {
 	}
 
 	let intrinsicGas = tx.getIntrinsicGas();
-	// if (tx.common.isActivatedEIP(7623)) {
-	// 	let tokens = 0;
-	// 	for (let i = 0; i < tx.data.length; i++) {
-	// 		tokens += tx.data[i] === 0 ? 1 : 4;
-	// 	}
-	// 	const floorCost =
-	// 		tx.common.param("txGas") +
-	// 		tx.common.param("totalCostFloorPerToken") * BigInt(tokens);
-	// 	intrinsicGas = bigIntMax(intrinsicGas, floorCost);
-	// }
+	if (tx.common.isActivatedEIP(7623)) {
+		let tokens = 0;
+		for (let i = 0; i < tx.data.length; i++) {
+			tokens += tx.data[i] === 0 ? 1 : 4;
+		}
+		const floorCost =
+			tx.common.param("txGas") +
+			tx.common.param("totalCostFloorPerToken") * BigInt(tokens);
+		intrinsicGas = bigIntMax(intrinsicGas, floorCost);
+	}
 	if (intrinsicGas > tx.gasLimit) {
 		errors.push(
 			`gasLimit is too low. The gasLimit is lower than the minimum gas limit of ${tx.getIntrinsicGas()}, the gas limit is: ${tx.gasLimit}`,
@@ -279,34 +295,15 @@ export function sign(
 	// and want to recreate a signature (where EIP155 should be applied)
 	// Leaving this hack lets the legacy.spec.ts -> sign(), verifySignature() test fail
 	// 2021-06-23
-	let hackApplied = false;
-	// if (
-	// 	tx.type === TransactionType.Legacy &&
-	// 	tx.common.gteHardfork("spuriousDragon") &&
-	// 	!tx.supports(Capability.EIP155ReplayProtection)
-	// ) {
-	// 	(tx as LegacyTx)["activeCapabilities"].push(
-	// 		Capability.EIP155ReplayProtection,
-	// 	);
-	// 	hackApplied = true;
-	// }
 
 	const msgHash = tx.getHashedMessageToSign();
-	const ecSignFunction = secp256k1.sign;
+	const ecSignFunction = tx.common.customCrypto?.ecsign ?? secp256k1.sign;
 	const { recovery, r, s } = ecSignFunction(msgHash, privateKey, {
 		extraEntropy,
 	});
 	const signedTx = tx.addSignature(BigInt(recovery), r, s, true);
 
-	// // Hack part 2
-	// if (hackApplied) {
-	// 	const index = (tx as LegacyTx)["activeCapabilities"].indexOf(
-	// 		Capability.EIP155ReplayProtection,
-	// 	);
-	// 	if (index > -1) {
-	// 		(tx as LegacyTx)["activeCapabilities"].splice(index, 1);
-	// 	}
-	// }
+	// Hack part 2
 
 	return signedTx;
 }
@@ -331,11 +328,11 @@ export function getSharedErrorPostfix(tx: LegacyTxInterface) {
 		hash = "error";
 	}
 	let hf = "";
-	// try {
-	// 	hf = tx.common.hardfork();
-	// } catch {
-	// 	hf = "error";
-	// }
+	try {
+		hf = tx.common.hardfork();
+	} catch {
+		hf = "error";
+	}
 
 	let postfix = `tx type=${tx.type} hash=${hash} nonce=${tx.nonce} value=${tx.value} `;
 	postfix += `signed=${isSigned} hf=${hf}`;

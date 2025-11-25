@@ -1,14 +1,16 @@
-// import type { Common } from "@ethereumjs/common";
 import { keccak256 } from "ethereum-cryptography/keccak.js";
+import type { Common } from "../../chain-config/common.ts";
 import * as RLP from "../../rlp/index.ts";
 import type { Address } from "../../utils/index.ts";
 import {
+	BIGINT_2,
 	bigIntToHex,
 	bigIntToUnpaddedBytes,
 	bytesToBigInt,
 	MAX_INTEGER,
 	toBytes,
 } from "../../utils/index.ts";
+import { paramsTx } from "../index.ts";
 import type {
 	TxData as AllTypesTxData,
 	TxValuesArray as AllTypesTxValuesArray,
@@ -36,7 +38,7 @@ function meetsEIP155(_v: bigint, chainId: bigint) {
  * Validates tx's `v` value and extracts the chain id
  */
 function validateVAndExtractChainID(
-	common: any,
+	common: Common,
 	_v?: bigint,
 ): bigint | undefined {
 	let chainIdBigInt: bigint | undefined;
@@ -50,12 +52,31 @@ function validateVAndExtractChainID(
 				`Legacy txs need either v = 27/28 or v >= 37 (EIP-155 replay protection), got v = ${v}`,
 			);
 		}
-		// Extract chainId from EIP-155 v value
-		if (v >= 37) {
-			chainIdBigInt = BigInt(Math.floor((v - 35) / 2));
-		}
 	}
 
+	// No unsigned tx and EIP-155 activated and chain ID included
+	if (
+		v !== undefined &&
+		v !== 0 &&
+		common.gteHardfork("spuriousDragon") &&
+		v !== 27 &&
+		v !== 28
+	) {
+		if (!meetsEIP155(BigInt(v), common.chainId())) {
+			throw new Error(
+				`Incompatible EIP155-based V ${v} and chain id ${common.chainId()}. See the Common parameter of the Transaction constructor to set the chain id.`,
+			);
+		}
+		// Derive the original chain ID
+		let numSub: number;
+		if ((v - 35) % 2 === 0) {
+			numSub = 35;
+		} else {
+			numSub = 36;
+		}
+		// Use derived chain ID to create a proper Common
+		chainIdBigInt = BigInt(v - numSub) / BIGINT_2;
+	}
 	return chainIdBigInt;
 }
 
@@ -84,7 +105,7 @@ export class LegacyTx
 	// End of Tx data part
 
 	/* Other handy tx props */
-	public readonly common!: any;
+	public readonly common!: Common;
 	private keccakFunction: (msg: Uint8Array) => Uint8Array;
 
 	readonly txOptions!: TxOptions;
@@ -111,12 +132,17 @@ export class LegacyTx
 		this.gasPrice = bytesToBigInt(toBytes(txData.gasPrice));
 		valueOverflowCheck({ gasPrice: this.gasPrice });
 
-		// Validate v value if present
-		if (this.v !== undefined) {
-			validateVAndExtractChainID(undefined, this.v);
+		// Everything from BaseTransaction done here
+		this.common.updateParams(opts.params ?? paramsTx); // TODO should this move higher?
+
+		const chainId = validateVAndExtractChainID(this.common, this.v);
+		if (chainId !== undefined && chainId !== this.common.chainId()) {
+			throw new Error(
+				`Common chain ID ${this.common.chainId} not matching the derived chain ID ${chainId}`,
+			);
 		}
 
-		this.keccakFunction = keccak256;
+		this.keccakFunction = this.common.customCrypto.keccak256 ?? keccak256;
 
 		if (this.gasPrice * this.gasLimit > MAX_INTEGER) {
 			throw new Error(

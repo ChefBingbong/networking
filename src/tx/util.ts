@@ -1,3 +1,4 @@
+import { Common, Mainnet } from "../chain-config/index.ts";
 import {
 	Address,
 	bigIntToHex,
@@ -11,6 +12,7 @@ import {
 	toType,
 	TypeOutput,
 } from "../utils/index.ts";
+import { paramsTx } from "./params.ts";
 import type {
 	AccessList,
 	AccessListBytes,
@@ -21,8 +23,8 @@ import type {
 	TypedTxData,
 } from "./types.ts";
 
-export function getCommon(common?: any): any {
-	return common?.copy();
+export function getCommon(common?: Common): Common {
+	return common?.copy() ?? new Common({ chain: Mainnet });
 }
 
 export function txTypeBytes(txType: TransactionType): Uint8Array {
@@ -54,7 +56,7 @@ export function validateNotArray(values: { [key: string]: any }) {
 	}
 }
 
-function checkMaxInitCodeSize(common: any, length: number) {
+function checkMaxInitCodeSize(common: Common, length: number) {
 	const maxInitCodeSize = common.param("maxInitCodeSize");
 	if (maxInitCodeSize && BigInt(length) > maxInitCodeSize) {
 		throw new Error(
@@ -119,8 +121,8 @@ export function sharedConstructor(
 	txData: TxData[TransactionType],
 	opts: TxOptions = {},
 ) {
-	// tx.common = getCommon(opts.common);
-	// tx.common.updateParams(opts.params ?? paramsTx);
+	tx.common = getCommon(opts.common);
+	tx.common.updateParams(opts.params ?? paramsTx);
 
 	validateNotArray(txData); // is this necessary?
 
@@ -149,43 +151,28 @@ export function sharedConstructor(
 	valueOverflowCheck({ gasLimit: tx.gasLimit }, 64);
 	valueOverflowCheck({ nonce: tx.nonce }, 64, true);
 
-	// if (tx.common.isActivatedEIP(7825)) {
-	// 	const maxGasLimit = tx.common.param("maxTransactionGasLimit");
-	// 	if (tx.gasLimit > maxGasLimit) {
-	// 		throw new Error(
-	// 			`Transaction gas limit ${tx.gasLimit} exceeds the maximum allowed by EIP-7825 (${maxGasLimit})`,
-	// 		);
-	// 	}
-	// }
-
-	// const createContract = tx.to === undefined || tx.to === null;
-	// const allowUnlimitedInitCodeSize = opts.allowUnlimitedInitCodeSize ?? false;
-
-	// if (
-	// 	createContract &&
-	// 	tx.common.isActivatedEIP(3860) &&
-	// 	allowUnlimitedInitCodeSize === false
-	// ) {
-	// 	checkMaxInitCodeSize(tx.common, tx.data.length);
-	// }
-}
-
-function getChainIdFromV(v?: bigint): bigint | undefined {
-	if (v === undefined) {
-		return undefined;
+	if (tx.common.isActivatedEIP(7825)) {
+		const maxGasLimit = tx.common.param("maxTransactionGasLimit");
+		if (tx.gasLimit > maxGasLimit) {
+			throw new Error(
+				`Transaction gas limit ${tx.gasLimit} exceeds the maximum allowed by EIP-7825 (${maxGasLimit})`,
+			);
+		}
 	}
-	const vNum = Number(v);
-	// EIP-155: chainId is derived from v as (v - 35) / 2 or (v - 36) / 2
-	if (vNum >= 37) {
-		// EIP-155 protected transaction
-		return BigInt(Math.floor((vNum - 35) / 2));
+
+	const createContract = tx.to === undefined || tx.to === null;
+	const allowUnlimitedInitCodeSize = opts.allowUnlimitedInitCodeSize ?? false;
+
+	if (
+		createContract &&
+		tx.common.isActivatedEIP(3860) &&
+		allowUnlimitedInitCodeSize === false
+	) {
+		checkMaxInitCodeSize(tx.common, tx.data.length);
 	}
-	// Legacy transaction without chainId (v = 27 or 28)
-	return undefined;
 }
 
 export function getBaseJSON(tx: TransactionInterface) {
-	const chainId = getChainIdFromV(tx.v);
 	return {
 		type: bigIntToHex(BigInt(tx.type)),
 		nonce: bigIntToHex(tx.nonce),
@@ -196,7 +183,7 @@ export function getBaseJSON(tx: TransactionInterface) {
 		v: tx.v !== undefined ? bigIntToHex(tx.v) : undefined,
 		r: tx.r !== undefined ? bigIntToHex(tx.r) : undefined,
 		s: tx.s !== undefined ? bigIntToHex(tx.s) : undefined,
-		chainId: chainId !== undefined ? bigIntToHex(chainId) : undefined,
+		chainId: bigIntToHex(tx.common.chainId()),
 		yParity: tx.v === 0n || tx.v === 1n ? bigIntToHex(tx.v) : undefined,
 	};
 }
