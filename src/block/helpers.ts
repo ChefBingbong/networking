@@ -1,5 +1,5 @@
-// import { MerklePatriciaTrie } from '@ethereumjs/mpt'
-// import { RLP } from '@ethereumjs/rlp'
+// import { MerklePatriciaTrie } from "../mpt/mpt.ts";
+import * as RLP from "../rlp/index.ts";
 
 import { type Common } from "../chain-config/index.ts";
 import type { TypedTransaction } from "../tx/types.ts";

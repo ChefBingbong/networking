@@ -1,5 +1,5 @@
-// import { genesisMPTStateRoot } from '@ethereumjs/mpt'
 import { ChainGenesis } from '../chain-config/index.ts';
+import { genesisMPTStateRoot } from '../mpt/util/genesisState.ts';
 
 import type { Chain, Common, GenesisState } from '../chain-config/index.ts';
 
@@ -25,8 +25,7 @@ export async function genGenesisStateRoot(
     blockNumber: 0,
     timestamp: genCommon.genesis().timestamp,
   })
-  // return genesisMPTStateRoo(genesisState)
-  return new Uint8Array(0);
+  return genesisMPTStateRoot(genesisState)
 }
 
 /**

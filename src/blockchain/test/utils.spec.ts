@@ -1,16 +1,16 @@
-// import { genesisMPTStateRoot } from '@ethereumjs/mpt'
-import { assert, describe, it } from 'vitest'
+import { assert, describe, it } from 'vitest';
 import {
   type GethGenesis,
   createCommonFromGethGenesis,
   parseGethGenesisState,
-} from '../../chain-config/index.ts'
-import { postMergeGethGenesis } from '../../testdata/index.ts'
-import { bytesToHex } from '../../utils/index.ts'
+} from '../../chain-config/index.ts';
+import { genesisMPTStateRoot } from '../../mpt/util/genesisState.ts';
+import { postMergeGethGenesis } from '../../testdata/index.ts';
+import { bytesToHex } from '../../utils/index.ts';
 
-import { createBlockchain } from '../../blockchain/index.ts'
+import { createBlockchain } from '../../blockchain/index.ts';
 
-import type { Blockchain } from '../index.ts'
+import type { Blockchain } from '../index.ts';
 
 async function getBlockchain(gethGenesis: GethGenesis): Promise<Blockchain> {
   const common = createCommonFromGethGenesis(gethGenesis, { chain: 'kiln' })
@@ -23,15 +23,15 @@ async function getBlockchain(gethGenesis: GethGenesis): Promise<Blockchain> {
 }
 
 describe('[Utils/Parse]', () => {
-  // it('should properly parse genesis state from gethGenesis', async () => {
-  //   const genesisState = parseGethGenesisState(postMergeGethGenesis)
-  //   const stateRoot = await genesisMPTStateRoot(genesisState)
-  //   assert.strictEqual(
-  //     bytesToHex(stateRoot),
-  //     '0xca3149fa9e37db08d1cd49c9061db1002ef1cd58db2210f2115c8c989b2bdf45',
-  //     'stateRoot matches',
-  //   )
-  // })
+  it('should properly parse genesis state from gethGenesis', async () => {
+    const genesisState = parseGethGenesisState(postMergeGethGenesis)
+    const stateRoot = await genesisMPTStateRoot(genesisState)
+    assert.strictEqual(
+      bytesToHex(stateRoot),
+      '0xca3149fa9e37db08d1cd49c9061db1002ef1cd58db2210f2115c8c989b2bdf45',
+      'stateRoot matches',
+    )
+  })
 
   it('should initialize blockchain from gethGenesis', async () => {
     const blockchain = await getBlockchain(postMergeGethGenesis)

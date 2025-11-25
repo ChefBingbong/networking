@@ -1,41 +1,41 @@
-// import { MerklePatriciaTrie } from '@ethereumjs/mpt'
+import { MerklePatriciaTrie } from "../../mpt/index.ts";
 import * as RLP from "../../rlp/index.ts";
 // import type { TxOptions, TypedTransaction } from '@ethereumjs/tx'
 import {
-	createTx,
-	createTxFromBlockBodyData,
-	createTxFromRLP,
-	normalizeTxParams,
-	type TxOptions,
-	type TypedTransaction,
+  createTx,
+  createTxFromBlockBodyData,
+  createTxFromRLP,
+  normalizeTxParams,
+  type TxOptions,
+  type TypedTransaction,
 } from "../../tx/index.ts";
 import type { WithdrawalBytes } from "../../utils/index.ts";
 import {
-	bytesToHex,
-	createWithdrawal,
-	equalsBytes,
-	// fetchFromProvider,
-	// getProvider,
-	hexToBytes,
+  bytesToHex,
+  createWithdrawal,
+  equalsBytes,
+  // fetchFromProvider,
+  // getProvider,
+  hexToBytes,
 } from "../../utils/index.ts";
 import { generateCliqueBlockExtraData } from "../consensus/clique.ts";
 import type { BeaconPayloadJSON } from "../from-beacon-payload.ts";
 import { genTransactionsTrieRoot, genWithdrawalsTrieRoot } from "../helpers.ts";
 import {
-	Block,
-	createBlockHeader,
-	createBlockHeaderFromBytesArray,
-	createBlockHeaderFromRPC,
-	executionPayloadFromBeaconPayload,
+  Block,
+  createBlockHeader,
+  createBlockHeaderFromBytesArray,
+  createBlockHeaderFromRPC,
+  executionPayloadFromBeaconPayload,
 } from "../index.ts";
 import type {
-	BlockBytes,
-	BlockData,
-	BlockOptions,
-	ExecutionPayload,
-	HeaderData,
-	JSONRPCBlock,
-	WithdrawalsBytes,
+  BlockBytes,
+  BlockData,
+  BlockOptions,
+  ExecutionPayload,
+  HeaderData,
+  JSONRPCBlock,
+  WithdrawalsBytes,
 } from "../types.ts";
 
 /**
@@ -348,13 +348,13 @@ export async function createBlockFromExecutionPayload(
 
 	const transactionsTrie = await genTransactionsTrieRoot(
 		txs,
-		// new MerklePatriciaTrie({ common: opts?.common }),
+		new MerklePatriciaTrie({ common: opts?.common }),
 	);
 	const withdrawals = withdrawalsData?.map((wData) => createWithdrawal(wData));
 	const withdrawalsRoot = withdrawals
 		? await genWithdrawalsTrieRoot(
 				withdrawals,
-				// new MerklePatriciaTrie({ common: opts?.common }),
+				new MerklePatriciaTrie({ common: opts?.common }),
 			)
 		: undefined;
 

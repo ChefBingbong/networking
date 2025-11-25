@@ -1,17 +1,17 @@
-// import { MerklePatriciaTrie } from "@ethereumjs/mpt";
 import { keccak256 } from "ethereum-cryptography/keccak.js";
 import { sha256 } from "ethereum-cryptography/sha256.js";
 import type { Common } from "../../chain-config/common.ts";
 import { ConsensusType } from "../../chain-config/enums.ts";
+import { MerklePatriciaTrie } from "../../mpt/index.ts";
 import * as RLP from "../../rlp/index.ts";
 import type { LegacyTx, TypedTransaction } from "../../tx/index.ts";
 import type { Withdrawal } from "../../utils/index.ts";
 import {
-	BIGINT_0,
-	bytesToHex,
-	equalsBytes,
-	KECCAK256_RLP,
-	KECCAK256_RLP_ARRAY,
+  BIGINT_0,
+  bytesToHex,
+  equalsBytes,
+  KECCAK256_RLP,
+  KECCAK256_RLP_ARRAY,
 } from "../../utils/index.ts";
 /* eslint-disable */
 // This is to allow for a proper and linked collection of constructors for the class header.
@@ -20,22 +20,23 @@ import {
 // See: https://github.com/microsoft/TypeScript/issues/47558
 // (situation will eventually improve on Typescript and/or Eslint update)
 import {
-	BlockHeader,
-	type createBlock,
-	type createBlockFromBeaconPayloadJSON,
-	type createBlockFromBytesArray,
-	type createBlockFromExecutionPayload,
-	type createBlockFromJSONRPCProvider,
-	type createBlockFromRLP,
-	type createBlockFromRPC,
-	genWithdrawalsTrieRoot,
+  BlockHeader,
+  type createBlock,
+  type createBlockFromBeaconPayloadJSON,
+  type createBlockFromBytesArray,
+  type createBlockFromExecutionPayload,
+  // type createBlockFromJSONRPCProvider,
+  type createBlockFromRLP,
+  type createBlockFromRPC,
+  genTransactionsTrieRoot,
+  genWithdrawalsTrieRoot,
 } from "../index.ts";
 /* eslint-enable */
 import type {
-	BlockBytes,
-	BlockOptions,
-	ExecutionPayload,
-	JSONBlock,
+  BlockBytes,
+  BlockOptions,
+  ExecutionPayload,
+  JSONBlock,
 } from "../types.ts";
 
 /**
@@ -159,11 +160,11 @@ export class Block {
 	 * Generates transaction trie for validation.
 	 */
 	async genTxTrie(): Promise<Uint8Array> {
-		// return genTransactionsTrieRoot(
-		// 	this.transactions,
-		// 	new MerklePatriciaTrie({ common: this.common }),
-		// );
-		return new Uint8Array(0);
+		return genTransactionsTrieRoot(
+			this.transactions,
+			new MerklePatriciaTrie({ common: this.common }),
+		);
+		// return new Uint8Array(0);
 	}
 
 	/**
@@ -356,7 +357,7 @@ export class Block {
 		if (this.cache.withdrawalsTrieRoot === undefined) {
 			this.cache.withdrawalsTrieRoot = await genWithdrawalsTrieRoot(
 				this.withdrawals!,
-				// new MerklePatriciaTrie({ common: this.common }),
+				new MerklePatriciaTrie({ common: this.common }),
 			);
 		}
 		result = equalsBytes(
