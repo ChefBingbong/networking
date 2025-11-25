@@ -6,7 +6,7 @@
 	"scripts": {
 		"format": "biome format . --write",
 		"test": "vitest",
-		"test:run": "vitest run",
+		"test:run": "vitest run -c",
 		"examples": "tsx examples/simple.ts"
 	},
 	"devDependencies": {
@@ -34,6 +34,7 @@
 		"it-stream-types": "^2.0.2",
 		"level": "^10.0.0",
 		"multiformats": "^13.4.1",
+		"node-dir": "^0.1.17",
 		"protons-runtime": "^5.6.0",
 		"radash": "^12.1.1",
 		"strict-event-emitter-types": "^2.0.0",

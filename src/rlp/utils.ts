@@ -11,7 +11,7 @@ export function bytesToHex(uint8a: Uint8Array): string {
 
 export function parseHexByte(hexByte: string): number {
 	const byte = Number.parseInt(hexByte, 16);
-	if (Number.isNaN(byte)) throw Error("Invalid byte sequence");
+	if (Number.isNaN(byte)) throw new Error("Invalid byte sequence");
 	return byte;
 }
 
@@ -25,11 +25,13 @@ export function asciiToBase16(char: number): number | undefined {
 export function hexToBytes(hex: string): Uint8Array {
 	if (hex.slice(0, 2) === "0x") hex = hex.slice(0, 2);
 	if (typeof hex !== "string")
-		throw Error("hex string expected, got " + typeof hex);
+		throw new Error("hex string expected, got " + typeof hex);
 	const hl = hex.length;
 	const al = hl / 2;
 	if (hl % 2)
-		throw Error("padded hex string expected, got unpadded hex of length " + hl);
+		throw new Error(
+			"padded hex string expected, got unpadded hex of length " + hl,
+		);
 
 	const array = new Uint8Array(al);
 	for (let ai = 0, hi = 0; ai < al; ai++, hi += 2) {
@@ -37,7 +39,7 @@ export function hexToBytes(hex: string): Uint8Array {
 		const n2 = asciiToBase16(hex.charCodeAt(hi + 1));
 		if (n1 === undefined || n2 === undefined) {
 			const char = hex[hi] + hex[hi + 1];
-			throw Error(
+			throw new Error(
 				'hex string expected, got non-hex character "' +
 					char +
 					'" at index ' +
@@ -67,7 +69,7 @@ export function utf8ToBytes(utf: string): Uint8Array {
 
 export function numberToHex(integer: number | bigint): string {
 	if (integer < 0) {
-		throw Error("Invalid integer as argument, must be unsigned!");
+		throw new Error("Invalid integer as argument, must be unsigned!");
 	}
 	const hex = integer.toString(16);
 	return hex.length % 2 ? `0${hex}` : hex;
@@ -107,12 +109,12 @@ export function toBytes(v: Input): Uint8Array {
 	if (v === null || v === undefined) {
 		return Uint8Array.from([]);
 	}
-	throw Error("toBytes: received unsupported type " + typeof v);
+	throw new Error("toBytes: received unsupported type " + typeof v);
 }
 
 export function safeSlice(input: Uint8Array, start: number, end: number) {
 	if (end > input.length) {
-		throw Error(
+		throw new Error(
 			"invalid RLP (safeSlice): end slice of Uint8Array out-of-bounds",
 		);
 	}

@@ -28,7 +28,7 @@ export function decode(
 		};
 	}
 	if (decoded.remainder.length !== 0) {
-		throw Error("invalid RLP: remainder must be zero");
+		throw new Error("invalid RLP: remainder must be zero");
 	}
 
 	return decoded.data;
@@ -36,7 +36,7 @@ export function decode(
 
 function decodeLength(v: Uint8Array): number {
 	if (v[0] === 0) {
-		throw Error("invalid RLP: extra zeros");
+		throw new Error("invalid RLP: extra zeros");
 	}
 	return parseHexByte(bytesToHex(v));
 }
@@ -64,7 +64,7 @@ function _decode(input: Uint8Array): Decoded {
 		}
 
 		if (length === 2 && data[0] < 0x80) {
-			throw Error(
+			throw new Error(
 				"invalid RLP encoding: invalid prefix, single byte < 0x80 are not prefixed",
 			);
 		}
@@ -76,11 +76,13 @@ function _decode(input: Uint8Array): Decoded {
 	} else if (firstByte <= 0xbf) {
 		lLength = firstByte - 0xb6;
 		if (input.length - 1 < lLength) {
-			throw Error("invalid RLP: not enough bytes for string length");
+			throw new Error("invalid RLP: not enough bytes for string length");
 		}
 		length = decodeLength(safeSlice(input, 1, lLength));
 		if (length <= 55) {
-			throw Error("invalid RLP: expected string length to be greater than 55");
+			throw new Error(
+				"invalid RLP: expected string length to be greater than 55",
+			);
 		}
 		data = safeSlice(input, lLength, length + lLength);
 
@@ -105,11 +107,11 @@ function _decode(input: Uint8Array): Decoded {
 		lLength = firstByte - 0xf6;
 		length = decodeLength(safeSlice(input, 1, lLength));
 		if (length < 56) {
-			throw Error("invalid RLP: encoded list too short");
+			throw new Error("invalid RLP: encoded list too short");
 		}
 		const totalLength = lLength + length;
 		if (totalLength > input.length) {
-			throw Error("invalid RLP: total length is larger than the data");
+			throw new Error("invalid RLP: total length is larger than the data");
 		}
 
 		innerRemainder = safeSlice(input, lLength, totalLength);
