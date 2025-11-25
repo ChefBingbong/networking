@@ -23,6 +23,8 @@ export * from "./units.ts";
 /**
  * DB type
  */
+export * from "./db.ts";
+export * from "./mapDB.ts";
 
 /**
  * Export ethjs-util methods
@@ -35,15 +37,15 @@ export * from "./blobs.ts";
  */
 export * from "./bytes.ts";
 export {
-	arrayContainsArray,
-	fromAscii,
-	fromUtf8,
-	getBinarySize,
-	getKeys,
-	isHexString,
-	padToEven,
-	stripHexPrefix,
-	toAscii,
+  arrayContainsArray,
+  fromAscii,
+  fromUtf8,
+  getBinarySize,
+  getKeys,
+  isHexString,
+  padToEven,
+  stripHexPrefix,
+  toAscii
 } from "./internal.ts";
 export * from "./kzg.ts";
 export * from "./lock.ts";

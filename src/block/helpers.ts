@@ -5,11 +5,12 @@ import { type Common } from "../chain-config/index.ts";
 import type { TypedTransaction } from "../tx/types.ts";
 import type { PrefixedHexString, Withdrawal } from "../utils/index.ts";
 import {
-	BIGINT_0,
-	BIGINT_1,
-	isHexString,
-	toType,
-	TypeOutput,
+  BIGINT_0,
+  BIGINT_1,
+  concatBytes,
+  isHexString,
+  toType,
+  TypeOutput,
 } from "../utils/index.ts";
 import type { BlockHeaderBytes, HeaderData } from "./types.ts";
 /**
@@ -196,29 +197,29 @@ export async function genTransactionsTrieRoot(
 //  * @param emptyTrie optional empty trie used to generate the root
 //  * @returns a 32 byte Uint8Array representing the requests trie root
 //  */
-// export function genRequestsRoot(
-//   requests: CLRequest<CLRequestType>[],
-//   sha256Function: (msg: Uint8Array) => Uint8Array,
-// ) {
-//   // Requests should be sorted in monotonically ascending order based on type
-//   // and whatever internal sorting logic is defined by each request type
-//   if (requests.length > 1) {
-//     for (let x = 1; x < requests.length; x++) {
-//       if (requests[x].type < requests[x - 1].type)
-//         throw Error('requests are not sorted in ascending order')
-//     }
-//   }
+export function genRequestsRoot(
+  requests: any[],
+  sha256Function: (msg: Uint8Array) => Uint8Array,
+) {
+  // Requests should be sorted in monotonically ascending order based on type
+  // and whatever internal sorting logic is defined by each request type
+  if (requests.length > 1) {
+    for (let x = 1; x < requests.length; x++) {
+      if (requests[x].type < requests[x - 1].type)
+        throw Error('requests are not sorted in ascending order')
+    }
+  }
 
-//   // def compute_requests_hash(list):
-//   //    return keccak256(rlp.encode([rlp.encode(req) for req in list]))
+  // def compute_requests_hash(list):
+  //    return keccak256(rlp.encode([rlp.encode(req) for req in list]))
 
-//   let flatRequests = new Uint8Array()
-//   for (const req of requests) {
-//     if (req.bytes.length > 1) {
-//       // Only append requests if they have content
-//       flatRequests = concatBytes(flatRequests, sha256Function(req.bytes))
-//     }
-//   }
+  let flatRequests = new Uint8Array()
+  for (const req of requests) {
+    if (req.bytes.length > 1) {
+      // Only append requests if they have content
+      flatRequests = concatBytes(flatRequests, sha256Function(req.bytes))
+    }
+  }
 
-//   return sha256Function(flatRequests)
-// }
+  return sha256Function(flatRequests)
+}

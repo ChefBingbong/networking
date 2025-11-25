@@ -33,6 +33,7 @@
 		"hono": "^4.10.6",
 		"it-stream-types": "^2.0.2",
 		"level": "^10.0.0",
+		"lru-cache": "^11.2.2",
 		"multiformats": "^13.4.1",
 		"node-dir": "^0.1.17",
 		"protons-runtime": "^5.6.0",
