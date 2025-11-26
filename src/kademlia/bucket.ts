@@ -264,13 +264,22 @@ export class KBucket {
 
   /**
    * Returns all the contacts contained in the tree as an array.
+   * Optimized to avoid array concatenation overhead.
    */
   toArray(): Contact[] {
-    let result: Contact[] = []
-    for (const nodes = [this._root]; nodes.length > 0; ) {
-      const node = nodes.pop()!
-      if (node.contacts === null) nodes.push(node.right!, node.left!)
-      else result = result.concat(node.contacts)
+    const result: Contact[] = []
+    const stack: KBucketNode[] = [this._root]
+    
+    while (stack.length > 0) {
+      const node = stack.pop()!
+      if (node.contacts === null) {
+        // Internal node - add children to stack
+        if (node.right) stack.push(node.right)
+        if (node.left) stack.push(node.left)
+      } else {
+        // Leaf node - push all contacts (reference, not clone)
+        result.push(...node.contacts)
+      }
     }
     return result
   }
@@ -312,8 +321,9 @@ export class KBucket {
   /**
    * Get detailed bucket structure information including splits and peers in each bucket.
    * Returns an array of bucket information sorted by bit depth.
+   * @param includePeers - If false, peers array will be empty (faster for large networks)
    */
-  getBucketStructure(): Array<{
+  getBucketStructure(includePeers = true): Array<{
     bitDepth: number
     bucketIndex: number
     bucketPath: string
@@ -350,7 +360,7 @@ export class KBucket {
           bucketIndex: globalIndex++,
           bucketPath: path || '0', // Empty path for root bucket
           peerCount: node.contacts.length,
-          peers: [...node.contacts],
+          peers: includePeers ? [...node.contacts] : [], // Only clone if needed
           canSplit: !node.noSplit,
           maxSize: this._numberOfNodesPerKBucket,
         })
@@ -372,29 +382,43 @@ export class KBucket {
 
   /**
    * Get a summary of bucket splits showing how many buckets exist at each depth level.
+   * This is optimized and doesn't clone peer data.
    */
   getBucketSplitSummary(): {
     totalBuckets: number
     maxDepth: number
     bucketsByDepth: Array<{ depth: number; count: number; totalPeers: number }>
   } {
-    const structure = this.getBucketStructure()
-    const maxDepth = structure.length > 0
-      ? Math.max(...structure.map((b) => b.bitDepth))
-      : 0
-
+    // Use lightweight walk that doesn't clone peers
     const bucketsByDepth = new Map<number, { count: number; totalPeers: number }>()
+    let totalBuckets = 0
+    let maxDepth = 0
 
-    for (const bucket of structure) {
-      const existing = bucketsByDepth.get(bucket.bitDepth) ?? { count: 0, totalPeers: 0 }
-      bucketsByDepth.set(bucket.bitDepth, {
-        count: existing.count + 1,
-        totalPeers: existing.totalPeers + bucket.peerCount,
-      })
+    const walkTree = (
+      node: KBucketNode,
+      bitDepth: number,
+    ): void => {
+      if (node.contacts === null) {
+        // Internal node - recurse into left and right children
+        walkTree(node.left!, bitDepth + 1)
+        walkTree(node.right!, bitDepth + 1)
+      } else {
+        // Leaf node - this is an actual bucket
+        totalBuckets++
+        if (bitDepth > maxDepth) maxDepth = bitDepth
+
+        const existing = bucketsByDepth.get(bitDepth) ?? { count: 0, totalPeers: 0 }
+        bucketsByDepth.set(bitDepth, {
+          count: existing.count + 1,
+          totalPeers: existing.totalPeers + (node.contacts?.length ?? 0),
+        })
+      }
     }
 
+    walkTree(this._root, 0)
+
     return {
-      totalBuckets: structure.length,
+      totalBuckets,
       maxDepth,
       bucketsByDepth: Array.from(bucketsByDepth.entries())
         .map(([depth, info]) => ({

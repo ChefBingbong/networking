@@ -28,9 +28,11 @@ export class DPT {
   protected _dnsNetworks: string[]
   protected _dnsAddr: string
   protected _refreshIntervalId?: NodeJS.Timeout
+  protected _privateKey: Uint8Array
 
   constructor(privateKey: Uint8Array, options: DPTOptions = {}) {
     this.events = new EventEmitter<DPTEvent>()
+    this._privateKey = privateKey
 
     // DNS configuration
     this._shouldGetDnsPeers = options.shouldGetDnsPeers ?? false

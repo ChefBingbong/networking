@@ -23,8 +23,8 @@ export function getTestDPTs(numDPTs: number, basePort: number) {
         udpPort: basePort + i,
         tcpPort: basePort + i,
       },
-      timeout: 100,
-      shouldFindNeighbours: false, // Disable findNeighbors since only needed for bootstrap test
+      timeout: 4000,
+      shouldFindNeighbours: true, // Disable findNeighbors since only needed for bootstrap test
     })
     dpt.bind(basePort + i)
     dpts.push(dpt)

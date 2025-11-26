@@ -165,8 +165,9 @@ export class RoutingTable {
 
   /**
    * Get detailed bucket structure including splits and peers in each bucket.
+   * @param includePeers - If false, peers array will be empty (faster for large networks)
    */
-  getBucketStructure(): Array<{
+  getBucketStructure(includePeers = true): Array<{
     bitDepth: number
     bucketIndex: number
     bucketPath: string
@@ -175,13 +176,25 @@ export class RoutingTable {
     canSplit: boolean
     maxSize: number
   }> {
-    return this._kbucket.getBucketStructure().map((bucket) => ({
+    const structure = this._kbucket.getBucketStructure(includePeers)
+    
+    if (!includePeers) {
+      // Return structure without peer data
+      return structure.map((bucket) => ({
+        ...bucket,
+        peers: [],
+      }))
+    }
+
+    // Only map peers if includePeers is true
+    return structure.map((bucket) => ({
       ...bucket,
       peers: bucket.peers.map(peer => ({
+        id: peer.id,
         address: peer.address,
         udpPort: peer.udpPort,
         tcpPort: peer.tcpPort,
-      }))	,
+      })),
     }))
   }
 

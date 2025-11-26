@@ -31,13 +31,18 @@ export function createKadApi(
 
 	app.get("/kad/buckets", (c) => {
 		// Return detailed bucket structure with splits and peers
-		const buckets = node.kad.table.getBucketStructure();
+		// Check if client wants peer data (default: true for backward compatibility)
+		const includePeers = c.req.query("includePeers") !== "false"
+		const buckets = node.kad.table.getBucketStructure(includePeers);
 		return c.json(buckets);
 	});
 
 	app.get("/kad/buckets/structure", (c) => {
 		// Return detailed bucket structure with splits and peers
-		const buckets = node.kad.table.getBucketStructure();
+		// Check if client wants peer data (default: true for backward compatibility)
+		const includePeers = c.req.query("includePeers") !== "false"
+		const buckets = node.kad.table.getBucketStructure(includePeers);
+		
 		return c.json({
 			totalBuckets: buckets.length,
 			buckets: buckets.map((bucket) => ({
@@ -46,13 +51,11 @@ export function createKadApi(
 				peerCount: bucket.peerCount,
 				maxSize: bucket.maxSize,
 				canSplit: bucket.canSplit,
-				utilization: ((bucket.peerCount / bucket.maxSize) * 100).toFixed(1) + "%",
+				utilization: bucket.maxSize > 0 
+					? ((bucket.peerCount / bucket.maxSize) * 100).toFixed(1) + "%"
+					: "0%",
 				bucketPath: bucket.bucketPath,
-				peers: bucket.peers.map((peer) => ({
-					address: peer.address,
-					udpPort: peer.udpPort,
-					tcpPort: peer.tcpPort,
-				})),
+				peers: bucket.peers, // Already formatted by getBucketStructure
 			})),
 		});
 	});
@@ -64,8 +67,25 @@ export function createKadApi(
 	});
 
 	app.get("/kad/peers", (c) => {
-		const peers = node.kad.getPeers();
-		return c.json(peers);
+		// Add pagination and limit support for performance
+		const limitParam = c.req.query("limit");
+		const limit = limitParam ? Math.min(Number.parseInt(limitParam, 10), 1000) : undefined;
+		const offsetParam = c.req.query("offset");
+		const offset = offsetParam ? Number.parseInt(offsetParam, 10) : 0;
+		
+		const allPeers = node.kad.getPeers();
+		
+		if (limit !== undefined || offset > 0) {
+			const limited = allPeers.slice(offset, limit !== undefined ? offset + limit : undefined);
+			return c.json({
+				peers: limited,
+				total: allPeers.length,
+				offset,
+				limit: limit ?? allPeers.length,
+			});
+		}
+		
+		return c.json(allPeers);
 	});
 
 	// DSHT endpoints removed - DSHT functionality was removed in migration to Ethereum-compatible discovery
