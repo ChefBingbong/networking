@@ -1,4 +1,3 @@
-import { multiaddr } from "@multiformats/multiaddr";
 import { generateSecp256k1KeyPrivPubPair } from "../secp256k1/utils";
 import { peerIdFromPrivateKey } from "../session/peer-id";
 import { PeerNode } from "./node";
@@ -17,11 +16,7 @@ const bootStrapPk = Uint8Array.from([
 	0x0a, 0x00, 0xa0, 0x60, 0x82, 0xa8,
 ]);
 
-export const BOOTSTRAP_ADDRS = [
-	multiaddr(
-		"/ip4/127.0.0.1/tcp/4000/p2p/16Uiu2HAm5TNJNrE5UwVFxgzmARvwemmmBBcjcxGvzWkbpgM1Gi1h",
-	),
-];
+export const BOOTSTRAP_ADDRS = [bootStrapPk];
 
 // export const BOOTSTRAP_ADDRS: Multiaddr[] = [
 // 	multiaddr("/ip4/127.0.0.1/tcp/4001"),

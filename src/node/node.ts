@@ -2,17 +2,16 @@
 import { type Multiaddr, multiaddr } from "@multiformats/multiaddr";
 import debug from "debug";
 import { EventEmitter } from "events";
-import type { BlockchainClientState } from "../blockchain/client/client";
 import type { MuxedConnection } from "../connection/connection";
 import type { ProtocolHandler } from "../connection/protocol-manager";
 import { ProtocolManager } from "../connection/protocol-manager";
+import { pk2id } from "../devp2p";
 import { createKadApi } from "../http/api";
-import { KademliaNode as KademliaDHT } from "../kademlia/kademlia";
-import { idToKey } from "../kademlia/xor";
+import { KademliaNode as KademliaDHT, KademliaNode, type KademliaNodeConfig } from "../kademlia/kademlia";
+import type { PeerInfo as KadPeerInfo } from "../kademlia/types";
+import { hashToId } from "../kademlia/xor";
 import type { Packet } from "../packet/types";
-import { loopInterval } from "../secp256k1/utils";
-import type { PeerId, PeerInfo } from "../session/nodeInfo";
-import { peerIdFromPrivateKey } from "../session/peer-id";
+import type { PeerInfo } from "../session/nodeInfo";
 import { safeError, safeResult } from "../utils/safe";
 import { getHostPortFromMultiaddr } from "../utils/utils";
 import { CoreMessageHandler } from "./core-handler";
@@ -21,6 +20,9 @@ import type { TransportListener } from "./transport";
 import { MessageRouter } from "./transport/message-router";
 import { Transport } from "./transport/transport";
 import type { NodeMetrics, NodeMetricsSnapshot } from "./types";
+// import type { BlockchainClientState } from "../blockchain/client/client";
+import { secp256k1 } from 'ethereum-cryptography/secp256k1.js';
+import { bytesToHex } from "ethereum-cryptography/utils";
 
 const log = debug("p2p:node");
 
@@ -35,7 +37,7 @@ export class PeerNode extends EventEmitter {
 	private transport: Transport;
 	public connections = new Map<string, MuxedConnection>();
 
-	public peerId: PeerId;
+	public peerId: Uint8Array<ArrayBufferLike>;
 	public address: Multiaddr;
 	private listener: TransportListener;
 	private coreHandler: CoreMessageHandler;
@@ -44,7 +46,6 @@ export class PeerNode extends EventEmitter {
 	private router: MessageRouter;
 	public protocolManager: ProtocolManager;
 	public nodeOptions: PeerInfo;
-	public blockchainClient?: any; // BlockchainClientState - using any to avoid circular dependency
 
 	private failedPeers = new Map<string, number>();
 
@@ -54,51 +55,32 @@ export class PeerNode extends EventEmitter {
 		this.transport = new Transport(nodeOptions.privateKey, {
 			maxActiveDials: 50,
 		});
-		this.peerId = peerIdFromPrivateKey(nodeOptions.privateKey);
 
-		this.address = multiaddr(
-			`/ip4/${nodeOptions.host}/tcp/${nodeOptions.port}/p2p/${this.peerId.toString()}`,
-		);
 
 		this.protocolManager = new ProtocolManager();
 		this.coreHandler = new CoreMessageHandler(this);
 
-		this.kad = new KademliaDHT(this, idToKey(this.peerId.toString()), {
+		// Create Kademlia node with options
+		const kadOptions: KademliaNodeConfig = {
 			k: 16,
-			alpha: 6,
-			idBits: 160,
-			lookupTimeoutMs: 500,
-			port: nodeOptions.port, // UDP bind port
-			// Basic value lifetime / republish settings. For production you
-			// would likely make these configurable.
-			valueTtlMs: 10 * 60 * 1000, // 10 minutes
-			republishIntervalMs: 5 * 60 * 1000, // 5 minutes
-			// DSHT / cluster configuration inspired by Coral measurements:
-			// see Freedman & Mazières, “Sloppy hashing and self-organizing clusters”
-			// (`https://www.cs.princeton.edu/~mfreed/docs/coral-iptps03.pdf`).
-			dsht: {
-				levels: [
-					{
-						level: 0,
-						name: "local",
-						maxRttMs: 30, // LAN / very close
-						maxPointersPerKey: 32,
-					},
-					{
-						level: 1,
-						name: "region",
-						maxRttMs: 100, // intra-continent
-						maxPointersPerKey: 64,
-					},
-					{
-						level: 2,
-						name: "global",
-						maxRttMs: 300, // inter-continent
-						maxPointersPerKey: 128,
-					},
-				],
+			timeout: 4000,
+			endpoint: {
+				address: nodeOptions.host,
+				udpPort: nodeOptions.port,
+				tcpPort: nodeOptions.port,
 			},
-		});
+			refreshInterval: 60000,
+			shouldFindNeighbours: true,
+			onlyConfirmed: false,
+		  }
+	  
+		  this.kad = new KademliaNode(nodeOptions.privateKey.raw, kadOptions)
+		  this.peerId = this.kad.id
+	  
+		  this.address = multiaddr(
+			`/ip4/${nodeOptions.host}/tcp/${nodeOptions.port}/p2p/${bytesToHex(this.peerId)}`,
+		);
+
 
 		this.router = new MessageRouter();
 		this.router.register(this.protocolManager.handle);
@@ -116,10 +98,11 @@ export class PeerNode extends EventEmitter {
 			log(
 				`starting node ${this.peerId.toString()} at ${this.address.toString()}`,
 			);
-			createKadApi(this, 4000 + this.nodeOptions.port, this.blockchainClient);
+			createKadApi(this, 4000 + this.nodeOptions.port);
 			await this.startListening();
+			// Bind UDP transport for discovery
+			this.kad.transport.bind(this.nodeOptions.port, this.nodeOptions.host);
 			await this.kadBootstrap();
-			this.runContactLoop(); // now real periodic lookups + pings
 		} catch (error) {
 			log(`Failed to start ${String(this.address)}`);
 			throw error;
@@ -173,66 +156,63 @@ export class PeerNode extends EventEmitter {
 	}
 
 	public getKadPeers() {
-		return this.kad.table.allContacts().map((c) => c.addr);
+		return this.kad.getPeers().map((peer) => {
+			if (peer.address && peer.tcpPort !== null) {
+				return `/ip4/${peer.address}/tcp/${peer.tcpPort}`;
+			}
+			return "";
+		}).filter((addr) => addr !== "");
 	}
 
 	public async kadBootstrap() {
 		// Seed from static bootstrap addresses
-		await this.kad.bootstrap(
-			BOOTSTRAP_ADDRS.map((addr) => {
-				const ma = multiaddr(addr);
-				const { host, port } = getHostPortFromMultiaddr(ma);
-				return {
-					id: idToKey(this.extractPeerIdFromMultiaddr(ma) || ma.toString()),
-					addr: ma.toString(),
-					host,
-					port,
-					lastSeen: Date.now(),
-				};
-			}),
-		);
+		const bootstrapPeers: KadPeerInfo[] = BOOTSTRAP_ADDRS.map((pk) => {
+			const peerId = pk2id(secp256k1.getPublicKey(pk, false))
+			const peer: KadPeerInfo = {
+				address: "127.0.0.1",
+				udpPort: 4000,
+				tcpPort: 4000,
+				id: peerId,
+			};
+			return peer;
+		}).filter((p) => p.address !== undefined && (p.udpPort !== null || p.tcpPort !== null));
+
+		// Bootstrap with each peer sequentially
+		for (const peer of bootstrapPeers) {
+			try {
+				await this.kad.bootstrap(peer);
+			} catch (err) {
+				log(`Failed to bootstrap with ${peer.address}:${peer.udpPort}: ${err}`);
+			}
+		}
 	}
 
 	/**
-	 * Periodic Kademlia maintenance:
-	 *  - lookup on our own ID (refresh buckets near us)
-	 *  - random lookups (discover new peers, refresh far buckets)
-	 *  - random pings (liveness maintenance)
-	 *  - republish locally-published values
+	 * Periodic Kademlia maintenance is now handled internally by KademliaNode
+	 * via refreshInterval. The refresh() method is called automatically.
 	 */
 	private runContactLoop() {
-		// Refresh own ID region every ~60s
-		loopInterval(async () => {
-			await this.kad.refreshSelf();
-		}, this.withJitter(8_000));
-
-		// Random node lookup every ~30s
-		loopInterval(async () => {
-			const target = this.kad.randomNodeId();
-			await this.kad.nodeLookup(target);
-		}, this.withJitter(10_000));
-
-		// Ping random contacts every ~20s
-		loopInterval(async () => {
-			await this.kad.pingRandom(8);
-		}, this.withJitter(10_000));
-
-		// Republish locally-published Kademlia values periodically so that
-		// they remain discoverable even as nodes churn.
-		loopInterval(
-			async () => {
-				await this.kad.republishValues();
-			},
-			this.withJitter(5 * 60_000),
-		);
+		// Kademlia refresh is now handled automatically by the node's refresh interval
+		// No additional loops needed
 	}
 
 	public async connectToKadPeers() {
 		// Optionally: dial TCP to DHT-known peers
-		const kadContacts = this.kad.table.allContacts();
-		for (const c of kadContacts) {
+		const kadPeers = this.kad.getPeers();
+		for (const peer of kadPeers) {
 			try {
-				await this.dial(c.addr);
+				if (peer.address && peer.tcpPort !== null) {
+					const addr = multiaddr(`/ip4/${peer.address}/tcp/${peer.tcpPort}`);
+					if (peer.id) {
+						const peerIdHex = Array.from(peer.id)
+							.map((b) => b.toString(16).padStart(2, "0"))
+							.join("");
+						const fullAddr = multiaddr(`${addr.toString()}/p2p/${peerIdHex}`);
+						await this.dial(fullAddr.toString());
+					} else {
+						await this.dial(addr.toString());
+					}
+				}
 			} catch {
 				// best-effort; ignore failures
 			}
@@ -279,16 +259,17 @@ export class PeerNode extends EventEmitter {
 		const remotePeerId = this.extractPeerIdFromMultiaddr(addr);
 		if (remotePeerId) {
 			const { host, port } = getHostPortFromMultiaddr(addr);
+			const kadPeer: KadPeerInfo = {
+				id: hashToId(remotePeerId),
+				address: host,
+				udpPort: port,
+				tcpPort: port,
+			};
 			this.kad
-				.noteContact({
-					id: idToKey(remotePeerId),
-					addr: addr.toString(),
-					host,
-					port,
-				})
+				.addPeer(kadPeer)
 				.catch((err) => {
 					log(
-						`failed to note kad contact for ${key}: ${
+						`failed to add kad peer for ${key}: ${
 							(err as Error).message ?? String(err)
 						}`,
 					);
@@ -345,7 +326,5 @@ export class PeerNode extends EventEmitter {
 		return baseMs + (Math.random() * 2 - 1) * delta;
 	}
 
-	public setBlockchainClient(blockchainClient: BlockchainClientState) {
-		this.blockchainClient = blockchainClient;
-	}
+
 }

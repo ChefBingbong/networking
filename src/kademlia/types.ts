@@ -1,260 +1,247 @@
 // src/kademlia/types.ts
-import type { EventEmitter } from "events";
+// Types for Ethereum-compatible Kademlia DHT discovery protocol
+
+import type { EventEmitter } from 'eventemitter3'
+import type { Common } from '../chain-config/index.ts'
+
+// ---------- Peer identification ----------
 
 /**
- * Status of a peer in the bucket.
+ * Basic peer information used in discovery.
+ * id is a 64-byte public key (without 0x04 prefix).
  */
-export enum EntryStatus {
-	Disconnected = 0,
-	Connected = 1,
+export interface PeerInfo {
+  id?: Uint8Array
+  address?: string
+  udpPort?: number | null
+  tcpPort?: number | null
+  vectorClock?: number
 }
 
 /**
- * Result of updating an entry.
+ * A confirmed contact with required id and vectorClock for k-bucket ordering.
  */
-export enum UpdateResult {
-	Updated,
-	NotModified,
-	UpdatedPending,
-	UpdatedAndPromoted,
-	FailedKeyNonExistent,
-	FailedBucketFull,
+export interface Contact extends PeerInfo {
+  id: Uint8Array
+  vectorClock: number
 }
 
+// ---------- K-Bucket types ----------
+
+export interface KBucketOptions {
 /**
- * Result of inserting / updating from the "public" API.
+   * Local node id (64 bytes, public key without prefix).
+   * If not provided, a random id will be generated.
+   */
+  localNodeId?: Uint8Array
+  /**
+   * Maximum nodes per k-bucket before splitting/pinging.
+   * Default: 16
+   */
+  numberOfNodesPerKBucket?: number
+  /**
+   * Number of nodes to ping when a non-splittable bucket is full.
+   * Default: 3
+   */
+  numberOfNodesToPing?: number
+/**
+   * Custom XOR distance function.
  */
-export enum InsertResult {
-	Inserted,
-	Pending,
-	Updated,
-	UpdatedAndPromoted,
-	ValueUpdated,
-	StatusUpdated,
-	StatusUpdatedAndPromoted,
-	UpdatedPending,
-	NodeExists,
-	FailedBucketFull,
-	FailedInvalidSelfUpdate,
-}
-
+  distance?: (firstId: Uint8Array, secondId: Uint8Array) => number
 /**
- * Basic bucket entry.
+   * Arbiter function for contact updates with same id.
+   * Default: uses vectorClock comparison.
  */
-export interface KadEntry {
-	value: KadNodeInfo;
-	status: EntryStatus;
+  arbiter?: (incumbent: Contact, candidate: Contact) => Contact
+/**
+   * Optional metadata for the k-bucket.
+   */
+  metadata?: object
+}
+
+export interface KBucketEvent {
+  ping: [contacts: Contact[], contact: PeerInfo]
+  updated: [incumbent: Contact, selection: Contact]
+  added: [peer: PeerInfo]
+  removed: [peer: PeerInfo]
+}
+
+// ---------- Transport types ----------
+
+export interface KademliaTransportOptions {
+  /**
+   * Timeout for peer requests in ms.
+   * Default: 4000
+   */
+  timeout?: number
+  /**
+   * Local endpoint info to include in messages.
+   * Default: 0.0.0.0, null ports
+   */
+  endpoint?: PeerInfo
+  /**
+   * Custom socket creation function.
+   * Default: dgram.createSocket('udp4')
+   */
+  createSocket?: Function
+  /**
+   * Common instance for crypto primitives.
+   */
+  common?: Common
+}
+
+export interface KademliaTransportEvent {
+  listening: undefined
+  close: undefined
+  error: [error: Error]
+  peers: [peers: PeerInfo[]]
+  findneighbours: [{ peer: PeerInfo; targetId: Uint8Array }]
 }
 
 /**
- * Bucket entry that may be pending.
- */
-export interface KadEntryFull extends KadEntry {
-	pending: boolean;
-}
-
-/**
- * Events emitted by Buckets / RoutingTable for eviction decisions, etc.
- */
-export interface BucketEventEmitter extends EventEmitter {
-	on(
-		event: "pendingEviction",
-		listener: (candidateToPing: KadNodeInfo) => void,
-	): this;
-
-	on(
-		event: "appliedEviction",
-		listener: (inserted: KadNodeInfo, evicted?: KadNodeInfo) => void,
-	): this;
-}
-
-/**
- * What your HTTP API already returns.
- */
-export type KadRoutingTableDump = {
-	localId: string;
-	totalPeers: number;
-	nonEmptyBuckets: number;
-	buckets: {
-		index: number;
-		size: number;
-		peers: KadNodeInfo[];
-	}[];
-};
-export const KADEMLIA_PROTOCOL = "/kad/1.0.0";
-
-export interface KadNodeInfo {
-	id: string;
-	addr: string;
-}
-export interface KadBase {
-	from: string;
-	rpcId?: string;
-}
-
-export type KadMessage =
-	| (KadBase & { type: "PING" })
-	| (KadBase & { type: "PONG" })
-	| (KadBase & { type: "FIND_NODE"; target: string })
-	| (KadBase & { type: "NODES"; target: string; nodes: KadNodeInfo[] })
-	| (KadBase & { type: "STORE"; key: string; value: any })
-	| (KadBase & { type: "FIND_VALUE"; key: string })
-	| (KadBase & { type: "VALUE"; key: string; value: any });
-
-export interface KademliaConfig {
-	k: number;
-	alpha: number;
-	maxBuckets: number;
-	pendingTimeoutMs?: number;
-}
-
-export type StoredValueOrigin = "publisher" | "cache";
-
-export type StoredValue = {
-	value: unknown;
-	storedAt: number;
-	origin: StoredValueOrigin;
-};
-
-export type PendingRpc =
-	| {
-			type: "FIND_NODE";
-			resolve: (nodes: KadNodeInfo[]) => void;
-			timer: NodeJS.Timeout;
-	  }
-	| {
-			type: "FIND_VALUE";
-			resolve: (res: { value?: any; nodes?: KadNodeInfo[] }) => void;
-			timer: NodeJS.Timeout;
-	  }
-	| {
-			type: "PING";
-			resolve: (ok: boolean) => void;
-			timer: NodeJS.Timeout;
-	  };
-
-export type NodeId = string; // e.g. "a3f9..."
-
-// For simplicity, keys also live in the same ID space.
-// In a real system you’d hash the key into this space.
-export type Key = string;
-
-export interface Contact {
-	id: NodeId;
-	host: string;
-	port: number;
-	// You can replace this with Multiaddr or your own type.
-	addr: string;
-	lastSeen?: number;
-	/**
-	 * Last observed RTT to this contact in milliseconds.
-	 * Used for simple clustering / proximity heuristics.
-	 */
-	lastRttMs?: number;
-}
-
-// kad-types.ts
-
-/**
- * Basic Kad RPCs matching your KademliaNode.handleRpc logic.
- */
-export type KadRpc =
-	| { type: "PING"; from: NodeId }
-	| { type: "PONG"; from: NodeId }
-	| { type: "STORE"; from: NodeId; key: Key; value: any }
-	| { type: "FIND_NODE"; from: NodeId; target: NodeId }
-	| {
-			type: "FIND_NODE_RESULT";
-			from: NodeId;
-			nodes: Contact[]; // contacts of other nodes
-	  }
-	| { type: "FIND_VALUE"; from: NodeId; key: Key }
-	| {
-			type: "FIND_VALUE_RESULT";
-			from: NodeId;
-			value?: any;
-			nodes?: Contact[];
-	  }
-	/**
-	 * DSHT (Coral-style sloppy hash table) RPCs.
-	 * We store *pointers* to resources rather than raw content.
-	 */
-	| {
-			type: "DSHT_PUT";
-			from: NodeId;
-			level: number; // cluster level
-			key: Key;
-			pointer: DshtPointer;
-	  }
-	| {
-			type: "DSHT_PUT_RESULT";
-			from: NodeId;
-			level: number;
-			key: Key;
-			ok: boolean;
-			reason?: "full" | "duplicate" | "error";
-	  }
-	| {
-			type: "DSHT_GET";
-			from: NodeId;
-			level: number;
-			key: Key;
-			limit?: number;
-	  }
-	| {
-			type: "DSHT_GET_RESULT";
-			from: NodeId;
-			level: number;
-			key: Key;
-			pointers: DshtPointer[];
-	  };
-
-/**
- * Pointer to a resource in the DSHT.
- * In Coral terminology this is a "replica pointer".
- * See: Freedman & Mazières, “Sloppy hashing and self-organizing clusters”
- * (`https://www.cs.princeton.edu/~mfreed/docs/coral-iptps03.pdf`).
- */
-export interface DshtPointer {
-	nodeId: NodeId;
-	addr: string;
-	// Arbitrary metadata about the object being pointed to (e.g. URL, hash, size).
-	metadata?: Record<string, unknown>;
-}
-
-export interface DshtClusterLevelConfig {
-	/**
-	 * Cluster level index (0 = smallest / closest).
-	 */
-	level: number;
-	/**
-	 * Human-friendly name, e.g. "local", "region", "global".
-	 */
-	name: string;
-	/**
-	 * Target maximum RTT within this cluster, in milliseconds.
-	 * This loosely corresponds to cluster diameter in Coral.
-	 */
-	maxRttMs: number;
-	/**
-	 * Maximum number of pointers we will store for a single key
-	 * on a single node *at this level*.
-	 */
-	maxPointersPerKey: number;
-}
-
-export interface DshtConfig {
-	levels: DshtClusterLevelConfig[];
-}
-
-/**
- * The transport abstraction KademliaNode expects.
- * One call = one RPC round-trip.
+ * Abstract transport interface for sending/receiving discovery messages.
  */
 export interface KademliaTransport {
-	/**
-	 * Send one KadRpc to `to`, and resolve with the response KadRpc.
-	 * Should reject on timeout or transport error.
-	 */
-	sendRpc(to: Contact, rpc: KadRpc): Promise<KadRpc>;
+  bind(...args: any[]): void
+  destroy(...args: any[]): void
+  ping(peer: PeerInfo): Promise<PeerInfo>
+  findneighbours(peer: PeerInfo, id: Uint8Array): void
+  sendNeighbours?(peer: PeerInfo, neighbours: PeerInfo[]): void
+  events: EventEmitter<KademliaTransportEvent>
 }
+
+// ---------- Kademlia Node types ----------
+
+export interface KademliaConfig {
+  /**
+   * Timeout for peer requests in ms.
+   * Default: 4000
+   */
+  timeout?: number
+  /**
+   * Local endpoint info.
+   * Default: 0.0.0.0, null ports
+   */
+  endpoint?: PeerInfo
+  /**
+   * Custom socket creation function.
+   */
+  createSocket?: Function
+  /**
+   * Interval for peer table refresh in ms.
+   * Default: 60000
+   */
+  refreshInterval?: number
+  /**
+   * Whether to query peers with findNeighbours for discovery.
+   * Default: true
+   */
+  shouldFindNeighbours?: boolean
+  /**
+   * Only send/respond to findNeighbours from confirmed peers.
+   * Default: false
+   */
+  onlyConfirmed?: boolean
+  /**
+   * K-bucket size (max nodes per bucket).
+   * Default: 16
+   */
+  k?: number
+  /**
+   * Number of nodes to ping on bucket full.
+   * Default: 3
+   */
+  concurrency?: number
+	/**
+   * Common instance for crypto primitives.
+	 */
+  common?: Common
+}
+
+export interface KademliaEvent {
+  listening: undefined
+  close: undefined
+  error: [error: Error]
+  'peer:added': [peer: PeerInfo]
+  'peer:new': [peer: PeerInfo]
+  'peer:removed': [peer: PeerInfo]
+}
+
+// ---------- Routing table types ----------
+
+export interface RoutingTableConfig {
+  /**
+   * K-bucket size.
+   * Default: 16
+   */
+  k?: number
+  /**
+   * Number of nodes to ping when bucket is full.
+   * Default: 3
+   */
+  concurrency?: number
+}
+
+export interface RoutingTableDump {
+  localId: string
+  totalPeers: number
+  bucketCount: number
+}
+
+// ---------- Utility types ----------
+
+/**
+ * Deferred promise helper for request/response correlation.
+ */
+export interface Deferred<T> {
+  promise: Promise<T>
+  resolve: (value: T | PromiseLike<T>) => void
+  reject: (reason?: any) => void
+}
+
+export function createDeferred<T>(): Deferred<T> {
+  let resolve: (value: T | PromiseLike<T>) => void = () => {}
+  let reject: (reason?: any) => void = () => {}
+  
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  
+  return { promise, resolve, reject }
+}
+
+// ---------- Protocol version ----------
+
+export const DISCOVERY_VERSION = 0x04
+
+// ---------- Legacy compatibility types (for gradual migration) ----------
+
+/**
+ * @deprecated Use PeerInfo instead
+ */
+export type KadNodeInfo = PeerInfo
+
+	/**
+ * Helper to get lookup keys from various peer identifier formats.
+	 */
+export function getPeerKeys(obj: string | Uint8Array | PeerInfo): string[] {
+  if (obj instanceof Uint8Array) {
+    return [bytesToUnprefixedHex(obj)]
+  }
+  if (typeof obj === 'string') {
+    return [obj]
+  }
+  
+  const keys: string[] = []
+  if (obj.id instanceof Uint8Array) {
+    keys.push(bytesToUnprefixedHex(obj.id))
+  }
+  if (obj.address !== undefined && typeof obj.tcpPort === 'number') {
+    keys.push(`${obj.address}:${obj.tcpPort}`)
+  }
+  return keys
+}
+
+// Import for the helper above
+import { bytesToUnprefixedHex } from '../utils/index.ts'

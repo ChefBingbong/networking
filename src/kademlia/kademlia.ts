@@ -1,884 +1,412 @@
 // src/kademlia/kademlia.ts
-import type { PeerNode } from "../node";
-import { RoutingTable } from "./routing-table";
+// Ethereum-compatible Kademlia DHT node for peer discovery
+
+import { secp256k1 } from 'ethereum-cryptography/secp256k1.js'
+import { EventEmitter } from 'eventemitter3'
+import type { Common } from '../chain-config/index.ts'
+import { bytesToInt, bytesToUnprefixedHex, randomBytes } from '../utils/index.ts'
+
+import { BanList } from './ban-list.ts'
+import { RoutingTable } from './routing-table.ts'
 import {
-	type Contact,
-	type DshtConfig,
-	type DshtPointer,
+	type KademliaConfig,
+	type KademliaEvent,
 	type KademliaTransport,
-	type KadRpc,
-	type Key,
-	type NodeId,
-	type StoredValue,
-	type StoredValueOrigin,
-} from "./types";
-import { UdpKademliaTransport } from "./udp";
-import { xorDist } from "./xor";
+	type PeerInfo,
+} from './types.ts'
+import { UdpTransport } from './udp.ts'
+import { pk2id } from './xor.ts'
 
-export interface KademliaConfig {
-	k: number; // bucket size
-	alpha: number; // lookup parallelism
-	idBits: number; // usually 160
-	lookupTimeoutMs: number;
-	port: number;
-	dsht?: DshtConfig;
-	/**
-	 * Optional TTL for locally stored Kademlia values (in ms).
-	 * Expired values are dropped on read and will be republished
-	 * by the original publisher if republish is enabled.
-	 */
-	valueTtlMs?: number;
-	/**
-	 * How often publishers should republish their values (in ms).
-	 * If omitted, a default of valueTtlMs / 2 is used when valueTtlMs
-	 * is set, or a conservative fixed interval otherwise.
-	 */
-	republishIntervalMs?: number;
+const KBUCKET_SIZE = 16
+const KBUCKET_CONCURRENCY = 3
+const DEFAULT_REFRESH_INTERVAL = 60000 // 60 seconds
+
+export interface KademliaNodeConfig extends KademliaConfig {
+  /**
+   * Custom transport implementation.
+   * If not provided, UdpTransport will be created.
+   */
+  transport?: KademliaTransport
+  port?: number
 }
 
-type ShortlistEntry = {
-	contact: Contact;
-	queried: boolean;
-	responded: boolean;
-};
-
-type FindValueResult = {
-	value: any | null;
-	path: Contact[]; // nodes we queried, in query order
-	from?: Contact; // node that actually returned the value (if any)
-};
-
+/**
+ * Kademlia DHT node for Ethereum-compatible peer discovery.
+ * Implements the discovery protocol (ping/pong/findneighbours/neighbours).
+ */
 export class KademliaNode {
-	public table: RoutingTable;
-	private store = new Map<Key, StoredValue>();
-	public transport!: KademliaTransport;
-
-	/**
-	 * Local DSHT state:
-	 *   key -> level -> replica pointers[]
-	 */
-	private dshtStore = new Map<Key, Map<number, DshtPointer[]>>();
-
-	constructor(
-		private readonly node: PeerNode,
-		public readonly id: NodeId,
-		private readonly cfg: KademliaConfig,
-	) {
-		this.transport = new UdpKademliaTransport(
-			this.id,
-			"127.0.0.1",
-			this.cfg.port,
-			async (msg, from) => this.handleRpc(msg, from),
-			cfg.lookupTimeoutMs,
-		);
-		this.table = new RoutingTable(id, { k: cfg.k, idBits: cfg.idBits });
-	}
-
-	// ---------- Local DSHT helpers ----------
-
-	private getDshtLevelConfig(level: number) {
-		return this.cfg.dsht?.levels.find((l) => l.level === level);
-	}
-
-	private dshtGetBucket(key: Key, level: number): DshtPointer[] {
-		let perKey = this.dshtStore.get(key);
-		if (!perKey) {
-			perKey = new Map();
-			this.dshtStore.set(key, perKey);
-		}
-		let bucket = perKey.get(level);
-		if (!bucket) {
-			bucket = [];
-			perKey.set(level, bucket);
-		}
-		return bucket;
-	}
-
-	private dshtHandleLocalPut(
-		level: number,
-		key: Key,
-		pointer: DshtPointer,
-	): { ok: boolean; reason?: "full" | "duplicate" } {
-		const cfg = this.getDshtLevelConfig(level);
-		if (!cfg) {
-			return { ok: false, reason: "full" };
-		}
-
-		const bucket = this.dshtGetBucket(key, level);
-		// de-duplicate by (nodeId, addr)
-		if (bucket.some((p) => p.nodeId === pointer.nodeId && p.addr === pointer.addr)) {
-			return { ok: false, reason: "duplicate" };
-		}
-
-		if (bucket.length >= cfg.maxPointersPerKey) {
-			return { ok: false, reason: "full" };
-		}
-
-		bucket.push(pointer);
-		return { ok: true };
-	}
-
-	private dshtHandleLocalGet(
-		level: number,
-		key: Key,
-		limit?: number,
-	): DshtPointer[] {
-		const bucket = this.dshtGetBucket(key, level);
-		if (!bucket.length) return [];
-		if (!limit || bucket.length <= limit) return bucket.slice();
-
-		// Return a random subset of pointers, as in Coral DSHT get().
-		const shuffled = [...bucket];
-		for (let i = shuffled.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[shuffled[i], shuffled[j]!] = [shuffled[j]!, shuffled[i]!];
-		}
-		return shuffled.slice(0, limit);
-	}
-
-	/**
-	 * Select candidate contacts for DSHT operations at a given cluster level.
-	 * We bias toward low-RTT peers within the level's maxRttMs, then unknown RTT,
-	 * then higher-RTT peers, all ordered by XOR distance to the key.
-	 */
-	private getDshtCandidatesForLevel(
-		key: Key,
-		level: number,
-		maxCount: number,
-	): Contact[] {
-		const levelCfg = this.getDshtLevelConfig(level);
-		const all = this.table.allContacts();
-		if (!all.length) return [];
-
-		all.sort((a, b) => {
-			const da = xorDist(a.id, key);
-			const db = xorDist(b.id, key);
-			if (da === db) return 0;
-			return da < db ? -1 : 1;
-		});
-
-		if (!levelCfg) return all.slice(0, maxCount);
-
-		const within: Contact[] = [];
-		const unknown: Contact[] = [];
-		const outside: Contact[] = [];
-
-		for (const c of all) {
-			if (c.lastRttMs == null) {
-				unknown.push(c);
-			} else if (c.lastRttMs <= levelCfg.maxRttMs) {
-				within.push(c);
-			} else {
-				outside.push(c);
-			}
-		}
-
-		const ordered = within.concat(unknown, outside);
-		return ordered.slice(0, maxCount);
-	}
-
-	localStore(
-		key: Key,
-		value: any,
-		origin: StoredValueOrigin = "publisher",
-	): void {
-		const now = Date.now();
-		const entry: StoredValue = { value, storedAt: now, origin };
-		this.store.set(key, entry);
-	}
-
-	localGet(key: Key): any | undefined {
-		const entry = this.store.get(key);
-		if (!entry) return undefined;
-
-		const ttl = this.cfg.valueTtlMs;
-		if (ttl !== undefined) {
-			const age = Date.now() - entry.storedAt;
-			if (age > ttl) {
-				this.store.delete(key);
-				return undefined;
-			}
-		}
-
-		return entry.value;
-	}
-
-	public async noteContact(contact: Contact): Promise<void> {
-		const now = Date.now();
-		await this.table.update(
-			{
-				...contact,
-				lastSeen: contact.lastSeen !== undefined ? contact.lastSeen : now,
-			},
-			(c) => this.ping(c),
-		);
-	}
-
-	public async pingRandom(count = this.cfg.alpha): Promise<void> {
-		const contacts = this.table.allContacts();
-		if (!contacts.length) return;
-
-		const shuffled = [...contacts];
-		for (let i = shuffled.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
-		}
-
-		const targets = shuffled.slice(0, Math.min(count, shuffled.length));
-		await Promise.all(
-			targets.map((c) =>
-				this.ping(c).catch(() => {
-					// ignore errors here; table will be cleaned gradually via failed lookups/pings
-				}),
-			),
-		);
-	}
-
-	public randomNodeId(): NodeId {
-		const nibbles = Math.ceil(this.cfg.idBits / 4);
-		let s = "";
-		for (let i = 0; i < nibbles; i++) {
-			const nibble = Math.floor(Math.random() * 16);
-			s += nibble.toString(16);
-		}
-		return s as NodeId;
-	}
-
-	public async refreshSelf(): Promise<void> {
-		await this.nodeLookup(this.id);
-	}
-
-	async handleRpc(msg: KadRpc, fromContact: Contact): Promise<KadRpc | null> {
-		const contactWithTs: Contact = { ...fromContact, lastSeen: Date.now() };
-		await this.table.update(contactWithTs, (c) => this.ping(c));
-
-		switch (msg.type) {
-			case "PING":
-				return { type: "PONG", from: this.id };
-
-			case "PONG":
-				return null;
-
-			case "STORE":
-				this.localStore(msg.key, msg.value);
-				return null;
-
-			case "FIND_NODE": {
-				const closest = this.table.closest(msg.target, this.cfg.k);
-				return { type: "FIND_NODE_RESULT", from: this.id, nodes: closest };
-			}
-
-			case "FIND_VALUE": {
-				const val = this.localGet(msg.key);
-				if (val !== undefined) {
-					return { type: "FIND_VALUE_RESULT", from: this.id, value: val };
-				} else {
-					const closest = this.table.closest(msg.key, this.cfg.k);
-					return { type: "FIND_VALUE_RESULT", from: this.id, nodes: closest };
-				}
-			}
-
-			// ---------- DSHT (sloppy hash table) RPCs ----------
-
-			case "DSHT_PUT": {
-				const res = this.dshtHandleLocalPut(msg.level, msg.key, msg.pointer);
-				return {
-					type: "DSHT_PUT_RESULT",
-					from: this.id,
-					level: msg.level,
-					key: msg.key,
-					ok: res.ok,
-					reason: res.reason,
-				};
-			}
-
-			case "DSHT_GET": {
-				const pointers = this.dshtHandleLocalGet(
-					msg.level,
-					msg.key,
-					msg.limit,
-				);
-				return {
-					type: "DSHT_GET_RESULT",
-					from: this.id,
-					level: msg.level,
-					key: msg.key,
-					pointers,
-				};
-			}
-
-			case "FIND_NODE_RESULT":
-			case "FIND_VALUE_RESULT":
-			case "DSHT_PUT_RESULT":
-			case "DSHT_GET_RESULT":
-				return null;
-		}
-	}
-
-	private async ping(contact: Contact): Promise<boolean> {
-		const started = Date.now();
-		try {
-			const resp = await this.transport.sendRpc(contact, {
-				type: "PING",
-				from: this.id,
-			});
-			const rtt = Date.now() - started;
-			// NOTE: we only track last RTT for now; could be expanded to EWMA if needed.
-			contact.lastRttMs = rtt;
-			return resp.type === "PONG";
-		} catch {
-			return false;
-		}
-	}
-
-	private async sendFindNode(
-		contact: Contact,
-		target: NodeId,
-	): Promise<Contact[]> {
-		const resp = await this.transport.sendRpc(contact, {
-			type: "FIND_NODE",
-			from: this.id,
-			target,
-		});
-		if (resp.type !== "FIND_NODE_RESULT") return [];
-		return resp.nodes ? resp.nodes : [];
-	}
-
-	private async sendFindValue(
-		contact: Contact,
-		key: Key,
-	): Promise<{ value?: any; nodes?: Contact[] }> {
-		const resp = await this.transport.sendRpc(contact, {
-			type: "FIND_VALUE",
-			from: this.id,
-			key,
-		});
-		if (resp.type !== "FIND_VALUE_RESULT") return {};
-		return { value: resp.value, nodes: resp.nodes };
-	}
-
-	private async sendStore(
-		contact: Contact,
-		key: Key,
-		value: any,
-	): Promise<void> {
-		try {
-			await this.transport.sendRpc(contact, {
-				type: "STORE",
-				from: this.id,
-				key,
-				value,
-			});
-		} catch {}
-	}
-
-	private async sendDshtPut(
-		contact: Contact,
-		level: number,
-		key: Key,
-		pointer: DshtPointer,
-	): Promise<{ ok: boolean; reason?: "full" | "duplicate" | "error" }> {
-		const resp = await this.transport.sendRpc(contact, {
-			type: "DSHT_PUT",
-			from: this.id,
-			level,
-			key,
-			pointer,
-		});
-
-		if (resp.type !== "DSHT_PUT_RESULT") {
-			return { ok: false, reason: "error" };
-		}
-		if (resp.key !== key || resp.level !== level) {
-			return { ok: false, reason: "error" };
-		}
-		const reason =
-			resp.reason !== undefined ? resp.reason : resp.ok ? undefined : "error";
-		return { ok: resp.ok, reason };
-	}
-
-	private async sendDshtGet(
-		contact: Contact,
-		level: number,
-		key: Key,
-		limit?: number,
-	): Promise<DshtPointer[]> {
-		const resp = await this.transport.sendRpc(contact, {
-			type: "DSHT_GET",
-			from: this.id,
-			level,
-			key,
-			limit,
-		});
-
-		if (resp.type !== "DSHT_GET_RESULT") return [];
-		if (resp.key !== key || resp.level !== level) return [];
-		return resp.pointers ? resp.pointers : [];
-	}
-
-	async nodeLookup(target: NodeId): Promise<Contact[]> {
-		// initial shortlist = k closest known nodes
-		const initial = this.table.closest(target, this.cfg.k);
-		const shortlist = new Map<string, ShortlistEntry>();
-		for (const c of initial) {
-			shortlist.set(c.id, { contact: c, queried: false, responded: false });
-		}
-
-		let probesMade = 0;
-		let lastClosestDistance: bigint | null = null;
-
-		while (true) {
-			const toQuery = Array.from(shortlist.values())
-				.filter((e) => !e.queried)
-				.sort((a, b) => {
-					const da = xorDist(a.contact.id, target);
-					const db = xorDist(b.contact.id, target);
-					if (da === db) return 0;
-					return da < db ? -1 : 1;
-				})
-				.slice(0, this.cfg.alpha);
-
-			if (toQuery.length === 0) break;
-
-			const promises = toQuery.map(async (entry) => {
-				entry.queried = true;
-				const from = entry.contact;
-				try {
-					const nodes = await this.sendFindNode(from, target);
-					entry.responded = true;
-					for (const n of nodes) {
-						await this.table.update(n, (c) => this.ping(c));
-						if (!shortlist.has(n.id)) {
-							shortlist.set(n.id, {
-								contact: n,
-								queried: false,
-								responded: false,
-							});
-						}
-					}
-				} catch {}
-			});
-
-			await Promise.race([
-				Promise.all(promises),
-				new Promise<void>((resolve) =>
-					setTimeout(resolve, this.cfg.lookupTimeoutMs),
-				),
-			]);
-
-			probesMade += toQuery.length;
-			const bestNow = this.bestDistanceTo(target, shortlist);
-			if (lastClosestDistance !== null && bestNow >= lastClosestDistance) {
-				// no improvement → stop
-				break;
-			}
-			lastClosestDistance = bestNow;
-		}
-
-		const final = Array.from(shortlist.values())
-			.map((e) => e.contact)
-			.sort((a, b) => {
-				const da = xorDist(a.id, target);
-				const db = xorDist(b.id, target);
-				if (da === db) return 0;
-				return da < db ? -1 : 1;
-			})
-			.slice(0, this.cfg.k);
-
-		return final;
-	}
-
-	private bestDistanceTo(
-		target: NodeId,
-		shortlist: Map<string, ShortlistEntry>,
-	): bigint {
-		let best: bigint | null = null;
-		for (const e of shortlist.values()) {
-			const d = xorDist(e.contact.id, target);
-			if (best === null || d < best) best = d;
-		}
-		if (best === null) {
-			return 2n ** BigInt(this.cfg.idBits);
-		}
-		return best;
-	}
-
-	async storeValue(
-		key: Key,
-		value: any,
-		origin: StoredValueOrigin = "publisher",
-	): Promise<void> {
-		this.localStore(key, value, origin);
-
-		const closest = await this.nodeLookup(key);
-		const targets = closest.slice(0, this.cfg.k);
-
-		await Promise.all(targets.map((c) => this.sendStore(c, key, value)));
-	}
-
-	async findValue(key: Key): Promise<FindValueResult> {
-		const local = this.localGet(key);
-		if (local !== undefined) {
-			return {
-				value: local,
-				path: [],
-				from: undefined,
-			};
-		}
-
-		const initial = this.table.closest(key, this.cfg.k);
-		const shortlist = new Map<string, ShortlistEntry>();
-		for (const c of initial) {
-			shortlist.set(c.id, { contact: c, queried: false, responded: false });
-		}
-
-		const queryPath: Contact[] = [];
-		let lastClosestDistance: bigint | null = null;
-
-		let foundValue: any | undefined;
-		let foundFrom: Contact | undefined;
-
-		while (true) {
-			const toQuery = Array.from(shortlist.values())
-				.filter((e) => !e.queried)
-				.sort((a, b) => {
-					const da = xorDist(a.contact.id, key);
-					const db = xorDist(b.contact.id, key);
-					if (da === db) return 0;
-					return da < db ? -1 : 1;
-				})
-				.slice(0, this.cfg.alpha);
-
-			if (toQuery.length === 0) break;
-
-			for (const entry of toQuery) {
-				entry.queried = true;
-				queryPath.push(entry.contact);
-			}
-			await Promise.race([
-				Promise.all(
-					toQuery.map(async (entry) => {
-						const from = entry.contact;
-						try {
-							const { value, nodes } = await this.sendFindValue(from, key);
-							entry.responded = true;
-
-							if (value !== undefined && foundValue === undefined) {
-								foundValue = value;
-								foundFrom = from;
-							}
-
-							if (nodes) {
-								for (const n of nodes) {
-									await this.table.update(n, (c) => this.ping(c));
-									if (!shortlist.has(n.id)) {
-										shortlist.set(n.id, {
-											contact: n,
-											queried: false,
-											responded: false,
-										});
-									}
-								}
-							}
-						} catch {}
-					}),
-				),
-				new Promise<void>((resolve) =>
-					setTimeout(resolve, this.cfg.lookupTimeoutMs),
-				),
-			]);
-
-			if (foundValue !== undefined) {
-				// Cache the value locally. We mark it as a "cache" origin so
-				// later maintenance can treat publishers vs caches differently.
-				this.localStore(key, foundValue, "cache");
-				return {
-					value: foundValue,
-					path: queryPath,
-					from: foundFrom,
-				};
-			}
-
-			const bestNow = this.bestDistanceTo(key, shortlist);
-			if (lastClosestDistance !== null && bestNow >= lastClosestDistance) {
-				break;
-			}
-			lastClosestDistance = bestNow;
-		}
-
-		return {
-			value: null,
-			path: queryPath,
-			from: undefined,
-		};
-	}
-
-	/**
-	 * Store a DSHT replica pointer for this node at one or more cluster levels.
-	 * This implements a Coral-style sloppy insert: each node keeps at most
-	 * `maxPointersPerKey` pointers per (key, level), and new inserts "spill"
-	 * across nearby nodes when full.
-	 *
-	 * See: Freedman & Mazières, “Sloppy hashing and self-organizing clusters”
-	 * (`https://www.cs.princeton.edu/~mfreed/docs/coral-iptps03.pdf`).
-	 */
-	async dshtPut(
-		key: Key,
-		metadata: Record<string, unknown> = {},
-		levels?: number[],
-	): Promise<void> {
-		if (!this.cfg.dsht || !this.cfg.dsht.levels.length) return;
-
-		const activeLevels =
-			levels && levels.length
-				? levels
-				: this.cfg.dsht.levels.map((l) => l.level);
-
-		const pointer: DshtPointer = {
-			nodeId: this.id,
-			addr: this.node.address.toString(),
-			metadata,
-		};
-
-		await Promise.all(
-			activeLevels.map(async (level) => {
-				// Always index locally at this level if we have config for it.
-				const levelCfg = this.getDshtLevelConfig(level);
-				if (!levelCfg) return;
-				this.dshtHandleLocalPut(level, key, pointer);
-
-				const candidates = this.getDshtCandidatesForLevel(
-					key,
-					level,
-					this.cfg.k * 2,
-				);
-				for (const c of candidates) {
-					try {
-						const res = await this.sendDshtPut(c, level, key, pointer);
-						if (res.ok) {
-							// stored successfully at one neighbor; that's enough for this level
-							break;
-						}
-						// on "full" or "duplicate" we fall through to next candidate
-					} catch {
-						// ignore and try next candidate
-					}
-				}
-			}),
-		);
-	}
-
-	/**
-	 * Look up DSHT replica pointers for a given key at one cluster level.
-	 * The result is deliberately a small randomized subset, mirroring Coral's
-	 * sloppy get semantics.
-	 */
-	async dshtGet(
-		key: Key,
-		level: number,
-		opts?: { limit?: number; fanout?: number },
-	): Promise<DshtPointer[]> {
-		const limit = opts ? opts.limit : undefined;
-		const fanout =
-			opts && typeof opts.fanout === "number" ? opts.fanout : this.cfg.alpha;
-
-		// 1. Check local DSHT state first.
-		const local = this.dshtHandleLocalGet(level, key, limit);
-		if (local.length) return local;
-
-		// 2. Query nearby cluster members in parallel.
-		const candidates = this.getDshtCandidatesForLevel(key, level, fanout);
-		if (!candidates.length) return [];
-
-		const collected: DshtPointer[] = [];
-
-		await Promise.race([
-			Promise.all(
-				candidates.map(async (c) => {
-					try {
-						const pointers = await this.sendDshtGet(c, level, key, limit);
-						if (!pointers.length) return;
-						collected.push(...pointers);
-					} catch {
-						// ignore failing peers
-					}
-				}),
-			),
-			new Promise<void>((resolve) =>
-				setTimeout(resolve, this.cfg.lookupTimeoutMs),
-			),
-		]);
-
-		if (!collected.length) return [];
-
-		// 3. De-duplicate and optionally bound to limit with randomization.
-		const dedupMap = new Map<string, DshtPointer>();
-		for (const p of collected) {
-			const keyStr = `${p.nodeId}|${p.addr}`;
-			if (!dedupMap.has(keyStr)) {
-				dedupMap.set(keyStr, p);
-			}
-		}
-		const unique = Array.from(dedupMap.values());
-
-		// Opportunistically promote discovered pointers into our local DSHT
-		// state. This increases pointer density near active readers, mirroring
-		// Coral's demand-driven growth of replica pointers.
-		for (const p of unique) {
-			this.dshtHandleLocalPut(level, key, p);
-		}
-
-		if (!limit || unique.length <= limit) return unique;
-
-		const shuffled = [...unique];
-		for (let i = shuffled.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[shuffled[i], shuffled[j]!] = [shuffled[j]!, shuffled[i]!];
-		}
-		return shuffled.slice(0, limit);
-	}
-
-	/**
-	 * Multi-level DSHT lookup: start with the smallest / lowest-RTT cluster
-	 * level and expand outward until we find any replica pointers or exhaust
-	 * all configured levels.
-	 */
-	async dshtGetNear(
-		key: Key,
-		limit = this.cfg.k,
-	): Promise<{ level: number; pointers: DshtPointer[] }> {
-		if (!this.cfg.dsht || !this.cfg.dsht.levels.length) {
-			return { level: -1, pointers: [] };
-		}
-
-		const sortedLevels = [...this.cfg.dsht.levels].sort(
-			(a, b) => a.maxRttMs - b.maxRttMs,
-		);
-
-		for (const lvl of sortedLevels) {
-			const pointers = await this.dshtGet(key, lvl.level, { limit });
-			if (pointers.length) {
-				return { level: lvl.level, pointers };
-			}
-		}
-
-		return { level: -1, pointers: [] };
-	}
-
-	/**
-	 * Republish locally-published values whose age exceeds the configured
-	 * republish interval. This keeps them alive in the face of churn and
-	 * complements local TTL-based expiry.
-	 */
-	async republishValues(): Promise<void> {
-		const now = Date.now();
-
-		const ttl = this.cfg.valueTtlMs;
-		const defaultInterval =
-			ttl !== undefined ? Math.max(ttl / 2, 60_000) : 10 * 60_000;
-		const interval =
-			this.cfg.republishIntervalMs !== undefined
-				? this.cfg.republishIntervalMs
-				: defaultInterval;
-
-		for (const [key, entry] of this.store.entries()) {
-			// Only the original publishers are responsible for republishing.
-			if (entry.origin !== "publisher") continue;
-
-			const age = now - entry.storedAt;
-			if (age < interval) continue;
-
-			try {
-				await this.storeValue(key, entry.value, "publisher");
-			} catch {
-				// Best-effort; failures will be retried on the next interval.
-			}
-		}
-	}
-
-	/**
-	 * Debug / analytics helper: summarize DSHT cluster configuration and
-	 * pointer distribution for this node. This is not used in the protocol
-	 * itself, only for observability (e.g. demo-network).
-	 */
-	public getDshtDebugSnapshot(): {
-		nodeId: NodeId;
-		enabled: boolean;
-		levels: {
-			level: number;
-			name: string;
-			maxRttMs: number;
-			maxPointersPerKey: number;
-			contactsWithin: number;
-			contactsUnknown: number;
-			contactsOutside: number;
-			totalPointers: number;
-		}[];
-	} {
-		const cfg = this.cfg.dsht;
-		if (!cfg || !cfg.levels.length) {
-			return { nodeId: this.id, enabled: false, levels: [] };
-		}
-
-		const contacts = this.table.allContacts();
-
-		const levelsSummary: {
-			level: number;
-			name: string;
-			maxRttMs: number;
-			maxPointersPerKey: number;
-			contactsWithin: number;
-			contactsUnknown: number;
-			contactsOutside: number;
-			totalPointers: number;
-		}[] = [];
-
-		for (const lvl of cfg.levels) {
-			let contactsWithin = 0;
-			let contactsUnknown = 0;
-			let contactsOutside = 0;
-
-			for (const c of contacts) {
-				if (c.lastRttMs === undefined) {
-					contactsUnknown++;
-				} else if (c.lastRttMs <= lvl.maxRttMs) {
-					contactsWithin++;
-				} else {
-					contactsOutside++;
-				}
-			}
-
-			let totalPointers = 0;
-			for (const perKey of this.dshtStore.values()) {
-				const arr = perKey.get(lvl.level);
-				if (arr) {
-					totalPointers += arr.length;
-				}
-			}
-
-			levelsSummary.push({
-				level: lvl.level,
-				name: lvl.name,
-				maxRttMs: lvl.maxRttMs,
-				maxPointersPerKey: lvl.maxPointersPerKey,
-				contactsWithin,
-				contactsUnknown,
-				contactsOutside,
-				totalPointers,
-			});
-		}
-
-		return {
-			nodeId: this.id,
-			enabled: true,
-			levels: levelsSummary,
-		};
-	}
-
-	async bootstrap(seedContacts: Contact[]): Promise<void> {
-		for (const c of seedContacts) {
-			await this.table.update(c, (contact) => this.ping(contact));
-		}
-		await this.nodeLookup(this.id);
-	}
+  public events: EventEmitter<KademliaEvent>
+  public readonly id: Uint8Array | undefined
+
+  protected _privateKey: Uint8Array
+  protected _banlist: BanList
+  protected _kbucket: RoutingTable
+  protected _transport: KademliaTransport
+  protected _refreshIntervalId?: NodeJS.Timeout
+  protected _refreshIntervalSelectionCounter: number = 0
+  protected _shouldFindNeighbours: boolean
+  protected _onlyConfirmed: boolean
+  protected _confirmedPeers: Set<string> = new Set()
+  protected _common?: Common
+  protected _port: number
+
+  private DEBUG: boolean
+
+  constructor(privateKey: Uint8Array, options: KademliaNodeConfig = {}) {
+    this.events = new EventEmitter<KademliaEvent>()
+    this._privateKey = privateKey
+    this.id = pk2id(secp256k1.getPublicKey(this._privateKey, false))
+
+    this._shouldFindNeighbours = options.shouldFindNeighbours ?? true
+    this._onlyConfirmed = options.onlyConfirmed ?? false
+    this._common = options.common
+
+    // Initialize ban list
+    this._banlist = new BanList()
+	this._port = options.endpoint?.udpPort ?? options.endpoint?.tcpPort ?? 0
+    // Initialize routing table (k-bucket)
+    this._kbucket = new RoutingTable(this.id, {
+      k: options.k ?? KBUCKET_SIZE,
+      concurrency: options.concurrency ?? KBUCKET_CONCURRENCY,
+    })
+
+    // Forward routing table events
+    this._kbucket.events.on('added', (peer: PeerInfo) => {
+      this.events.emit('peer:added', peer)
+    })
+    this._kbucket.events.on('removed', (peer: PeerInfo) => {
+      this.events.emit('peer:removed', peer)
+    })
+    this._kbucket.events.on('ping', this._onKBucketPing.bind(this))
+
+	
+    // Initialize transport
+    if (options.transport) {
+      this._transport = options.transport
+    } else {
+      this._transport = new UdpTransport(
+        privateKey,
+        {
+          timeout: options.timeout,
+          endpoint: options.endpoint,
+          createSocket: options.createSocket,
+          common: options.common,
+        },
+        (peers) => this._onPeersDiscovered(peers),
+        (id) => this.getPeer(id), // Provide getPeer callback for checking peer existence
+      )
+    }
+
+    // Forward transport events
+    this._transport.events.once('listening', () => this.events.emit('listening', undefined))
+    this._transport.events.once('close', () => this.events.emit('close', undefined))
+    this._transport.events.on('error', (err) => this.events.emit('error', err))
+    
+    // Handle peers discovered from neighbours responses
+    this._transport.events.on('peers', (peers: PeerInfo[]) => {
+      if (this._shouldFindNeighbours && Array.isArray(peers) && peers.length > 0) {
+        this._addPeerBatch(peers)
+      }
+    })
+    
+    // Handle incoming findneighbours requests
+    this._transport.events.on('findneighbours', ({ peer, targetId }: { peer: PeerInfo; targetId: Uint8Array }) => {
+      if (!this.id) return
+      
+      // Get closest peers to the target ID (respects onlyConfirmed flag)
+      const closestPeers = this.getClosestPeers(targetId)
+      const k = options.k ?? KBUCKET_SIZE
+      
+      // Send neighbours response (limit to k peers as per Ethereum discovery)
+      if (closestPeers.length > 0 && 'sendNeighbours' in this._transport) {
+        this._transport.sendNeighbours(peer, closestPeers.slice(0, k))
+      }
+    })
+
+    // Start refresh interval
+    const refreshInterval = Math.floor((options.refreshInterval ?? DEFAULT_REFRESH_INTERVAL) / 10)
+    this._refreshIntervalId = setInterval(() => this.refresh(), refreshInterval)
+
+    this.DEBUG =false
+  }
+
+  /**
+   * Bind the transport to a port and start listening.
+   */
+  bind(...args: any[]): void {
+    this._transport.bind(...args)
+  }
+
+  /**
+   * Stop the node and clean up resources.
+   */
+  destroy(...args: any[]): void {
+    if (this._refreshIntervalId) {
+      clearInterval(this._refreshIntervalId)
+      this._refreshIntervalId = undefined
+    }
+    this._transport.destroy(...args)
+  }
+
+  /**
+   * Handle k-bucket ping event (bucket full, need to verify old peers).
+   */
+  private _onKBucketPing(oldPeers: PeerInfo[], newPeer: PeerInfo): void {
+    if (this._banlist.has(newPeer)) return
+
+    let count = 0
+    let err: Error | null = null
+
+    for (const peer of oldPeers) {
+      this._transport
+        .ping(peer)
+        .then(() => {
+			if (++count < oldPeers.length) return
+			if (err === null)
+			  this._banlist.add(newPeer, 300000) // 5 min * 60 * 1000
+			else this._kbucket.add(newPeer)
+		  })
+		  .catch((_err: Error) => {
+			this._banlist.add(peer, 300000) // 5 min * 60 * 1000
+			this._kbucket.remove(peer)
+			err = err ?? _err
+		  })
+    }
+  }
+
+  /**
+   * Called when peers are discovered via transport.
+   */
+  private _onPeersDiscovered(peers: PeerInfo[]): void {
+    if (!this._shouldFindNeighbours) return
+    this._addPeerBatch(peers)
+  }
+
+  /**
+   * Add peers with staggered timing to avoid flooding.
+   */
+  private _addPeerBatch(peers: PeerInfo[]): void {
+    const DIFF_TIME_MS = 200
+    let ms = 0
+
+    for (const peer of peers) {
+      setTimeout(() => {
+        this.addPeer(peer).catch((error) => {
+          this.events.emit('error', error)
+        })
+      }, ms)
+      ms += DIFF_TIME_MS
+    }
+  }
+
+  /**
+   * Bootstrap the node by connecting to a known peer.
+   */
+  async bootstrap(peer: PeerInfo): Promise<void> {
+    try {
+      const resolvedPeer = await this.addPeer(peer)
+      if (resolvedPeer.id !== undefined) {
+        this._confirmedPeers.add(bytesToUnprefixedHex(resolvedPeer.id))
+      }
+    } catch (error: any) {
+      this.events.emit('error', error)
+      return
+    }
+
+    if (!this.id) return
+
+    if (this._shouldFindNeighbours) {
+      this._transport.findneighbours(peer, this.id)
+    }
+  }
+
+  /**
+   * Add a peer to the routing table after verifying it's alive.
+   */
+  async addPeer(obj: PeerInfo): Promise<PeerInfo> {
+    if (this._banlist.has(obj)) {
+      throw new Error('Peer is banned')
+    }
+
+    // Check if already in routing table
+    const existing = this._kbucket.get(obj)
+    if (existing !== null) return existing
+
+    // Verify peer is alive with ping
+    try {
+      const peer = await this._transport.ping(obj)
+      this.events.emit('peer:new', peer)
+      this._kbucket.add(peer)
+      return peer
+    } catch (err: any) {
+      this._banlist.add(obj, 300000) // 5 minutes
+      throw err
+    }
+  }
+
+  /**
+   * Mark a peer as confirmed (for selective findNeighbours).
+   */
+  confirmPeer(id: string): void {
+    if (this._confirmedPeers.size < 5000) {
+      this._confirmedPeers.add(id)
+    }
+  }
+
+  /**
+   * Get a peer by id, hex string, or PeerInfo.
+   */
+  getPeer(obj: string | Uint8Array | PeerInfo): PeerInfo | null {
+    return this._kbucket.get(obj)
+  }
+
+  /**
+   * Get all peers in the routing table.
+   */
+  getPeers(): PeerInfo[] {
+    return this._kbucket.getAll()
+  }
+
+  /**
+   * Get the number of peers in the routing table.
+   */
+  numPeers(): number {
+    return this._kbucket.count()
+  }
+
+  /**
+   * Get the closest peers to a given id.
+   */
+  getClosestPeers(id: Uint8Array): PeerInfo[] {
+    let peers = this._kbucket.closest(id)
+    if (this._onlyConfirmed && this._confirmedPeers.size > 0) {
+      peers = peers.filter((peer) =>
+        peer.id ? this._confirmedPeers.has(bytesToUnprefixedHex(peer.id)) : false,
+      )
+    }
+
+    return peers
+  }
+
+  /**
+   * Remove a peer from the routing table.
+   */
+  removePeer(obj: string | PeerInfo | Uint8Array): void {
+    const peer = this._kbucket.get(obj)
+    if (peer?.id !== undefined) {
+      this._confirmedPeers.delete(bytesToUnprefixedHex(peer.id))
+    }
+    this._kbucket.remove(obj)
+  }
+
+  /**
+   * Ban a peer and remove from routing table.
+   */
+  banPeer(obj: string | PeerInfo | Uint8Array, maxAge?: number): void {
+    this._banlist.add(obj, maxAge)
+    this._kbucket.remove(obj)
+  }
+
+  /**
+   * Refresh the routing table by querying random peers.
+   */
+  async refresh(): Promise<void> {
+    if (!this._shouldFindNeighbours) return
+
+    // Rotating selection counter going in loop from 0..9
+    this._refreshIntervalSelectionCounter = (this._refreshIntervalSelectionCounter + 1) % 10
+
+    const peers = this.getPeers()
+
+    for (const peer of peers) {
+      // Randomly distributed selector based on peer ID
+      const selector = bytesToInt((peer.id as Uint8Array).subarray(0, 1)) % 10
+      
+      let confirmed = true
+      if (this._onlyConfirmed && this._confirmedPeers.size > 0) {
+      const id = bytesToUnprefixedHex(peer.id as Uint8Array)
+        if (!this._confirmedPeers.has(id)) {
+          confirmed = false
+        }
+      }
+
+      if (confirmed && selector === this._refreshIntervalSelectionCounter) {
+          // Use a random target ID for refresh (or our own ID to refresh nearby buckets)
+          const targetId = Math.random() > 0.5 ? this.id : randomBytes(64)
+          this._transport.findneighbours(peer, targetId)
+        }
+    }
+  }
+
+  /**
+   * Get the underlying transport.
+   */
+  get transport(): KademliaTransport {
+    return this._transport
+  }
+
+  /**
+   * Get the underlying routing table.
+   */
+  get routingTable(): RoutingTable {
+    return this._kbucket
+  }
+
+  /**
+   * Alias for routingTable (backward compatibility).
+   */
+  get table(): RoutingTable {
+    return this._kbucket
+  }
+
+  /**
+   * Get the ban list.
+   */
+  get banlist(): BanList {
+    return this._banlist
+  }
+
+  /**
+   * Check if a peer is banned.
+   */
+  isBanned(obj: string | Uint8Array | PeerInfo): boolean {
+    return this._banlist.has(obj)
+  }
+
+  /**
+   * Get detailed bucket structure including splits and peers in each bucket.
+   */
+  getBucketStructure(): Array<{
+    bitDepth: number
+    bucketIndex: number
+    bucketPath: string
+    peerCount: number
+    peers: PeerInfo[]
+    canSplit: boolean
+    maxSize: number
+  }> {
+    return this._kbucket.getBucketStructure()
+  }
+
+  /**
+   * Get a summary of bucket splits showing how many buckets exist at each depth level.
+   */
+  getBucketSplitSummary(): {
+    totalBuckets: number
+    maxDepth: number
+    bucketsByDepth: Array<{ depth: number; count: number; totalPeers: number }>
+  } {
+    return this._kbucket.getBucketSplitSummary()
+  }
 }
+
+// Factory function for creating a Kademlia node
+export function createKademlia(
+  privateKey: Uint8Array,
+  options: KademliaNodeConfig = {},
+): KademliaNode {
+  return new KademliaNode(privateKey, options)
+}
+
+// Re-export for convenience
+export { KademliaNode as Kademlia }

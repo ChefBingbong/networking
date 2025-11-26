@@ -1,7 +1,10 @@
-'use strict'
+// src/devp2p/dpt/index.ts
+// DPT (Discovery Protocol) exports
 
-export * from './ban-list.ts'
-export * from './dpt.ts'
-export * from './kbucket.ts'
-export * from './message.ts'
-export * from './server.ts'
+export { DPT } from './dpt.ts'
+
+// Re-export Kademlia types for backward compatibility
+export {
+    BanList, KademliaNode, type Contact, type KademliaConfig, type KademliaEvent, type PeerInfo
+} from '../../kademlia/index.ts'
+

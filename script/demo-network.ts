@@ -1,9 +1,8 @@
 // scripts/demo-network.ts
 
-import { idToKey } from "../src/kademlia/xor";
+// No imports needed for demo functionality
 import { createNode } from "../src/node/createNode";
 import { PeerNode } from "../src/node/node";
-import type { NodeMetricsSnapshot } from "../src/node/types";
 
 // TODO: replace this with whatever you already use to generate Secp256k1 keys
 
@@ -11,131 +10,6 @@ const HOST = "127.0.0.1";
 const BASE_PORT = 4000;
 const NODE_COUNT = 200;
 
-// ---- helpers ---
-
-function buildAdjacency(nodes: PeerNode[]) {
-	const addrToIndex = new Map<string, number>();
-	nodes.forEach((node, i) => {
-		addrToIndex.set(node.address.toString(), i);
-	});
-
-	const neighbors: number[][] = nodes.map(() => []);
-
-	nodes.forEach((node, i) => {
-		for (const key of node.connections.keys()) {
-			const j = addrToIndex.get(key);
-			if (j === undefined || j === i) continue;
-			if (!neighbors[i].includes(j)) neighbors[i].push(j);
-			if (!neighbors[j].includes(i)) neighbors[j].push(i);
-		}
-	});
-
-	return neighbors;
-}
-
-function computeAnalytics(nodes: PeerNode[]) {
-	const N = nodes.length;
-	const neighbors = buildAdjacency(nodes);
-
-	const degrees = neighbors.map((n) => n.length);
-	const totalDegree = degrees.reduce((a, b) => a + b, 0);
-	const maxDegree = Math.max(...degrees);
-	const minDegree = Math.min(...degrees);
-	const avgDegree = N > 0 ? totalDegree / N : 0;
-	const isolatedCount = degrees.filter((d) => d === 0).length;
-
-	// edge count in undirected graph
-	const edges = totalDegree / 2;
-	const maxEdges = (N * (N - 1)) / 2;
-	const density = maxEdges > 0 ? edges / maxEdges : 0;
-
-	// how many nodes are fully connected?
-	const fullyConnectedCount = degrees.filter((d) => d === N - 1).length;
-
-	// histogram of degrees (optional)
-	const hist = new Map<number, number>();
-	for (const d of degrees) {
-		hist.set(d, (hist.get(d) ?? 0) + 1);
-	}
-
-	// connected components (BFS)
-	const visited = new Array<boolean>(N).fill(false);
-	let components = 0;
-	let largestComponent = 0;
-
-	for (let i = 0; i < N; i++) {
-		if (visited[i]) continue;
-		components++;
-
-		let size = 0;
-		const queue: number[] = [i];
-		visited[i] = true;
-
-		while (queue.length > 0) {
-			const u = queue.shift()!;
-			size++;
-			for (const v of neighbors[u]) {
-				if (!visited[v]) {
-					visited[v] = true;
-					queue.push(v);
-				}
-			}
-		}
-
-		if (size > largestComponent) largestComponent = size;
-	}
-
-	return {
-		degrees,
-		minDegree,
-		maxDegree,
-		avgDegree,
-		isolatedCount,
-		edges,
-		density,
-		fullyConnectedCount,
-		components,
-		largestComponent,
-		hist,
-	};
-}
-
-function summarizeNetworkMetrics(nodes: PeerNode[]) {
-	const snapshots: NodeMetricsSnapshot[] = nodes.map((n) =>
-		n.getMetricsSnapshot(),
-	);
-
-	const avg = (xs: number[]) =>
-		xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
-
-	const allFirstConnects = snapshots.flatMap((s) =>
-		s.firstConnectAvgMs > 0 ? [s.firstConnectAvgMs] : [],
-	);
-	const allPings = snapshots.flatMap((s) =>
-		s.pingAvgMs > 0 ? [s.pingAvgMs] : [],
-	);
-
-	console.log("\n=== Per-node metrics ===");
-	snapshots.forEach((s) => {
-		console.log(
-			`${s.address} | peers=${s.uniquePeers} | firstConnectAvg=${s.firstConnectAvgMs.toFixed(
-				2,
-			)}ms (${s.firstConnectCount} peers) | pingAvg=${s.pingAvgMs.toFixed(
-				2,
-			)}ms (${s.pingCount} samples)`,
-		);
-	});
-
-	console.log("\n=== Network-wide metrics ===");
-	console.log(
-		`Nodes: ${snapshots.length}
-Avg unique peers per node: ${avg(snapshots.map((s) => s.uniquePeers)).toFixed(
-			2,
-		)}
-Avg first-connect latency (across nodes): ${avg(allFirstConnects).toFixed(2)}ms
-Avg ping RTT (across nodes): ${avg(allPings).toFixed(2)}ms`,
-	);
-}
 
 /**
  * Periodically print analytics to the console.
@@ -144,57 +18,9 @@ function startAnalyticsLoop(nodes: PeerNode[], intervalMs = 10_000) {
 	let tick = 0;
 	setInterval(() => {
 		tick++;
-		const {
-			degrees,
-			minDegree,
-			maxDegree,
-			avgDegree,
-			isolatedCount,
-			edges,
-			density,
-			fullyConnectedCount,
-			components,
-			largestComponent,
-			hist,
-		} = computeAnalytics(nodes);
-
-		const N = nodes.length;
-
-		console.log(
-			`\n=== Network tick #${tick} ===
-Nodes: ${N}
-Edges: ${edges}
-Density: ${(density * 100).toFixed(1)}% of full mesh
-Degrees: min=${minDegree}, max=${maxDegree}, avg=${avgDegree.toFixed(2)}
-Isolated nodes: ${isolatedCount}
-Fully connected nodes (degree = N-1): ${fullyConnectedCount}
-Connected components: ${components}
-Largest component size: ${largestComponent}`,
-		);
-
-		// small histogram print
-		console.log("Degree histogram:");
-		const sortedDegrees = Array.from(hist.keys()).sort((a, b) => a - b);
-		for (const d of sortedDegrees) {
-			console.log(`  degree ${d}: ${hist.get(d)} nodes`);
-		}
-
-		// first few nodes with their local connection counts
-		const sample = nodes.slice(0, 10);
-		for (const node of sample) {
-			const addr = node.address.toString();
-			const deg = node.connections.size;
-			console.log(`  ${addr} -> connections: ${deg}`);
-		}
-
-		console.log("Latency:");
-		summarizeLatency(nodes);
-
-		console.log("Node metrics:");
-		summarizeNetworkMetrics(nodes);
 
 		for (const node of nodes) {
-			const rt = node.kad.table.totalContactCount();
+			const rt = node.kad.numPeers();
 			console.log(
 				node.address.toString(),
 				"| kadPeers =",
@@ -203,36 +29,8 @@ Largest component size: ${largestComponent}`,
 				node.kad.table.getNonEmptyBucketCount(),
 			);
 		}
-
-		printDshtClusterInfo(nodes);
 	}, intervalMs);
 }
-
-function summarizeLatency(nodes: PeerNode[]) {
-	const allConn = nodes.flatMap((n) =>
-		Array.from(n.metrics.firstConnectLatencies.values()),
-	);
-	const allPing = nodes.flatMap((n) => n.metrics.pingLatencies);
-
-	const avg = (xs: number[]) =>
-		xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
-	const min = (xs: number[]) => (xs.length ? Math.min(...xs) : 0);
-	const max = (xs: number[]) => (xs.length ? Math.max(...xs) : 0);
-
-	console.log("\n=== Latency metrics ===");
-	console.log(
-		`First connects: count=${allConn.length}, avg=${avg(allConn).toFixed(
-			2,
-		)}ms, min=${min(allConn)}ms, max=${max(allConn)}ms`,
-	);
-	console.log(
-		`Ping RTTs:      count=${allPing.length}, avg=${avg(allPing).toFixed(
-			2,
-		)}ms, min=${min(allPing)}ms, max=${max(allPing)}ms`,
-	);
-}
-
-// ---- main ----
 
 async function main() {
 	console.log(`Spinning up ${NODE_COUNT} nodes on ${HOST}:${BASE_PORT}..`);
@@ -261,9 +59,8 @@ async function main() {
 	// Give the DHT a bit of time to bootstrap and measure RTTs.
 	await new Promise((resolve) => setTimeout(resolve, 5_000));
 
-	// 3. Run a one-off DSHT demo: publish a key from a subset of nodes
-	// and resolve it from another node, printing cluster-level info.
-	await runDshtDemo(nodes);
+	// 3. DSHT functionality removed - using standard Ethereum discovery protocol
+	console.log("DSHT demo removed - nodes now use Ethereum-compatible discovery protocol");
 
 	// 4. Start analytics loop
 	startAnalyticsLoop(nodes, 10_000);
@@ -274,68 +71,4 @@ main().catch((err) => {
 	process.exit(1);
 });
 
-// ---- DSHT demo utilities ----
-
-const DSHT_DEMO_KEY = "demo-object-1";
-
-async function runDshtDemo(nodes: PeerNode[]) {
-	if (!nodes.length) return;
-
-	const key = idToKey(DSHT_DEMO_KEY);
-	const publishers = nodes.slice(0, Math.min(10, nodes.length));
-
-	console.log(
-		`\n=== DSHT demo ===\nPublishing DSHT pointers for key "${DSHT_DEMO_KEY}" from ${publishers.length} nodes…`,
-	);
-
-	await Promise.all(
-		publishers.map((node, index) =>
-			node.kad.dshtPut(key, {
-				sourceAddress: node.address.toString(),
-				publisherIndex: index,
-			}),
-		),
-	);
-
-	const reader = nodes[nodes.length - 1];
-	const res = await reader.kad.dshtGetNear(key, 8);
-
-	console.log(
-		`DSHT getNear from ${reader.address.toString()} resolved at level=${res.level} with ${res.pointers.length} pointers:`,
-	);
-
-	for (const p of res.pointers) {
-		const meta =
-			p.metadata && typeof p.metadata === "object"
-				? JSON.stringify(p.metadata)
-				: String(p.metadata);
-		console.log(`  pointer -> nodeId=${p.nodeId} addr=${p.addr} meta=${meta}`);
-	}
-}
-
-function printDshtClusterInfo(nodes: PeerNode[]) {
-	if (!nodes.length) return;
-
-	// Sample a subset of nodes for readability
-	const sample = nodes.slice(0, Math.min(5, nodes.length));
-
-	console.log("\n=== DSHT cluster snapshot (sampled nodes) ===");
-	for (const node of sample) {
-		const snap = node.kad.getDshtDebugSnapshot();
-		if (!snap.enabled) {
-			console.log(node.address.toString(), "DSHT disabled");
-			continue;
-		}
-
-		console.log(`Node ${node.address.toString()} (id=${snap.nodeId})`);
-		for (const lvl of snap.levels) {
-			console.log(
-				`  [level ${lvl.level} "${lvl.name}"] maxRtt=${lvl.maxRttMs}ms, maxPointersPerKey=${lvl.maxPointersPerKey}`,
-			);
-			console.log(
-				`    contacts within/unknown/outside: ${lvl.contactsWithin}/${lvl.contactsUnknown}/${lvl.contactsOutside}`,
-			);
-			console.log(`    total pointers stored at this node: ${lvl.totalPointers}`);
-		}
-	}
-}
+// DSHT demo utilities removed - functionality no longer available

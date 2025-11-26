@@ -2,7 +2,7 @@ import { publicKeyCreate } from 'ethereum-cryptography/secp256k1-compat.js'
 import { assert, describe, it } from 'vitest'
 import { hexToBytes } from '../../utils/index.ts'
 
-import * as message from '../dpt/message.ts'
+import * as message from '../../kademlia/message.ts'
 
 const privateKey = hexToBytes('0xb71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291')
 const publicKey = publicKeyCreate(privateKey, false)

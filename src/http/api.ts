@@ -1,9 +1,8 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import type { BlockchainClientState } from "../blockchain/client/client";
-import { idToKey } from "../kademlia/xor";
 import type { PeerNode } from "../node";
-import { addBlockchainApiRoutes } from "./blockchain-api";
+// import type { BlockchainClientState } from "../blockchain/client/client";
+type BlockchainClientState = any; // Optional - may not exist
 
 let globalAppInstance: Hono | null = null;
 
@@ -14,7 +13,6 @@ export function getGlobalAppInstance(): Hono | null {
 export function createKadApi(
 	node: PeerNode,
 	port = 3001,
-	blockchainClient?: BlockchainClientState,
 ) {
 	const app = new Hono();
 	globalAppInstance = app;
@@ -32,87 +30,66 @@ export function createKadApi(
 	});
 
 	app.get("/kad/buckets", (c) => {
-		const rt = node.kad.table.dump();
-		return c.json(rt.buckets);
+		// Return detailed bucket structure with splits and peers
+		const buckets = node.kad.table.getBucketStructure();
+		return c.json(buckets);
+	});
+
+	app.get("/kad/buckets/structure", (c) => {
+		// Return detailed bucket structure with splits and peers
+		const buckets = node.kad.table.getBucketStructure();
+		return c.json({
+			totalBuckets: buckets.length,
+			buckets: buckets.map((bucket) => ({
+				bitDepth: bucket.bitDepth,
+				bucketIndex: bucket.bucketIndex,
+				peerCount: bucket.peerCount,
+				maxSize: bucket.maxSize,
+				canSplit: bucket.canSplit,
+				utilization: ((bucket.peerCount / bucket.maxSize) * 100).toFixed(1) + "%",
+				bucketPath: bucket.bucketPath,
+				peers: bucket.peers.map((peer) => ({
+					address: peer.address,
+					udpPort: peer.udpPort,
+					tcpPort: peer.tcpPort,
+				})),
+			})),
+		});
+	});
+
+	app.get("/kad/buckets/summary", (c) => {
+		// Return bucket split summary
+		const summary = node.kad.table.getBucketSplitSummary();
+		return c.json(summary);
 	});
 
 	app.get("/kad/peers", (c) => {
-		const peers = node.kad.table.allContacts();
+		const peers = node.kad.getPeers();
 		return c.json(peers);
 	});
 
+	// DSHT endpoints removed - DSHT functionality was removed in migration to Ethereum-compatible discovery
 	app.post("/kad/dsht/put", async (c) => {
-		const body = (await c.req.json().catch(() => null)) as {
-			key?: string;
-			metadata?: Record<string, unknown>;
-			levels?: number[];
-		} | null;
-
-		if (!body || !body.key) {
-			return c.json({ ok: false, error: "key is required" }, 400);
-		}
-
-		const key = idToKey(body.key);
-		await node.kad.dshtPut(key, body.metadata ?? {}, body.levels);
-		return c.json({ ok: true });
+		return c.json({ ok: false, error: "DSHT functionality has been removed. This endpoint is deprecated." }, 410);
 	});
 
 	app.get("/kad/dsht/get/:level/:key", async (c) => {
-		const rawLevel = c.req.param("level");
-		const keyParam = c.req.param("key");
-		const limitParam = c.req.query("limit");
-
-		const level = Number.parseInt(rawLevel, 10);
-		if (Number.isNaN(level)) {
-			return c.json({ ok: false, error: "invalid level" }, 400);
-		}
-
-		const key = idToKey(keyParam);
-		const limit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-
-		const pointers = await node.kad.dshtGet(key, level, { limit });
-		return c.json({ ok: true, pointers });
+		return c.json({ ok: false, error: "DSHT functionality has been removed. This endpoint is deprecated." }, 410);
 	});
 
 	app.get("/kad/dsht/near/:key", async (c) => {
-		const key = idToKey(c.req.param("key"));
-		const limitParam = c.req.query("limit");
-		const limit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
-
-		const res = await node.kad.dshtGetNear(key, limit);
-		return c.json(res);
+		return c.json({ ok: false, error: "DSHT functionality has been removed. This endpoint is deprecated." }, 410);
 	});
 
+	// Kademlia STORE/FIND_VALUE endpoints removed - value storage was removed in migration
 	app.post("/kad/put", async (c) => {
-		const body = (await c.req.json().catch(() => null)) as {
-			key?: string;
-			value?: any;
-		} | null;
-
-		if (!body || !body.key) {
-			return c.json({ ok: false, error: "key is required" }, 400);
-		}
-
-		const key = idToKey(body.key);
-		await node.kad.storeValue(key, body.value);
-		return c.json({ ok: true });
+		return c.json({ ok: false, error: "Kademlia value storage has been removed. This endpoint is deprecated." }, 410);
 	});
 
 	app.get("/kad/value/:key", async (c) => {
-		const key = idToKey(c.req.param("key"));
-		const value = await node.kad.findValue(key);
-
-		if (value === null || value === undefined) {
-			return c.json({ found: false });
-		}
-		return c.json({ found: true, value });
+		return c.json({ found: false, error: "Kademlia value storage has been removed. This endpoint is deprecated." }, 410);
 	});
 
-	// Add blockchain API routes if client is provided (either as param or stored on node)
-	const client = blockchainClient ?? (node as any).blockchainClient;
-	if (client) {
-		addBlockchainApiRoutes(app, client);
-	}
 
 	serve(
 		{
