@@ -41,12 +41,12 @@ describe('RLPx simulator tests', () => {
           tcpPort: null,
         }
         assert.isFalse(
-          rlpxs[0]['_dpt']!['_banlist'].has(peer),
+          rlpxs[0]['_dpt']!.kademlia.banlist.has(peer),
           'should not be in ban list before bad peer discovered',
         )
         rlpxs[0]['_dpt']!.events.emit('peer:new', peer)
         assert.isTrue(
-          rlpxs[0]['_dpt']!['_banlist'].has(peer),
+          rlpxs[0]['_dpt']!.kademlia.banlist.has(peer),
           'should be in ban list after bad peer discovered',
         )
         await util.delay(500)

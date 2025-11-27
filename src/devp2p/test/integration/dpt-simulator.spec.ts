@@ -60,7 +60,7 @@ describe('DPT simulator tests', () => {
         dpts[0].banPeer(peer)
       })
       dpts[0].events.once('peer:removed', async (peer) => {
-        assert.strictEqual(dpts[0]['_banlist'].has(peer), true, 'ban-list should contain peer')
+        assert.strictEqual(dpts[0].kademlia.banlist.has(peer), true, 'ban-list should contain peer')
         assert.strictEqual(
           dpts[0].getPeers().length,
           0,
@@ -79,7 +79,7 @@ describe('DPT simulator tests', () => {
 
     try {
       dpts[0].events.once('peer:added', async (peer) => {
-        dpts[0]._onKBucketPing([peer], peer)
+        dpts[0].kademlia._onKBucketPing([peer], peer)
         await util.delay(400)
         assert.strictEqual(dpts[0].getPeers().length, 1, 'should still have one peer in k-bucket')
         await util.delay(400)
