@@ -1,19 +1,19 @@
 import type { Common, ParamsDict } from "../chain-config/index.ts";
 import type {
-	JSONRPCTx,
-	JSONTx,
-	TransactionType,
-	TxData,
+  JSONRPCTx,
+  JSONTx,
+  TransactionType,
+  TxData,
 } from "../tx/index.ts";
 import type {
-	AddressLike,
-	BigIntLike,
-	BytesLike,
-	JSONRPCWithdrawal,
-	NumericString,
-	PrefixedHexString,
-	WithdrawalBytes,
-	WithdrawalData,
+  AddressLike,
+  BigIntLike,
+  BytesLike,
+  JSONRPCWithdrawal,
+  NumericString,
+  PrefixedHexString,
+  WithdrawalBytes,
+  WithdrawalData,
 } from "../utils/index.ts";
 import type { BlockHeader } from "./index.ts";
 
@@ -44,7 +44,7 @@ export interface BlockOptions {
 	setHardfork?: boolean;
 	/**
 	 * Block parameters sorted by EIP can be found in the exported `paramsBlock` dictionary,
-	 * which is internally passed to the associated `@ethereumjs/common` instance which
+	 * which is internally passed to the associated `../../common` instance which
 	 * manages parameter selection based on the hardfork and EIP settings.
 	 *
 	 * This option allows providing a custom set of parameters. Note that parameters

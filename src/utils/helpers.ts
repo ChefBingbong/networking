@@ -31,3 +31,12 @@ export const assertIsString = (input: string): void => {
 		throw new Error(msg);
 	}
 };
+
+/**
+ * Creates an Error without a code property
+ * @param message Error message
+ * @returns Error instance
+ */
+export const EthereumJSErrorWithoutCode = (message: string): Error => {
+	return new Error(message);
+};

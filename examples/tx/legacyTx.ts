@@ -1,4 +1,4 @@
-// import { Common, Hardfork, Mainnet } from '@ethereumjs/common'
+// import { Common, Hardfork, Mainnet } from '../../common'
 import type { LegacyTxData } from "../../src/tx";
 import { createLegacyTx } from "../../src/tx";
 import { bytesToHex, hexToBytes } from "../../src/utils/index.ts";

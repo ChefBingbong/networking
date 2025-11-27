@@ -2,9 +2,9 @@
 // You can run them with tsx, as this project is developed in TypeScript.
 // Install the dependencies and run `npx tsx examples/transactions.ts`
 
-import { createLegacyTx, createLegacyTxFromBytesArray } from '@ethereumjs/tx'
-import type { PrefixedHexString } from '@ethereumjs/util'
-import { bytesToHex, hexToBytes, randomBytes } from '@ethereumjs/util'
+import { createLegacyTx, createLegacyTxFromBytesArray } from '../../tx'
+import type { PrefixedHexString } from '../../util'
+import { bytesToHex, hexToBytes, randomBytes } from '../../util'
 
 // We create an unsigned transaction.
 // Notice we don't set the `to` field because we are creating a new contract.

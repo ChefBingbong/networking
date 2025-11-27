@@ -1,9 +1,9 @@
-import { Common, Hardfork, Sepolia } from '@ethereumjs/common'
-import { createBlob4844Tx } from '@ethereumjs/tx'
-import type { PrefixedHexString } from '@ethereumjs/util'
-import { Units, bytesToHex, getBlobs, hexToBytes, randomBytes } from '@ethereumjs/util'
 import { trustedSetup } from '@paulmillr/trusted-setups/fast-peerdas.js'
 import { KZG as microEthKZG } from 'micro-eth-signer/kzg.js'
+import { Common, Hardfork, Sepolia } from '../../common'
+import { createBlob4844Tx } from '../../tx'
+import type { PrefixedHexString } from '../../util'
+import { Units, bytesToHex, getBlobs, hexToBytes, randomBytes } from '../../util'
 
 /**
  * This example is optimized to send a raw EthereumJS tx to the Sepolia network.

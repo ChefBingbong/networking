@@ -28,7 +28,7 @@ interface Path {
 }
 
 /**
- * The basic binary tree interface, use with `import { BinaryTree } from '@ethereumjs/binarytree'`.
+ * The basic binary tree interface, use with `import { BinaryTree } from '../../binarytree'`.
  *
  * A BinaryTree object can be created with the constructor method:
  *

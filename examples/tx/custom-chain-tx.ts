@@ -1,6 +1,6 @@
-import { Mainnet, createCustomCommon } from '@ethereumjs/common'
-import { createLegacyTx } from '@ethereumjs/tx'
-import { createAddressFromPrivateKey, hexToBytes } from '@ethereumjs/util'
+import { Mainnet, createCustomCommon } from '../../common'
+import { createLegacyTx } from '../../tx'
+import { createAddressFromPrivateKey, hexToBytes } from '../../util'
 
 // In this example we create a transaction for a custom network.
 

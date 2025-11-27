@@ -20,6 +20,7 @@
 	"dependencies": {
 		"@biomejs/biome": "^2.3.4",
 		"@hono/node-server": "^1.19.6",
+		"@js-sdsl/ordered-map": "^4.4.2",
 		"@libp2p/interface-connection": "^5.1.1",
 		"@libp2p/interfaces": "^3.3.2",
 		"@multiformats/multiaddr": "^13.0.1",

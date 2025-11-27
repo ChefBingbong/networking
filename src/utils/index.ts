@@ -6,6 +6,7 @@ export * from "./constants.ts";
 /**
  * Errors
  */
+export * from "./helpers.ts";
 
 /**
  * Account class and helper functions
@@ -62,3 +63,8 @@ export * from "./types.ts";
  * Withdrawal type
  */
 export * from "./withdrawal.ts";
+
+/**
+ * Provider
+ */
+export * from "./provider.ts";

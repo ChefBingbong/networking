@@ -3,10 +3,10 @@
  */
 
 import type {
-	Account,
-	Address,
-	BinaryTreeExecutionWitness,
-	PrefixedHexString,
+  Account,
+  Address,
+  BinaryTreeExecutionWitness,
+  PrefixedHexString,
 } from "../utils/index.ts";
 
 export interface StorageDump {
@@ -129,7 +129,7 @@ export interface BinaryTreeAccessWitnessInterface {
 }
 
 /*
- * Generic StateManager interface corresponding with the @ethereumjs/statemanager package
+ * Generic StateManager interface corresponding with the ../../statemanager package
  *
  */
 export interface StateManagerInterface {

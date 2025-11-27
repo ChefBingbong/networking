@@ -1,4 +1,4 @@
-// import { Ethash } from '@ethereumjs/ethash'
+// import { Ethash } from '../../ethash'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import { assert, describe, expect, it } from 'vitest'
 import { createBlock, createBlockHeader } from '../../block/index.ts'

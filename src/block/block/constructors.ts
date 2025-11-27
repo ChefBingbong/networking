@@ -1,6 +1,6 @@
 import { MerklePatriciaTrie } from "../../mpt/index.ts";
 import * as RLP from "../../rlp/index.ts";
-// import type { TxOptions, TypedTransaction } from '@ethereumjs/tx'
+// import type { TxOptions, TypedTransaction } from '../../tx'
 import {
   createTx,
   createTxFromBlockBodyData,

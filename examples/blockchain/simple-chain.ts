@@ -35,7 +35,7 @@ const main = async () => {
     },
     { common, setHardfork: true },
   )
-  // See @ethereumjs/block for more details on how to create a block
+  // See ../../block for more details on how to create a block
   await blockchain.putBlock(block)
 
   await blockchain.putBlock(block2)

@@ -49,7 +49,7 @@ import type {
 import type { OnFound } from './util/asyncWalk.ts'
 
 /**
- * The basic trie interface, use with `import { MerklePatriciaTrie } from '@ethereumjs/mpt'`.
+ * The basic trie interface, use with `import { MerklePatriciaTrie } from '../../mpt'`.
  *
  * A MerklePatriciaTrie object can be created with the constructor method:
  *

@@ -1,6 +1,6 @@
-import { Common, Hardfork, Mainnet } from '@ethereumjs/common'
-import { createEOACode7702Tx } from '@ethereumjs/tx'
-import { type PrefixedHexString, createAddressFromPrivateKey, randomBytes } from '@ethereumjs/util'
+import { Common, Hardfork, Mainnet } from '../../common'
+import { createEOACode7702Tx } from '../../tx'
+import { type PrefixedHexString, createAddressFromPrivateKey, randomBytes } from '../../util'
 
 const ones32 = `0x${'01'.repeat(32)}` as PrefixedHexString
 

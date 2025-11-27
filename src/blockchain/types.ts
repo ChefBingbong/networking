@@ -1,11 +1,11 @@
+import type { EventEmitter } from 'eventemitter3'
 import type { Block, BlockHeader } from '../block/index.ts'
 import type {
-  Common,
-  ConsensusAlgorithm,
-  GenesisState,
+    Common,
+    ConsensusAlgorithm,
+    GenesisState,
 } from '../chain-config/index.ts'
 import type { DB, DBObject } from '../utils/index.ts'
-import type { EventEmitter } from 'eventemitter3'
 import type { Blockchain } from './index.ts'
 
 export type OnBlock = (block: Block, reorg: boolean) => Promise<void> | void
@@ -200,8 +200,8 @@ export interface BlockchainOptions extends GenesisOptions {
    * respective consensus validation objects `EthashConsensus` or `CliqueConsensus`.
    *
    * ```ts
-   * import { CliqueConsensus, createBlockchain } from '@ethereumjs/blockchain'
-   * import type { ConsensusDict } from '@ethereumjs/blockchain'
+   * import { CliqueConsensus, createBlockchain } from '../../blockchain'
+   * import type { ConsensusDict } from '../../blockchain'
    *
    * const consensusDict: ConsensusDict = {}
    * consensusDict[ConsensusAlgorithm.Clique] = new CliqueConsensus()

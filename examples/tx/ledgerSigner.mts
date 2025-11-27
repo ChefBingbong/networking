@@ -1,14 +1,14 @@
-import { Common, Sepolia } from '@ethereumjs/common'
-import { RLP } from '@ethereumjs/rlp'
-import {
-  type FeeMarketEIP1559TxData,
-  type LegacyTxData,
-  createFeeMarket1559Tx,
-  createLegacyTx,
-} from '@ethereumjs/tx'
-import { bytesToHex } from '@ethereumjs/util'
 import Eth from '@ledgerhq/hw-app-eth'
 import TransportNodeHid from '@ledgerhq/hw-transport-node-hid'
+import { Common, Sepolia } from '../../common'
+import { RLP } from '../../rlp'
+import {
+    type FeeMarketEIP1559TxData,
+    type LegacyTxData,
+    createFeeMarket1559Tx,
+    createLegacyTx,
+} from '../../tx'
+import { bytesToHex } from '../../util'
 
 const transport = await TransportNodeHid.default.open()
 const eth = new Eth.default(transport)

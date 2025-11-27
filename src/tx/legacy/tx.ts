@@ -208,7 +208,7 @@ export class LegacyTx
 	 * and you might need to do yourself with:
 	 *
 	 * ```javascript
-	 * import { RLP } from '@ethereumjs/rlp'
+	 * import { RLP } from '../../rlp'
 	 * const message = tx.getMessageToSign()
 	 * const serializedMessage = RLP.encode(message)) // use this for the HW wallet input
 	 * ```
