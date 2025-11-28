@@ -67,5 +67,14 @@ export const customChainConfig: ChainConfig = {
 			block: 11,
 		},
 	],
-	bootstrapNodes: [],
+	bootstrapNodes: [
+
+		{
+			ip: "127.0.0.1",
+			port: 8000,
+			id: "011f758e6552d105183b1761c5e2dea0111bc20fd5f6422bc7f91e0fabbec9a6595caf6239b37feb773dddd3f87240d99d859431891e4a642cf2a0a9e6cbb98a",
+			location: "",
+			comment: "Local bootnode",
+		},
+	],
 };

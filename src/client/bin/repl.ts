@@ -3,8 +3,9 @@ import repl from 'repl'
 
 import { createInlineClient } from '../util/inclineClient.ts'
 
+import { getEnvArgs } from './envArgs.ts'
 import { startRPCServers } from './startRPC.ts'
-import { generateClientConfig, getArgs } from './utils.ts'
+import { generateClientConfig } from './utils.ts'
 
 import type { Common, GenesisState } from '../../chain-config/index.ts'
 import type { EthereumClient } from '../client.ts'
@@ -51,7 +52,6 @@ const activateRPCMethods = async (replServer: repl.REPLServer, allRPCMethods: an
   function defineRPCAction(context: repl.REPLServer, methodName: string, params: string) {
     let parsedParams
     if (params !== undefined && params.length > 0) {
-      // only parse params if actually provided
       try {
         parsedParams = JSON.parse(params)
       } catch (e) {
@@ -71,7 +71,7 @@ const activateRPCMethods = async (replServer: repl.REPLServer, allRPCMethods: an
   // activate all rpc methods (execution and engine) as repl commands
   for (const methodName of Object.keys(allRPCMethods)) {
     replServer.defineCommand(methodName, {
-      help: `Execute ${methodName}. Example usage: .${methodName} [params].`, // TODO see if there is a better way to format or self document, here
+      help: `Execute ${methodName}. Example usage: .${methodName} [params].`,
       action(params) {
         defineRPCAction(this, methodName, params)
       },
@@ -109,7 +109,7 @@ const setupRepl = async (args: ClientOpts) => {
     common,
     args,
   )
-  //@ts-expect-error  the `_methods` function is not documented in the jayson types
+  // @ts-expect-error  the `_methods` function is not documented in the jayson types
   const allRPCMethods = { ...executionRPC._methods, ...engineRPC._methods }
 
   const replServer = repl.start({
@@ -127,8 +127,7 @@ const setupRepl = async (args: ClientOpts) => {
   })
 
   await activateRPCMethods(replServer, allRPCMethods)
-
-  // TODO define more commands similar to geth admin package to allow basic tasks like knowing when the client is fully synced
 }
 
-await setupRepl(getArgs())
+// Use env-based args for REPL as well
+await setupRepl(getEnvArgs())

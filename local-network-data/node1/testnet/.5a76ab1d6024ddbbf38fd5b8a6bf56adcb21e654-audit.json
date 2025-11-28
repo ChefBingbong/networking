@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": false,
+        "amount": 5
+    },
+    "auditLog": "local-network-data/node1/testnet/.5a76ab1d6024ddbbf38fd5b8a6bf56adcb21e654-audit.json",
+    "files": [
+        {
+            "date": 1764328840044,
+            "name": "local-network-data/node1/testnet/ethereumjs.2025-11-28.log",
+            "hash": "06cc70a24d722af0fd5aa15b3aaef6a2f81ec9999ff049ee3d516bafdad25ee4"
+        }
+    ],
+    "hashType": "sha256"
+}

@@ -669,7 +669,11 @@ export async function generateClientConfig(args: ClientOpts) {
   let customGenesisState: GenesisState | undefined
   let common = new Common({ chain, hardfork: Hardfork.Chainstart, customCrypto: cryptoFunctions })
 
-  if (args.dev === true || typeof args.dev === 'string') {
+  // Treat dev as enabled when it's true or one of the string modes except 'false'
+  const devEnabled =
+    args.dev === true || (typeof args.dev === 'string' && args.dev !== 'false')
+
+  if (devEnabled) {
     args.discDns = false
     if (accounts.length === 0) {
       // If generating new keys delete old chain data to prevent genesis block mismatch
@@ -680,6 +684,7 @@ export async function generateClientConfig(args: ClientOpts) {
     const prefundAddress = accounts[0][0]
     ;({ common, customGenesisState } = await setupDevnet(prefundAddress, args))
   }
+
 
   // Configure common based on args given
 

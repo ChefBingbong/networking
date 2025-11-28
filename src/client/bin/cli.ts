@@ -11,8 +11,9 @@ import { EthereumJSErrorWithoutCode, bytesToHex, short } from '../../utils/index
 import { EthereumClient } from '../client.ts'
 import { Config, DataDirectory } from '../config.ts'
 import { LevelDB } from '../execution/level.ts'
+import { getEnvArgs } from './envArgs.ts'
 import { helpRPC, startRPCServers } from './startRPC.ts'
-import { generateClientConfig, getArgs } from './utils.ts'
+import { generateClientConfig } from './utils.ts'
 
 import type { AbstractLevel } from 'abstract-level'
 import type * as http from 'http'
@@ -27,7 +28,8 @@ import type { RPCArgs } from './startRPC.ts'
 
 let logger: Logger | undefined
 
-const args: ClientOpts = getArgs()
+// Read all configuration from ENV instead of CLI args
+const args: ClientOpts = getEnvArgs()
 
 /**
  * Initializes and returns the databases needed for the client
@@ -44,9 +46,6 @@ function initDBs(config: Config): {
   })
   const chainDB = new Level<string | Uint8Array, string | Uint8Array>(
     chainDataDir,
-    // `Level` and `AbstractLevel` somehow have a few property differences even though
-    // `Level` extends `AbstractLevel`.  We don't use any of the missing properties so
-    // just ignore this error
   ) as unknown as AbstractLevel<string | Uint8Array, string | Uint8Array, string | Uint8Array>
 
   // State DB
@@ -207,8 +206,6 @@ async function startClient(
   client.config.updateSynchronizedState(client.chain.headers.latest)
   if (client.config.synchronized === true) {
     const fullService = client.service
-    // The service might not be FullEthereumService even if we cast it as one,
-    // so txPool might not exist on it
     ;(fullService as FullEthereumService).txPool?.checkRunState()
   }
 
@@ -242,14 +239,15 @@ const stopClient = async (
 ) => {
   config.logger?.info('Caught interrupt signal. Obtaining client handle for clean shutdown...')
   config.logger?.info('(This might take a little longer if client not yet fully started)')
-  let timeoutHandle
-  if (clientStartPromise?.toString().includes('Promise') === true)
+  let timeoutHandle: NodeJS.Timeout | undefined
+  if (clientStartPromise?.toString().includes('Promise') === true) {
     // Client hasn't finished starting up so setting timeout to terminate process if not already shutdown gracefully
     timeoutHandle = setTimeout(() => {
       config.logger?.warn('Client has become unresponsive while starting up.')
       config.logger?.warn('Check logging output for potential errors.  Exiting...')
       process.exit(1)
     }, 30000)
+  }
   const clientHandle = await clientStartPromise
   if (clientHandle !== null) {
     config.logger?.info('Shutting down the client and the servers...')
@@ -257,9 +255,9 @@ const stopClient = async (
     for (const s of servers) {
       // jayson.Server type doesn't play well with ESM for some reason
       if ((s as any)['http'] !== undefined) {
-        (s as RPCServer).http().close()
+        ;(s as RPCServer).http().close()
       } else {
-        (s as http.Server).close()
+        ;(s as http.Server).close()
       }
     }
     await client.stop()
@@ -267,7 +265,7 @@ const stopClient = async (
   } else {
     config.logger?.info('Client did not start properly, exiting ...')
   }
-  clearTimeout(timeoutHandle)
+  if (timeoutHandle) clearTimeout(timeoutHandle)
   process.exit()
 }
 
@@ -281,11 +279,10 @@ async function run() {
   }
 
   const { config, customGenesisState, metricsServer } = await generateClientConfig(args)
-console.log(args)
+
   logger = config.logger
 
-  // Do not wait for client to be fully started so that we can hookup SIGINT handling
-  // else a SIGINT before may kill the process in unclean manner
+  console.log(config)
   const clientStartPromise = startClient(config, {
     genesisState: customGenesisState,
   })
@@ -318,8 +315,6 @@ console.log(args)
   })
 
   process.on('uncaughtException', (err) => {
-    // Handles uncaught exceptions that are thrown in async events/functions and aren't caught in
-    // main client process
     config.logger?.error(`Uncaught error: ${err.message}`)
     config.logger?.error(err)
 

@@ -1,0 +1,634 @@
+[11-28|11:19:45] INFO Sync Mode full
+[11-28|11:19:45] INFO Reading custom genesis state accounts=1
+[11-28|11:19:45] INFO Data directory: ./local-network-data
+[11-28|11:19:45] INFO Full sync mode
+[11-28|11:19:45] INFO Initializing Ethereumjs client version=vundefined network=testnet chainId=12345
+[11-28|11:19:45] INFO Preparing for sync using FullEthereumService with FullSynchronizer.
+[11-28|11:19:45] DEBUG Read SYNCING linked=false subchains= reset=false el=0 hash=0xda40…7c66
+[11-28|11:19:45] INFO Latest local block number=0 td=1 hash=0xda40…7c66 hardfork=chainstart
+[11-28|11:19:45] INFO Initializing VM merkle statemanager genesis hardfork=chainstart
+[11-28|11:19:45] INFO Setting up merkleVM
+[11-28|11:19:45] INFO Initializing account cache size=400000
+[11-28|11:19:45] INFO Initializing storage cache size=200000
+[11-28|11:19:45] INFO Initializing code cache size=200000
+[11-28|11:19:45] INFO Initializing trie cache size=200000
+[11-28|11:19:45] INFO Setup EVM execution.
+[11-28|11:19:45] INFO ---------------
+[11-28|11:19:45] INFO TxPool started.
+[11-28|11:19:45] INFO ---------------
+[11-28|11:19:45] DEBUG Client synchronized=true height=0 syncTargetHeight=0 lastSyncDate=0 secs ago
+[11-28|11:19:45] INFO Setup networking and services.
+[11-28|11:19:45] DEBUG Waiting for best peer (attempt #1)
+[11-28|11:19:45] INFO Started eth service.
+[11-28|11:19:45] INFO Miner started. Assembling next block in 10s
+[11-28|11:19:45] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:19:52] INFO Skipped execution run vmHead=0 canonicalHead=0 hardfork=chainstart execution=true
+[11-28|11:19:52] INFO Started rlpx server maxPeers=25
+[11-28|11:19:52] INFO Started discovery service discV4=true dns=false refreshInterval=30000
+[11-28|11:19:52] DEBUG Running execution startHeadBlock=0 canonicalHead=0 loop=true
+[11-28|11:19:52] INFO Server listener up transport=rlpx url=enode://56da2b9e65055f12e8549681c633c895db6031f41bd815a6814de4db6a682da5f977373e10c5e26811e6a9d9ef0588cb8ff7753a942a21af24be94defae9cce9@0.0.0.0:8000
+[11-28|11:19:52] DEBUG Waiting for best peer (attempt #2)
+[11-28|11:19:52] INFO Miner: Found PoW solution 🔨
+[11-28|11:19:52] INFO ---------------------------
+[11-28|11:19:52] INFO Client started successfully
+[11-28|11:19:52] INFO ---------------------------
+[11-28|11:19:55] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:19:55] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:19:55] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:19:55] INFO ----------------------------------------------------
+[11-28|11:19:55] INFO New hardfork reached 🪢 ! hardfork=homestead block=1
+[11-28|11:19:55] INFO ----------------------------------------------------
+[11-28|11:19:55] DEBUG Finishing up sync with the current fetcher  height=1
+[11-28|11:19:55] DEBUG Miner: Chain updated with block 1. Queuing next block assembly in 10s
+[11-28|11:19:55] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:19:55] DEBUG Running execution startHeadBlock=0 canonicalHead=1 loop=true
+[11-28|11:19:55] INFO -----------------------------------------------------------------------------------------
+[11-28|11:19:55] INFO Execution hardfork switch on block number=1 hash=0x294d…9e18 old=chainstart new=homestead
+[11-28|11:19:55] INFO -----------------------------------------------------------------------------------------
+[11-28|11:19:56] INFO Executed blocks count=1 first=0 hash=0xda40…7c66 td=131073 hardfork=homestead last=1 hash=0x294d…9e18 txs=0
+[11-28|11:19:57] DEBUG Waiting for best peer (attempt #3)
+[11-28|11:20:02] DEBUG Waiting for best peer (attempt #4)
+[11-28|11:20:03] DEBUG Waiting for best peer (attempt #1)
+[11-28|11:20:05] INFO Looking for suited peers: peertablesize=1
+[11-28|11:20:06] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:20:06] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:20:06] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:20:06] INFO -----------------------------------------------------------
+[11-28|11:20:06] INFO New hardfork reached 🪢 ! hardfork=tangerineWhistle block=2
+[11-28|11:20:06] INFO -----------------------------------------------------------
+[11-28|11:20:06] DEBUG Finishing up sync with the current fetcher  height=2
+[11-28|11:20:06] DEBUG Miner: Chain updated with block 2. Queuing next block assembly in 9s
+[11-28|11:20:06] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:20:06] DEBUG Running execution startHeadBlock=1 canonicalHead=2 loop=true
+[11-28|11:20:06] INFO -----------------------------------------------------------------------------------------------
+[11-28|11:20:06] INFO Execution hardfork switch on block number=2 hash=0x2dbf…169e old=homestead new=tangerineWhistle
+[11-28|11:20:06] INFO -----------------------------------------------------------------------------------------------
+[11-28|11:20:06] INFO Executed blocks count=1 first=1 hash=0x294d…9e18 td=262145 hardfork=tangerineWhistle last=2 hash=0x2dbf…169e txs=0
+[11-28|11:20:07] DEBUG Waiting for best peer (attempt #5)
+[11-28|11:20:08] DEBUG Waiting for best peer (attempt #2)
+[11-28|11:20:12] DEBUG Waiting for best peer (attempt #6)
+[11-28|11:20:14] DEBUG Waiting for best peer (attempt #3)
+[11-28|11:20:14] DEBUG Waiting for best peer (attempt #1)
+[11-28|11:20:15] INFO Memory stats usage=668 MB percentage=15%
+[11-28|11:20:16] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:20:16] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:20:16] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:20:16] INFO ---------------------------------------------------------
+[11-28|11:20:16] INFO New hardfork reached 🪢 ! hardfork=spuriousDragon block=3
+[11-28|11:20:16] INFO ---------------------------------------------------------
+[11-28|11:20:17] DEBUG Finishing up sync with the current fetcher  height=3
+[11-28|11:20:17] DEBUG Miner: Chain updated with block 3. Queuing next block assembly in 9s
+[11-28|11:20:17] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:20:17] DEBUG Running execution startHeadBlock=2 canonicalHead=3 loop=true
+[11-28|11:20:17] INFO ----------------------------------------------------------------------------------------------------
+[11-28|11:20:17] INFO Execution hardfork switch on block number=3 hash=0x2a82…a946 old=tangerineWhistle new=spuriousDragon
+[11-28|11:20:17] INFO ----------------------------------------------------------------------------------------------------
+[11-28|11:20:17] INFO Executed blocks count=1 first=2 hash=0x2dbf…169e td=393217 hardfork=spuriousDragon last=3 hash=0x2a82…a946 txs=0
+[11-28|11:20:17] DEBUG Waiting for best peer (attempt #7)
+[11-28|11:20:20] DEBUG Waiting for best peer (attempt #4)
+[11-28|11:20:20] DEBUG Waiting for best peer (attempt #2)
+[11-28|11:20:22] DEBUG Waiting for best peer (attempt #8)
+[11-28|11:20:25] DEBUG Waiting for best peer (attempt #5)
+[11-28|11:20:25] DEBUG Waiting for best peer (attempt #3)
+[11-28|11:20:25] DEBUG Waiting for best peer (attempt #1)
+[11-28|11:20:25] INFO Looking for suited peers: peertablesize=1
+[11-28|11:20:26] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:20:26] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:20:26] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:20:26] INFO ----------------------------------------------------
+[11-28|11:20:26] INFO New hardfork reached 🪢 ! hardfork=byzantium block=4
+[11-28|11:20:26] INFO ----------------------------------------------------
+[11-28|11:20:26] DEBUG Finishing up sync with the current fetcher  height=4
+[11-28|11:20:26] DEBUG Miner: Chain updated with block 4. Queuing next block assembly in 9s
+[11-28|11:20:26] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:20:26] DEBUG Running execution startHeadBlock=3 canonicalHead=4 loop=true
+[11-28|11:20:26] INFO ---------------------------------------------------------------------------------------------
+[11-28|11:20:26] INFO Execution hardfork switch on block number=4 hash=0x335b…d311 old=spuriousDragon new=byzantium
+[11-28|11:20:26] INFO ---------------------------------------------------------------------------------------------
+[11-28|11:20:27] WARN Execution of block number=4 hash=0x335b…d311 hardfork=byzantium failed:
+Error: invalid block stateRoot, got: 0x5a4632e6d45276e2fab3af4f1161e62f2739194d539b3a073028004f727352c3, want: 0xa325e54c9ff8e1030da7d447ad1313b21f6a35cf7714a2f9f10f013f597ae5a9 (vm hf=byzantium -> block number=4 hash=0x335bacf47647d4bee43bffa79f2e07ef645338b3871964628f4279674cded311 hf=byzantium baseFeePerGas=none txs=0 uncles=0)
+[11-28|11:20:27] INFO Executed blocks count=1 first=3 hash=0x2a82…a946 td=524289 hardfork=byzantium last=3 hash=0x2a82…a946 txs=0
+[11-28|11:20:27] DEBUG Waiting for best peer (attempt #9)
+[11-28|11:20:30] DEBUG Waiting for best peer (attempt #6)
+[11-28|11:20:30] DEBUG Waiting for best peer (attempt #4)
+[11-28|11:20:30] DEBUG Waiting for best peer (attempt #2)
+[11-28|11:20:32] DEBUG Waiting for best peer (attempt #10)
+[11-28|11:20:34] DEBUG Waiting for best peer (attempt #1)
+[11-28|11:20:35] DEBUG Waiting for best peer (attempt #7)
+[11-28|11:20:35] DEBUG Waiting for best peer (attempt #5)
+[11-28|11:20:35] INFO Stopped synchronization.
+[11-28|11:20:35] DEBUG Waiting for best peer (attempt #3)
+[11-28|11:20:36] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:20:36] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:20:36] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:20:36] INFO ---------------------------------------------------------
+[11-28|11:20:36] INFO New hardfork reached 🪢 ! hardfork=constantinople block=5
+[11-28|11:20:36] INFO ---------------------------------------------------------
+[11-28|11:20:36] DEBUG Finishing up sync with the current fetcher  height=5
+[11-28|11:20:36] DEBUG Miner: Chain updated with block 5. Queuing next block assembly in 9s
+[11-28|11:20:36] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:20:37] DEBUG Waiting for best peer (attempt #11)
+[11-28|11:20:39] DEBUG Waiting for best peer (attempt #2)
+[11-28|11:20:40] DEBUG Waiting for best peer (attempt #8)
+[11-28|11:20:40] DEBUG Waiting for best peer (attempt #6)
+[11-28|11:20:40] DEBUG Waiting for best peer (attempt #4)
+[11-28|11:20:42] DEBUG Waiting for best peer (attempt #12)
+[11-28|11:20:44] DEBUG Waiting for best peer (attempt #3)
+[11-28|11:20:45] DEBUG Waiting for best peer (attempt #9)
+[11-28|11:20:45] DEBUG Waiting for best peer (attempt #7)
+[11-28|11:20:45] DEBUG Waiting for best peer (attempt #5)
+[11-28|11:20:45] INFO Restarting RLPx server
+[11-28|11:20:45] INFO Stopped rlpx server.
+[11-28|11:20:45] INFO Started rlpx server maxPeers=25
+[11-28|11:20:45] INFO Started discovery service discV4=true dns=false refreshInterval=30000
+[11-28|11:20:45] INFO Server listener up transport=rlpx url=enode://56da2b9e65055f12e8549681c633c895db6031f41bd815a6814de4db6a682da5f977373e10c5e26811e6a9d9ef0588cb8ff7753a942a21af24be94defae9cce9@0.0.0.0:8000
+[11-28|11:20:45] INFO Reinitiating server bootstrap
+[11-28|11:20:46] DEBUG Memory stats usage=687 MB percentage=15%
+[11-28|11:20:46] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:20:46] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:20:46] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:20:46] INFO -----------------------------------------------------
+[11-28|11:20:46] INFO New hardfork reached 🪢 ! hardfork=petersburg block=6
+[11-28|11:20:46] INFO -----------------------------------------------------
+[11-28|11:20:46] DEBUG Miner: Chain updated with block 6. Queuing next block assembly in 9s
+[11-28|11:20:46] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:20:48] DEBUG Waiting for best peer (attempt #13)
+[11-28|11:20:49] DEBUG Waiting for best peer (attempt #4)
+[11-28|11:20:50] DEBUG Waiting for best peer (attempt #10)
+[11-28|11:20:50] DEBUG Waiting for best peer (attempt #8)
+[11-28|11:20:50] DEBUG Waiting for best peer (attempt #6)
+[11-28|11:20:53] DEBUG Waiting for best peer (attempt #14)
+[11-28|11:20:54] DEBUG Waiting for best peer (attempt #5)
+[11-28|11:20:55] DEBUG Waiting for best peer (attempt #11)
+[11-28|11:20:55] DEBUG Waiting for best peer (attempt #9)
+[11-28|11:20:55] DEBUG Waiting for best peer (attempt #7)
+[11-28|11:20:56] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:20:56] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:20:56] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:20:56] INFO ---------------------------------------------------
+[11-28|11:20:56] INFO New hardfork reached 🪢 ! hardfork=istanbul block=7
+[11-28|11:20:56] INFO ---------------------------------------------------
+[11-28|11:20:56] DEBUG Miner: Chain updated with block 7. Queuing next block assembly in 9s
+[11-28|11:20:56] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:20:58] DEBUG Waiting for best peer (attempt #15)
+[11-28|11:21:00] DEBUG Waiting for best peer (attempt #6)
+[11-28|11:21:00] DEBUG Waiting for best peer (attempt #12)
+[11-28|11:21:00] DEBUG Waiting for best peer (attempt #10)
+[11-28|11:21:00] DEBUG Waiting for best peer (attempt #8)
+[11-28|11:21:03] DEBUG Waiting for best peer (attempt #16)
+[11-28|11:21:05] DEBUG Waiting for best peer (attempt #7)
+[11-28|11:21:05] DEBUG Waiting for best peer (attempt #13)
+[11-28|11:21:05] DEBUG Waiting for best peer (attempt #11)
+[11-28|11:21:05] DEBUG Waiting for best peer (attempt #9)
+[11-28|11:21:06] INFO Looking for suited peers: peertablesize=1
+[11-28|11:21:06] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:21:06] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:21:06] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:21:06] INFO ------------------------------------------------------
+[11-28|11:21:06] INFO New hardfork reached 🪢 ! hardfork=muirGlacier block=8
+[11-28|11:21:06] INFO ------------------------------------------------------
+[11-28|11:21:06] DEBUG Miner: Chain updated with block 8. Queuing next block assembly in 9s
+[11-28|11:21:06] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:21:08] DEBUG Waiting for best peer (attempt #17)
+[11-28|11:21:10] DEBUG Waiting for best peer (attempt #8)
+[11-28|11:21:10] DEBUG Waiting for best peer (attempt #14)
+[11-28|11:21:10] DEBUG Waiting for best peer (attempt #12)
+[11-28|11:21:10] DEBUG Waiting for best peer (attempt #10)
+[11-28|11:21:13] DEBUG Waiting for best peer (attempt #18)
+[11-28|11:21:15] DEBUG Waiting for best peer (attempt #9)
+[11-28|11:21:15] DEBUG Waiting for best peer (attempt #15)
+[11-28|11:21:15] DEBUG Waiting for best peer (attempt #13)
+[11-28|11:21:15] DEBUG Waiting for best peer (attempt #11)
+[11-28|11:21:17] DEBUG Memory stats usage=688 MB percentage=15%
+[11-28|11:21:17] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:21:17] INFO Miner: Assembling block from 0 eligible txs 
+[11-28|11:21:17] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:21:17] INFO -------------------------------------------------
+[11-28|11:21:17] INFO New hardfork reached 🪢 ! hardfork=berlin block=9
+[11-28|11:21:17] INFO -------------------------------------------------
+[11-28|11:21:18] DEBUG Miner: Chain updated with block 9. Queuing next block assembly in 9s
+[11-28|11:21:18] INFO Miner: Finding next PoW solution 🔨
+[11-28|11:21:18] DEBUG Waiting for best peer (attempt #19)
+[11-28|11:21:20] DEBUG Waiting for best peer (attempt #10)
+[11-28|11:21:20] DEBUG Waiting for best peer (attempt #16)
+[11-28|11:21:20] DEBUG Waiting for best peer (attempt #14)
+[11-28|11:21:20] DEBUG Waiting for best peer (attempt #12)
+[11-28|11:21:23] DEBUG Waiting for best peer (attempt #20)
+[11-28|11:21:25] DEBUG Waiting for best peer (attempt #11)
+[11-28|11:21:25] DEBUG Waiting for best peer (attempt #17)
+[11-28|11:21:25] DEBUG Waiting for best peer (attempt #15)
+[11-28|11:21:25] INFO TxPool Statistics txs=0 senders=0 peers=0
+[11-28|11:21:25] INFO TxPool Statistics broadcasts=0/tx/peer broadcasterrors=0/tx/peer knownpeers=0 since minutes=20
+[11-28|11:21:25] INFO TxPool Statistics successfuladds=0 failedadds=0 since minutes=60
+[11-28|11:21:26] DEBUG Waiting for best peer (attempt #13)
+[11-28|11:21:26] INFO Looking for suited peers: peertablesize=1
+[11-28|11:21:27] INFO txsByPriceAndNonce selected txs=0, skipped byNonce=0 byPrice=0 byBlobsLimit=0 byFutureFork=0
+[11-28|11:21:27] INFO Miner: Assembling block from 0 eligible txs (baseFee: 1000000000)
+[11-28|11:21:27] INFO Miner: Sealed block with 0 txs (difficulty: 131072)
+[11-28|11:21:27] INFO --------------------------------------------------
+[11-28|11:21:27] INFO New hardfork reached 🪢 ! hardfork=london block=10
+[11-28|11:21:27] INFO --------------------------------------------------
+[11-28|11:21:27] DEBUG Miner: Chain updated with block 10. Queuing next block assembly in 10s
+[11-28|11:21:27] INFO Miner: reached merge hardfork - stopping
+[11-28|11:21:27] INFO Miner stopped.
+[11-28|11:21:28] DEBUG Waiting for best peer (attempt #21)
+[11-28|11:21:30] DEBUG Waiting for best peer (attempt #12)
+[11-28|11:21:30] DEBUG Waiting for best peer (attempt #18)
+[11-28|11:21:30] DEBUG Waiting for best peer (attempt #16)
+[11-28|11:21:31] DEBUG Waiting for best peer (attempt #14)
+[11-28|11:21:33] DEBUG Waiting for best peer (attempt #22)
+[11-28|11:21:35] DEBUG Waiting for best peer (attempt #13)
+[11-28|11:21:35] DEBUG Waiting for best peer (attempt #19)
+[11-28|11:21:35] DEBUG Waiting for best peer (attempt #17)
+[11-28|11:21:36] DEBUG Waiting for best peer (attempt #15)
+[11-28|11:21:38] DEBUG Waiting for best peer (attempt #23)
+[11-28|11:21:40] DEBUG Waiting for best peer (attempt #14)
+[11-28|11:21:40] DEBUG Waiting for best peer (attempt #20)
+[11-28|11:21:40] DEBUG Waiting for best peer (attempt #18)
+[11-28|11:21:41] DEBUG Waiting for best peer (attempt #16)
+[11-28|11:21:43] DEBUG Waiting for best peer (attempt #24)
+[11-28|11:21:45] DEBUG Waiting for best peer (attempt #15)
+[11-28|11:21:45] DEBUG Waiting for best peer (attempt #21)
+[11-28|11:21:45] DEBUG Waiting for best peer (attempt #19)
+[11-28|11:21:46] INFO Restarting RLPx server
+[11-28|11:21:46] INFO Stopped rlpx server.
+[11-28|11:21:46] INFO Started rlpx server maxPeers=25
+[11-28|11:21:46] INFO Started discovery service discV4=true dns=false refreshInterval=30000
+[11-28|11:21:46] INFO Server listener up transport=rlpx url=enode://56da2b9e65055f12e8549681c633c895db6031f41bd815a6814de4db6a682da5f977373e10c5e26811e6a9d9ef0588cb8ff7753a942a21af24be94defae9cce9@0.0.0.0:8000
+[11-28|11:21:46] INFO Reinitiating server bootstrap
+[11-28|11:21:46] DEBUG Waiting for best peer (attempt #17)
+[11-28|11:21:47] DEBUG Memory stats usage=121 MB percentage=3%
+[11-28|11:21:48] DEBUG Waiting for best peer (attempt #25)
+[11-28|11:21:50] DEBUG Waiting for best peer (attempt #16)
+[11-28|11:21:50] DEBUG Waiting for best peer (attempt #22)
+[11-28|11:21:50] DEBUG Waiting for best peer (attempt #20)
+[11-28|11:21:51] DEBUG Waiting for best peer (attempt #18)
+[11-28|11:21:53] DEBUG Waiting for best peer (attempt #26)
+[11-28|11:21:55] DEBUG Waiting for best peer (attempt #17)
+[11-28|11:21:55] DEBUG Waiting for best peer (attempt #23)
+[11-28|11:21:55] DEBUG Waiting for best peer (attempt #21)
+[11-28|11:21:56] DEBUG Waiting for best peer (attempt #19)
+[11-28|11:21:58] DEBUG Waiting for best peer (attempt #27)
+[11-28|11:22:00] DEBUG Waiting for best peer (attempt #18)
+[11-28|11:22:00] DEBUG Waiting for best peer (attempt #24)
+[11-28|11:22:00] DEBUG Waiting for best peer (attempt #22)
+[11-28|11:22:01] DEBUG Waiting for best peer (attempt #20)
+[11-28|11:22:03] DEBUG Waiting for best peer (attempt #28)
+[11-28|11:22:05] DEBUG Waiting for best peer (attempt #19)
+[11-28|11:22:05] DEBUG Waiting for best peer (attempt #25)
+[11-28|11:22:05] DEBUG Waiting for best peer (attempt #23)
+[11-28|11:22:06] INFO Looking for suited peers: peertablesize=1
+[11-28|11:22:06] DEBUG Waiting for best peer (attempt #21)
+[11-28|11:22:08] DEBUG Waiting for best peer (attempt #29)
+[11-28|11:22:10] DEBUG Waiting for best peer (attempt #20)
+[11-28|11:22:10] DEBUG Waiting for best peer (attempt #26)
+[11-28|11:22:10] DEBUG Waiting for best peer (attempt #24)
+[11-28|11:22:11] DEBUG Waiting for best peer (attempt #22)
+[11-28|11:22:13] DEBUG Waiting for best peer (attempt #30)
+[11-28|11:22:15] DEBUG Waiting for best peer (attempt #21)
+[11-28|11:22:15] DEBUG Waiting for best peer (attempt #27)
+[11-28|11:22:15] DEBUG Waiting for best peer (attempt #25)
+[11-28|11:22:16] DEBUG Waiting for best peer (attempt #23)
+[11-28|11:22:17] INFO Memory stats usage=122 MB percentage=3%
+[11-28|11:22:18] DEBUG Waiting for best peer (attempt #31)
+[11-28|11:22:20] DEBUG Waiting for best peer (attempt #22)
+[11-28|11:22:20] DEBUG Waiting for best peer (attempt #28)
+[11-28|11:22:20] DEBUG Waiting for best peer (attempt #26)
+[11-28|11:22:21] DEBUG Waiting for best peer (attempt #24)
+[11-28|11:22:23] DEBUG Waiting for best peer (attempt #32)
+[11-28|11:22:25] DEBUG Waiting for best peer (attempt #23)
+[11-28|11:22:25] DEBUG Waiting for best peer (attempt #29)
+[11-28|11:22:25] DEBUG Waiting for best peer (attempt #27)
+[11-28|11:22:26] INFO Looking for suited peers: peertablesize=1
+[11-28|11:22:26] DEBUG Waiting for best peer (attempt #25)
+[11-28|11:22:28] DEBUG Waiting for best peer (attempt #33)
+[11-28|11:22:30] DEBUG Waiting for best peer (attempt #24)
+[11-28|11:22:30] DEBUG Waiting for best peer (attempt #30)
+[11-28|11:22:30] DEBUG Waiting for best peer (attempt #28)
+[11-28|11:22:31] DEBUG Waiting for best peer (attempt #26)
+[11-28|11:22:33] DEBUG Waiting for best peer (attempt #34)
+[11-28|11:22:35] DEBUG Waiting for best peer (attempt #25)
+[11-28|11:22:35] DEBUG Waiting for best peer (attempt #31)
+[11-28|11:22:35] DEBUG Waiting for best peer (attempt #29)
+[11-28|11:22:36] DEBUG Waiting for best peer (attempt #27)
+[11-28|11:22:38] DEBUG Waiting for best peer (attempt #35)
+[11-28|11:22:40] DEBUG Waiting for best peer (attempt #26)
+[11-28|11:22:40] DEBUG Waiting for best peer (attempt #32)
+[11-28|11:22:40] DEBUG Waiting for best peer (attempt #30)
+[11-28|11:22:41] DEBUG Waiting for best peer (attempt #28)
+[11-28|11:22:43] DEBUG Waiting for best peer (attempt #36)
+[11-28|11:22:45] DEBUG Waiting for best peer (attempt #27)
+[11-28|11:22:45] DEBUG Waiting for best peer (attempt #33)
+[11-28|11:22:45] DEBUG Waiting for best peer (attempt #31)
+[11-28|11:22:46] INFO Restarting RLPx server
+[11-28|11:22:46] INFO Stopped rlpx server.
+[11-28|11:22:46] INFO Started rlpx server maxPeers=25
+[11-28|11:22:46] INFO Started discovery service discV4=true dns=false refreshInterval=30000
+[11-28|11:22:46] INFO Server listener up transport=rlpx url=enode://56da2b9e65055f12e8549681c633c895db6031f41bd815a6814de4db6a682da5f977373e10c5e26811e6a9d9ef0588cb8ff7753a942a21af24be94defae9cce9@0.0.0.0:8000
+[11-28|11:22:46] INFO Reinitiating server bootstrap
+[11-28|11:22:46] DEBUG Waiting for best peer (attempt #29)
+[11-28|11:22:47] DEBUG Memory stats usage=121 MB percentage=3%
+[11-28|11:22:48] DEBUG Waiting for best peer (attempt #37)
+[11-28|11:22:50] DEBUG Waiting for best peer (attempt #28)
+[11-28|11:22:50] DEBUG Waiting for best peer (attempt #34)
+[11-28|11:22:50] DEBUG Waiting for best peer (attempt #32)
+[11-28|11:22:51] DEBUG Waiting for best peer (attempt #30)
+[11-28|11:22:53] DEBUG Waiting for best peer (attempt #38)
+[11-28|11:22:55] DEBUG Waiting for best peer (attempt #29)
+[11-28|11:22:55] DEBUG Waiting for best peer (attempt #35)
+[11-28|11:22:55] DEBUG Waiting for best peer (attempt #33)
+[11-28|11:22:56] DEBUG Waiting for best peer (attempt #31)
+[11-28|11:22:58] DEBUG Waiting for best peer (attempt #39)
+[11-28|11:23:00] DEBUG Waiting for best peer (attempt #30)
+[11-28|11:23:00] DEBUG Waiting for best peer (attempt #36)
+[11-28|11:23:00] DEBUG Waiting for best peer (attempt #34)
+[11-28|11:23:01] DEBUG Waiting for best peer (attempt #32)
+[11-28|11:23:03] DEBUG Waiting for best peer (attempt #40)
+[11-28|11:23:05] DEBUG Waiting for best peer (attempt #31)
+[11-28|11:23:05] DEBUG Waiting for best peer (attempt #37)
+[11-28|11:23:05] DEBUG Waiting for best peer (attempt #35)
+[11-28|11:23:05] INFO TxPool Statistics txs=0 senders=0 peers=0
+[11-28|11:23:05] INFO TxPool Statistics broadcasts=0/tx/peer broadcasterrors=0/tx/peer knownpeers=0 since minutes=20
+[11-28|11:23:05] INFO TxPool Statistics successfuladds=0 failedadds=0 since minutes=60
+[11-28|11:23:06] INFO Looking for suited peers: peertablesize=1
+[11-28|11:23:06] DEBUG Waiting for best peer (attempt #33)
+[11-28|11:23:08] DEBUG Waiting for best peer (attempt #41)
+[11-28|11:23:10] DEBUG Waiting for best peer (attempt #32)
+[11-28|11:23:10] DEBUG Waiting for best peer (attempt #38)
+[11-28|11:23:10] DEBUG Waiting for best peer (attempt #36)
+[11-28|11:23:11] DEBUG Waiting for best peer (attempt #34)
+[11-28|11:23:13] DEBUG Waiting for best peer (attempt #42)
+[11-28|11:23:15] DEBUG Waiting for best peer (attempt #33)
+[11-28|11:23:15] DEBUG Waiting for best peer (attempt #39)
+[11-28|11:23:15] DEBUG Waiting for best peer (attempt #37)
+[11-28|11:23:16] DEBUG Waiting for best peer (attempt #35)
+[11-28|11:23:17] DEBUG Memory stats usage=122 MB percentage=3%
+[11-28|11:23:18] DEBUG Waiting for best peer (attempt #43)
+[11-28|11:23:20] DEBUG Waiting for best peer (attempt #34)
+[11-28|11:23:20] DEBUG Waiting for best peer (attempt #40)
+[11-28|11:23:20] DEBUG Waiting for best peer (attempt #38)
+[11-28|11:23:21] DEBUG Waiting for best peer (attempt #36)
+[11-28|11:23:23] DEBUG Waiting for best peer (attempt #44)
+[11-28|11:23:24] INFO Sync Mode full
+[11-28|11:23:24] INFO Reading custom genesis state accounts=1
+[11-28|11:23:24] INFO Data directory: ./local-network-data
+[11-28|11:23:24] ERROR Error starting client Database is not open
+[11-28|11:23:25] DEBUG Waiting for best peer (attempt #35)
+[11-28|11:23:25] DEBUG Waiting for best peer (attempt #41)
+[11-28|11:23:25] DEBUG Waiting for best peer (attempt #39)
+[11-28|11:23:26] INFO Looking for suited peers: peertablesize=1
+[11-28|11:23:26] DEBUG Waiting for best peer (attempt #37)
+[11-28|11:23:28] DEBUG Waiting for best peer (attempt #45)
+[11-28|11:23:30] DEBUG Waiting for best peer (attempt #36)
+[11-28|11:23:30] DEBUG Waiting for best peer (attempt #42)
+[11-28|11:23:30] DEBUG Waiting for best peer (attempt #40)
+[11-28|11:23:31] DEBUG Waiting for best peer (attempt #38)
+[11-28|11:23:33] DEBUG Waiting for best peer (attempt #46)
+[11-28|11:23:35] DEBUG Waiting for best peer (attempt #37)
+[11-28|11:23:35] DEBUG Waiting for best peer (attempt #43)
+[11-28|11:23:35] DEBUG Waiting for best peer (attempt #41)
+[11-28|11:23:36] DEBUG Waiting for best peer (attempt #39)
+[11-28|11:23:38] DEBUG Waiting for best peer (attempt #47)
+[11-28|11:23:40] DEBUG Waiting for best peer (attempt #38)
+[11-28|11:23:40] DEBUG Waiting for best peer (attempt #44)
+[11-28|11:23:40] DEBUG Waiting for best peer (attempt #42)
+[11-28|11:23:41] DEBUG Waiting for best peer (attempt #40)
+[11-28|11:23:43] DEBUG Waiting for best peer (attempt #48)
+[11-28|11:23:45] DEBUG Waiting for best peer (attempt #39)
+[11-28|11:23:45] DEBUG Waiting for best peer (attempt #45)
+[11-28|11:23:45] DEBUG Waiting for best peer (attempt #43)
+[11-28|11:23:46] INFO Restarting RLPx server
+[11-28|11:23:46] INFO Stopped rlpx server.
+[11-28|11:23:46] INFO Started rlpx server maxPeers=25
+[11-28|11:23:46] INFO Started discovery service discV4=true dns=false refreshInterval=30000
+[11-28|11:23:46] INFO Server listener up transport=rlpx url=enode://56da2b9e65055f12e8549681c633c895db6031f41bd815a6814de4db6a682da5f977373e10c5e26811e6a9d9ef0588cb8ff7753a942a21af24be94defae9cce9@0.0.0.0:8000
+[11-28|11:23:46] INFO Reinitiating server bootstrap
+[11-28|11:23:46] DEBUG Waiting for best peer (attempt #41)
+[11-28|11:23:47] DEBUG Memory stats usage=120 MB percentage=3%
+[11-28|11:23:48] DEBUG Waiting for best peer (attempt #49)
+[11-28|11:23:50] DEBUG Waiting for best peer (attempt #40)
+[11-28|11:23:50] DEBUG Waiting for best peer (attempt #46)
+[11-28|11:23:50] DEBUG Waiting for best peer (attempt #44)
+[11-28|11:23:51] DEBUG Waiting for best peer (attempt #42)
+[11-28|11:23:53] DEBUG Waiting for best peer (attempt #50)
+[11-28|11:23:55] DEBUG Waiting for best peer (attempt #41)
+[11-28|11:23:55] DEBUG Waiting for best peer (attempt #47)
+[11-28|11:23:55] DEBUG Waiting for best peer (attempt #45)
+[11-28|11:23:56] DEBUG Waiting for best peer (attempt #43)
+[11-28|11:23:58] DEBUG Waiting for best peer (attempt #51)
+[11-28|11:24:00] DEBUG Waiting for best peer (attempt #42)
+[11-28|11:24:00] DEBUG Waiting for best peer (attempt #48)
+[11-28|11:24:00] DEBUG Waiting for best peer (attempt #46)
+[11-28|11:24:01] DEBUG Waiting for best peer (attempt #44)
+[11-28|11:24:03] DEBUG Waiting for best peer (attempt #52)
+[11-28|11:24:05] DEBUG Waiting for best peer (attempt #43)
+[11-28|11:24:05] DEBUG Waiting for best peer (attempt #49)
+[11-28|11:24:05] DEBUG Waiting for best peer (attempt #47)
+[11-28|11:24:06] INFO Looking for suited peers: peertablesize=1
+[11-28|11:24:06] DEBUG Waiting for best peer (attempt #45)
+[11-28|11:24:08] DEBUG Waiting for best peer (attempt #53)
+[11-28|11:24:10] DEBUG Waiting for best peer (attempt #44)
+[11-28|11:24:10] DEBUG Waiting for best peer (attempt #50)
+[11-28|11:24:10] DEBUG Waiting for best peer (attempt #48)
+[11-28|11:24:11] DEBUG Waiting for best peer (attempt #46)
+[11-28|11:24:13] DEBUG Waiting for best peer (attempt #54)
+[11-28|11:24:15] DEBUG Waiting for best peer (attempt #45)
+[11-28|11:24:15] DEBUG Waiting for best peer (attempt #51)
+[11-28|11:24:15] DEBUG Waiting for best peer (attempt #49)
+[11-28|11:24:16] DEBUG Waiting for best peer (attempt #47)
+[11-28|11:24:17] INFO Memory stats usage=121 MB percentage=3%
+[11-28|11:24:18] DEBUG Waiting for best peer (attempt #55)
+[11-28|11:24:20] DEBUG Waiting for best peer (attempt #46)
+[11-28|11:24:20] DEBUG Waiting for best peer (attempt #52)
+[11-28|11:24:20] DEBUG Waiting for best peer (attempt #50)
+[11-28|11:24:21] DEBUG Waiting for best peer (attempt #48)
+[11-28|11:24:23] DEBUG Waiting for best peer (attempt #56)
+[11-28|11:24:25] DEBUG Waiting for best peer (attempt #47)
+[11-28|11:24:25] DEBUG Waiting for best peer (attempt #53)
+[11-28|11:24:25] DEBUG Waiting for best peer (attempt #51)
+[11-28|11:24:26] INFO Looking for suited peers: peertablesize=1
+[11-28|11:24:26] DEBUG Waiting for best peer (attempt #49)
+[11-28|11:24:28] DEBUG Waiting for best peer (attempt #57)
+[11-28|11:24:30] DEBUG Waiting for best peer (attempt #48)
+[11-28|11:24:30] DEBUG Waiting for best peer (attempt #54)
+[11-28|11:24:30] DEBUG Waiting for best peer (attempt #52)
+[11-28|11:24:31] DEBUG Waiting for best peer (attempt #50)
+[11-28|11:24:33] DEBUG Waiting for best peer (attempt #58)
+[11-28|11:24:35] DEBUG Waiting for best peer (attempt #49)
+[11-28|11:24:35] DEBUG Waiting for best peer (attempt #55)
+[11-28|11:24:35] DEBUG Waiting for best peer (attempt #53)
+[11-28|11:24:36] DEBUG Waiting for best peer (attempt #51)
+[11-28|11:24:38] DEBUG Waiting for best peer (attempt #59)
+[11-28|11:24:40] DEBUG Waiting for best peer (attempt #50)
+[11-28|11:24:40] DEBUG Waiting for best peer (attempt #56)
+[11-28|11:24:40] DEBUG Waiting for best peer (attempt #54)
+[11-28|11:24:41] DEBUG Waiting for best peer (attempt #52)
+[11-28|11:24:43] DEBUG Waiting for best peer (attempt #60)
+[11-28|11:24:45] DEBUG Waiting for best peer (attempt #51)
+[11-28|11:24:45] DEBUG Waiting for best peer (attempt #57)
+[11-28|11:24:45] DEBUG Waiting for best peer (attempt #55)
+[11-28|11:24:45] INFO TxPool Statistics txs=0 senders=0 peers=0
+[11-28|11:24:45] INFO TxPool Statistics broadcasts=0/tx/peer broadcasterrors=0/tx/peer knownpeers=0 since minutes=20
+[11-28|11:24:45] INFO TxPool Statistics successfuladds=0 failedadds=0 since minutes=60
+[11-28|11:24:46] INFO Restarting RLPx server
+[11-28|11:24:46] INFO Stopped rlpx server.
+[11-28|11:24:46] INFO Started rlpx server maxPeers=25
+[11-28|11:24:46] INFO Started discovery service discV4=true dns=false refreshInterval=30000
+[11-28|11:24:46] INFO Server listener up transport=rlpx url=enode://56da2b9e65055f12e8549681c633c895db6031f41bd815a6814de4db6a682da5f977373e10c5e26811e6a9d9ef0588cb8ff7753a942a21af24be94defae9cce9@0.0.0.0:8000
+[11-28|11:24:46] INFO Reinitiating server bootstrap
+[11-28|11:24:46] DEBUG Waiting for best peer (attempt #53)
+[11-28|11:24:47] DEBUG Memory stats usage=121 MB percentage=3%
+[11-28|11:24:48] DEBUG Waiting for best peer (attempt #61)
+[11-28|11:24:50] DEBUG Waiting for best peer (attempt #52)
+[11-28|11:24:50] DEBUG Waiting for best peer (attempt #58)
+[11-28|11:24:50] DEBUG Waiting for best peer (attempt #56)
+[11-28|11:24:51] DEBUG Waiting for best peer (attempt #54)
+[11-28|11:24:53] DEBUG Waiting for best peer (attempt #62)
+[11-28|11:24:55] DEBUG Waiting for best peer (attempt #53)
+[11-28|11:24:55] DEBUG Waiting for best peer (attempt #59)
+[11-28|11:24:55] DEBUG Waiting for best peer (attempt #57)
+[11-28|11:24:56] DEBUG Waiting for best peer (attempt #55)
+[11-28|11:24:58] DEBUG Waiting for best peer (attempt #63)
+[11-28|11:25:00] DEBUG Waiting for best peer (attempt #54)
+[11-28|11:25:00] DEBUG Waiting for best peer (attempt #60)
+[11-28|11:25:00] DEBUG Waiting for best peer (attempt #58)
+[11-28|11:25:01] DEBUG Waiting for best peer (attempt #56)
+[11-28|11:25:03] DEBUG Waiting for best peer (attempt #64)
+[11-28|11:25:05] DEBUG Waiting for best peer (attempt #55)
+[11-28|11:25:05] DEBUG Waiting for best peer (attempt #61)
+[11-28|11:25:05] DEBUG Waiting for best peer (attempt #59)
+[11-28|11:25:06] INFO Looking for suited peers: peertablesize=1
+[11-28|11:25:06] DEBUG Waiting for best peer (attempt #57)
+[11-28|11:25:08] DEBUG Waiting for best peer (attempt #65)
+[11-28|11:25:10] DEBUG Waiting for best peer (attempt #56)
+[11-28|11:25:10] DEBUG Waiting for best peer (attempt #62)
+[11-28|11:25:10] DEBUG Waiting for best peer (attempt #60)
+[11-28|11:25:11] DEBUG Waiting for best peer (attempt #58)
+[11-28|11:25:13] DEBUG Waiting for best peer (attempt #66)
+[11-28|11:25:15] DEBUG Waiting for best peer (attempt #57)
+[11-28|11:25:15] DEBUG Waiting for best peer (attempt #63)
+[11-28|11:25:15] DEBUG Waiting for best peer (attempt #61)
+[11-28|11:25:16] DEBUG Waiting for best peer (attempt #59)
+[11-28|11:25:17] DEBUG Memory stats usage=122 MB percentage=3%
+[11-28|11:25:18] DEBUG Waiting for best peer (attempt #67)
+[11-28|11:25:20] DEBUG Waiting for best peer (attempt #58)
+[11-28|11:25:20] DEBUG Waiting for best peer (attempt #64)
+[11-28|11:25:20] DEBUG Waiting for best peer (attempt #62)
+[11-28|11:25:21] DEBUG Waiting for best peer (attempt #60)
+[11-28|11:25:23] DEBUG Waiting for best peer (attempt #68)
+[11-28|11:25:25] DEBUG Waiting for best peer (attempt #59)
+[11-28|11:25:25] DEBUG Waiting for best peer (attempt #65)
+[11-28|11:25:25] DEBUG Waiting for best peer (attempt #63)
+[11-28|11:25:26] INFO Looking for suited peers: peertablesize=1
+[11-28|11:25:26] DEBUG Waiting for best peer (attempt #61)
+[11-28|11:25:28] DEBUG Waiting for best peer (attempt #69)
+[11-28|11:25:30] DEBUG Waiting for best peer (attempt #60)
+[11-28|11:25:30] DEBUG Waiting for best peer (attempt #66)
+[11-28|11:25:30] DEBUG Waiting for best peer (attempt #64)
+[11-28|11:25:31] DEBUG Waiting for best peer (attempt #62)
+[11-28|11:25:33] DEBUG Waiting for best peer (attempt #70)
+[11-28|11:25:35] DEBUG Waiting for best peer (attempt #61)
+[11-28|11:25:35] DEBUG Waiting for best peer (attempt #67)
+[11-28|11:25:35] DEBUG Waiting for best peer (attempt #65)
+[11-28|11:25:36] DEBUG Waiting for best peer (attempt #63)
+[11-28|11:25:38] DEBUG Waiting for best peer (attempt #71)
+[11-28|11:25:40] DEBUG Waiting for best peer (attempt #62)
+[11-28|11:25:40] DEBUG Waiting for best peer (attempt #68)
+[11-28|11:25:40] DEBUG Waiting for best peer (attempt #66)
+[11-28|11:25:41] DEBUG Waiting for best peer (attempt #64)
+[11-28|11:25:43] DEBUG Waiting for best peer (attempt #72)
+[11-28|11:25:45] DEBUG Waiting for best peer (attempt #63)
+[11-28|11:25:45] DEBUG Waiting for best peer (attempt #69)
+[11-28|11:25:45] DEBUG Waiting for best peer (attempt #67)
+[11-28|11:25:46] INFO Restarting RLPx server
+[11-28|11:25:46] INFO Stopped rlpx server.
+[11-28|11:25:46] INFO Started rlpx server maxPeers=25
+[11-28|11:25:46] INFO Started discovery service discV4=true dns=false refreshInterval=30000
+[11-28|11:25:46] INFO Server listener up transport=rlpx url=enode://56da2b9e65055f12e8549681c633c895db6031f41bd815a6814de4db6a682da5f977373e10c5e26811e6a9d9ef0588cb8ff7753a942a21af24be94defae9cce9@0.0.0.0:8000
+[11-28|11:25:46] INFO Reinitiating server bootstrap
+[11-28|11:25:46] DEBUG Waiting for best peer (attempt #65)
+[11-28|11:25:47] DEBUG Memory stats usage=124 MB percentage=3%
+[11-28|11:25:48] DEBUG Waiting for best peer (attempt #73)
+[11-28|11:25:50] DEBUG Waiting for best peer (attempt #64)
+[11-28|11:25:50] DEBUG Waiting for best peer (attempt #70)
+[11-28|11:25:50] DEBUG Waiting for best peer (attempt #68)
+[11-28|11:25:51] DEBUG Waiting for best peer (attempt #66)
+[11-28|11:25:53] DEBUG Waiting for best peer (attempt #74)
+[11-28|11:25:55] DEBUG Waiting for best peer (attempt #65)
+[11-28|11:25:55] DEBUG Waiting for best peer (attempt #71)
+[11-28|11:25:55] DEBUG Waiting for best peer (attempt #69)
+[11-28|11:25:56] DEBUG Waiting for best peer (attempt #67)
+[11-28|11:25:58] DEBUG Waiting for best peer (attempt #75)
+[11-28|11:26:00] DEBUG Waiting for best peer (attempt #66)
+[11-28|11:26:00] DEBUG Waiting for best peer (attempt #72)
+[11-28|11:26:00] DEBUG Waiting for best peer (attempt #70)
+[11-28|11:26:01] DEBUG Waiting for best peer (attempt #68)
+[11-28|11:26:03] DEBUG Waiting for best peer (attempt #76)
+[11-28|11:26:05] DEBUG Waiting for best peer (attempt #67)
+[11-28|11:26:05] DEBUG Waiting for best peer (attempt #73)
+[11-28|11:26:05] DEBUG Waiting for best peer (attempt #71)
+[11-28|11:26:06] INFO Looking for suited peers: peertablesize=1
+[11-28|11:26:06] DEBUG Waiting for best peer (attempt #69)
+[11-28|11:26:08] DEBUG Waiting for best peer (attempt #77)
+[11-28|11:26:10] DEBUG Waiting for best peer (attempt #68)
+[11-28|11:26:10] DEBUG Waiting for best peer (attempt #74)
+[11-28|11:26:10] DEBUG Waiting for best peer (attempt #72)
+[11-28|11:26:11] DEBUG Waiting for best peer (attempt #70)
+[11-28|11:26:13] DEBUG Waiting for best peer (attempt #78)
+[11-28|11:26:15] DEBUG Waiting for best peer (attempt #69)
+[11-28|11:26:15] DEBUG Waiting for best peer (attempt #75)
+[11-28|11:26:15] DEBUG Waiting for best peer (attempt #73)
+[11-28|11:26:16] DEBUG Waiting for best peer (attempt #71)
+[11-28|11:26:17] INFO Memory stats usage=123 MB percentage=3%
+[11-28|11:26:18] DEBUG Waiting for best peer (attempt #79)
+[11-28|11:26:20] DEBUG Waiting for best peer (attempt #70)
+[11-28|11:26:20] DEBUG Waiting for best peer (attempt #76)
+[11-28|11:26:20] DEBUG Waiting for best peer (attempt #74)
+[11-28|11:26:21] DEBUG Waiting for best peer (attempt #72)
+[11-28|11:26:23] DEBUG Waiting for best peer (attempt #80)
+[11-28|11:26:25] DEBUG Waiting for best peer (attempt #71)
+[11-28|11:26:25] DEBUG Waiting for best peer (attempt #77)
+[11-28|11:26:25] DEBUG Waiting for best peer (attempt #75)
+[11-28|11:26:25] INFO TxPool Statistics txs=0 senders=0 peers=0
+[11-28|11:26:25] INFO TxPool Statistics broadcasts=0/tx/peer broadcasterrors=0/tx/peer knownpeers=0 since minutes=20
+[11-28|11:26:25] INFO TxPool Statistics successfuladds=0 failedadds=0 since minutes=60
+[11-28|11:26:26] INFO Looking for suited peers: peertablesize=1
+[11-28|11:26:26] DEBUG Waiting for best peer (attempt #73)
+[11-28|11:26:28] DEBUG Waiting for best peer (attempt #81)
+[11-28|11:26:30] DEBUG Waiting for best peer (attempt #72)
+[11-28|11:26:30] DEBUG Waiting for best peer (attempt #78)
+[11-28|11:26:30] DEBUG Waiting for best peer (attempt #76)
+[11-28|11:26:31] DEBUG Waiting for best peer (attempt #74)
+[11-28|11:26:33] DEBUG Waiting for best peer (attempt #82)
+[11-28|11:26:35] DEBUG Waiting for best peer (attempt #73)
+[11-28|11:26:35] DEBUG Waiting for best peer (attempt #79)
+[11-28|11:26:35] DEBUG Waiting for best peer (attempt #77)
+[11-28|11:26:36] DEBUG Waiting for best peer (attempt #75)
+[11-28|11:26:38] DEBUG Waiting for best peer (attempt #83)
+[11-28|11:26:40] DEBUG Waiting for best peer (attempt #74)
+[11-28|11:26:40] DEBUG Waiting for best peer (attempt #80)
+[11-28|11:26:40] DEBUG Waiting for best peer (attempt #78)
+[11-28|11:26:41] DEBUG Waiting for best peer (attempt #76)
+[11-28|11:26:43] DEBUG Waiting for best peer (attempt #84)
+[11-28|11:26:45] DEBUG Waiting for best peer (attempt #75)
+[11-28|11:26:45] DEBUG Waiting for best peer (attempt #81)
+[11-28|11:26:45] DEBUG Waiting for best peer (attempt #79)
+[11-28|11:26:46] INFO Restarting RLPx server
+[11-28|11:26:46] INFO Stopped rlpx server.
+[11-28|11:26:46] INFO Started rlpx server maxPeers=25
+[11-28|11:26:46] INFO Started discovery service discV4=true dns=false refreshInterval=30000
+[11-28|11:26:46] INFO Server listener up transport=rlpx url=enode://56da2b9e65055f12e8549681c633c895db6031f41bd815a6814de4db6a682da5f977373e10c5e26811e6a9d9ef0588cb8ff7753a942a21af24be94defae9cce9@0.0.0.0:8000
+[11-28|11:26:46] INFO Reinitiating server bootstrap
+[11-28|11:26:46] DEBUG Waiting for best peer (attempt #77)
+[11-28|11:26:47] DEBUG Memory stats usage=124 MB percentage=3%
+[11-28|11:26:48] DEBUG Waiting for best peer (attempt #85)
+[11-28|11:26:50] DEBUG Waiting for best peer (attempt #76)
+[11-28|11:26:50] DEBUG Waiting for best peer (attempt #82)
+[11-28|11:26:50] DEBUG Waiting for best peer (attempt #80)
+[11-28|11:26:51] DEBUG Waiting for best peer (attempt #78)
+[11-28|11:26:53] INFO Caught interrupt signal. Obtaining client handle for clean shutdown...
+[11-28|11:26:53] INFO (This might take a little longer if client not yet fully started)
+[11-28|11:26:53] INFO Shutting down the client and the servers...
+[11-28|11:26:53] INFO TxPool stopped.
+[11-28|11:26:53] INFO Stopped execution.
+[11-28|11:26:53] INFO Stopped eth service.

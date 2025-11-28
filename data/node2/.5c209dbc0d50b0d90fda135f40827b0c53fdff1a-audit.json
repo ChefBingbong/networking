@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": false,
+        "amount": 5
+    },
+    "auditLog": "data/node2/.5c209dbc0d50b0d90fda135f40827b0c53fdff1a-audit.json",
+    "files": [
+        {
+            "date": 1764333450588,
+            "name": "data/node2/ethereumjs.2025-11-28.log",
+            "hash": "b834a01e0dfb46b3faae62cd34b152f6190810bcc0e4135dca91d77af9f1e40c"
+        }
+    ],
+    "hashType": "sha256"
+}
