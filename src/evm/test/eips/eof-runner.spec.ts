@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { Account, Address, type PrefixedHexString, hexToBytes } from '../../../utils'
 
-import { EOFContainer, createEVM } from '../../index.ts'
+import { EOFContainer, createEVM } from '../..'
 
 import { getCommon } from './eof-utils.ts'
 

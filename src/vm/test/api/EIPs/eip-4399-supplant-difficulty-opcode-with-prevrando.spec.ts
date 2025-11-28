@@ -1,12 +1,12 @@
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { createBlockchain } from '../../../../blockchain/index.ts'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { bytesToBigInt, hexToBytes } from '../../../../utils/index.ts'
+import { createBlock } from '../../../../block'
+import { createBlockchain } from '../../../../blockchain'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { bytesToBigInt, hexToBytes } from '../../../../utils'
 
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
 
-import type { InterpreterStep } from '../../../../evm/index.ts'
+import type { InterpreterStep } from '../../../../evm'
 
 describe('EIP-4399 -> 0x44 (DIFFICULTY) should return PREVRANDAO', () => {
   it('should return the right values', async () => {

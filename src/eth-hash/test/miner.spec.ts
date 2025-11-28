@@ -3,7 +3,7 @@ import { createBlock } from '../../block'
 import { Common, Hardfork, Mainnet } from '../../chain-config'
 import { MapDB } from '../../utils'
 
-import { Ethash } from '../index.ts'
+import { Ethash } from '..'
 
 import type { Block, BlockHeader } from '../../block'
 import type { DBObject } from '../../utils'

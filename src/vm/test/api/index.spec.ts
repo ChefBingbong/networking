@@ -1,14 +1,14 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet, createCustomCommon } from '../../../chain-config/index.ts'
-import { EVM, createEVM } from '../../../evm/index.ts'
-import { testnetMergeChainConfig } from '../../../testdata/index.ts'
-import { Account, KECCAK256_RLP, createAddressFromString, hexToBytes } from '../../../utils/index.ts'
+import { Common, Hardfork, Mainnet, createCustomCommon } from '../../../chain-config'
+import { EVM, createEVM } from '../../../evm'
+import { testnetMergeChainConfig } from '../../../testdata'
+import { Account, KECCAK256_RLP, createAddressFromString, hexToBytes } from '../../../utils'
 
-import { type VMOpts, createVM, paramsVM } from '../../index.ts'
+import { type VMOpts, createVM, paramsVM } from '../..'
 
 import { setupVM } from './utils.ts'
 
-import type { MerkleStateManager } from '../../../state-manager/index.ts'
+import type { MerkleStateManager } from '../../../state-manager'
 
 /**
  * Tests for the main constructor API and

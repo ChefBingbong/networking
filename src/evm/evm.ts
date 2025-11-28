@@ -26,9 +26,9 @@ import { Interpreter } from './interpreter.ts'
 import { Journal } from './journal.ts'
 import { EVMPerformanceLogger } from './logger.ts'
 import { Message } from './message.ts'
-import { getOpcodesForHF } from './opcodes/index.ts'
+import { getOpcodesForHF } from './opcodes'
 import { paramsEVM } from './params.ts'
-import { NobleBLS, getActivePrecompiles, getPrecompileName } from './precompiles/index.ts'
+import { NobleBLS, getActivePrecompiles, getPrecompileName } from './precompiles'
 import { TransientStorage } from './transientStorage.ts'
 import {
     type Block,
@@ -51,9 +51,9 @@ import type { BinaryTreeAccessWitness } from './binaryTreeAccessWitness.ts'
 import type { InterpreterOpts } from './interpreter.ts'
 import type { Timer } from './logger.ts'
 import type { MessageWithTo } from './message.ts'
+import type { OpHandler, OpcodeList, OpcodeMap } from './opcodes'
 import type { AsyncDynamicGasHandler, SyncDynamicGasHandler } from './opcodes/gas.ts'
-import type { OpHandler, OpcodeList, OpcodeMap } from './opcodes/index.ts'
-import type { CustomPrecompile, PrecompileFunc } from './precompiles/index.ts'
+import type { CustomPrecompile, PrecompileFunc } from './precompiles'
 
 const debug = debugDefault('evm:evm')
 const debugGas = debugDefault('evm:gas')

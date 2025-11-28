@@ -2,7 +2,7 @@ import { assert, describe, it } from 'vitest'
 import { Common, Hardfork, Mainnet } from '../../chain-config'
 import { Address, createAddressFromBigInt, hexToBytes } from '../../utils'
 
-import { createEVM } from '../index.ts'
+import { createEVM } from '..'
 
 describe('async events', () => {
   it('should work', async () => {

@@ -1,5 +1,5 @@
-import * as RLP from '../../rlp/index.ts'
-import { bytesToHex, equalsBytes } from '../../utils/index.ts'
+import * as RLP from '../../rlp'
+import { bytesToHex, equalsBytes } from '../../utils'
 
 import { BranchMPTNode } from '../node/branch.ts'
 import { ExtensionMPTNode } from '../node/extension.ts'

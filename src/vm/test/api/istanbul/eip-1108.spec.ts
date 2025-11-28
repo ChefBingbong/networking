@@ -1,11 +1,11 @@
 import { assert, beforeAll, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { getActivePrecompiles } from '../../../../evm/index.ts'
-import { hexToBytes } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { getActivePrecompiles } from '../../../../evm'
+import { hexToBytes } from '../../../../utils'
 
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
 
-import type { VM } from '../../../index.ts'
+import type { VM } from '../../..'
 
 describe('Istanbul: EIP-1108 tests', () => {
   let vm: VM

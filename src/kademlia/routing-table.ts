@@ -2,7 +2,7 @@
 // Wrapper around the tree-based KBucket with peer lookup helpers
 
 import { EventEmitter } from 'eventemitter3'
-import { bytesToUnprefixedHex } from '../utils/index.ts'
+import { bytesToUnprefixedHex } from '../utils'
 import { KBucket } from './bucket.ts'
 import type { Contact, KBucketEvent, PeerInfo, RoutingTableConfig } from './types.ts'
 

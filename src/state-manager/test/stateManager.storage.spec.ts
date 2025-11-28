@@ -10,7 +10,7 @@ import {
     unpadBytes,
 } from '../../utils'
 
-import { Caches, MerkleStateManager } from '../index.ts'
+import { Caches, MerkleStateManager } from '..'
 
 import { createAccountWithDefaults } from './util.ts'
 

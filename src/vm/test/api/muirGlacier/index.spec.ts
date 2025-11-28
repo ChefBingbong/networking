@@ -1,9 +1,9 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { KECCAK256_RLP } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { KECCAK256_RLP } from '../../../../utils'
 
-import type { MerkleStateManager } from '../../../../state-manager/index.ts'
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
+import type { MerkleStateManager } from '../../../../state-manager'
 
 describe('General MuirGlacier VM tests', () => {
   it('should accept muirGlacier hardfork option for supported chains', async () => {

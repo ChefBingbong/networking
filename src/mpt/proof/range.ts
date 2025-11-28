@@ -1,9 +1,9 @@
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
-import { equalsBytes } from '../../utils/index.ts'
+import { equalsBytes } from '../../utils'
 
-import { createMPTFromProof } from '../index.ts'
+import { createMPTFromProof } from '..'
 import { MerklePatriciaTrie } from '../mpt.ts'
-import { BranchMPTNode, ExtensionMPTNode, LeafMPTNode } from '../node/index.ts'
+import { BranchMPTNode, ExtensionMPTNode, LeafMPTNode } from '../node'
 import { bytesToNibbles, nibblesCompare, nibblesTypeToPackedBytes } from '../util/nibbles.ts'
 
 import type { HashKeysFunction, MPTNode, Nibbles } from '../types.ts'

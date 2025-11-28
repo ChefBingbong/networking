@@ -2,7 +2,7 @@ import { assert, describe, it } from 'vitest'
 import { type StateManagerInterface } from '../../chain-config'
 import { Account, Address, hexToBytes } from '../../utils'
 
-import { Caches, MerkleStateManager, SimpleStateManager } from '../index.ts'
+import { Caches, MerkleStateManager, SimpleStateManager } from '..'
 
 const codeEval = async (
   sm: StateManagerInterface,

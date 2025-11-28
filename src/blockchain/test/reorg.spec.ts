@@ -1,16 +1,16 @@
 import { assert, describe, it } from 'vitest'
-import { cliqueSigner, createBlock } from '../../block/index.ts'
-import { Common, ConsensusAlgorithm, Hardfork, Mainnet } from '../../chain-config/index.ts'
-import { Address, equalsBytes, hexToBytes } from '../../utils/index.ts'
+import { cliqueSigner, createBlock } from '../../block'
+import { Common, ConsensusAlgorithm, Hardfork, Mainnet } from '../../chain-config'
+import { Address, equalsBytes, hexToBytes } from '../../utils'
 
-import { createBlockchain } from '../../blockchain/index.ts'
+import { createBlockchain } from '../../blockchain'
 import { CLIQUE_NONCE_AUTH, CliqueConsensus } from '../consensus/clique.ts'
 
-import { goerliChainConfig } from '../../testdata/index.ts'
+import { goerliChainConfig } from '../../testdata'
 import { generateConsecutiveBlock } from './util.ts'
 
-import type { Block } from '../../block/index.ts'
-import type { ConsensusDict } from '../../blockchain/index.ts'
+import type { Block } from '../../block'
+import type { ConsensusDict } from '../../blockchain'
 
 describe('reorg tests', () => {
   it('should correctly reorg the chain if the total difficulty is higher on a lower block number than the current head block', async () => {

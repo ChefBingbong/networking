@@ -4,7 +4,7 @@ import { Common, Hardfork, Mainnet } from '../../chain-config'
 import * as RLP from '../../rlp'
 import { MapDB, hexToBytes } from '../../utils'
 
-import { Ethash } from '../index.ts'
+import { Ethash } from '..'
 
 import { blockTestsData } from './block_tests_data.ts'
 import { invalidBlockRLP, validBlockRLP } from './ethash_block_rlp_tests.ts'

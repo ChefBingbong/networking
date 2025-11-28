@@ -1,5 +1,5 @@
 import * as snappy from 'snappyjs'
-import * as RLP from '../../rlp/index.ts'
+import * as RLP from '../../rlp'
 import {
   BIGINT_0,
   bigIntToBytes,
@@ -10,14 +10,14 @@ import {
   hexToBytes,
   intToBytes,
   isHexString
-} from '../../utils/index.ts'
+} from '../../utils'
 
 import { ProtocolType } from '../types.ts'
 import { assertEq, formatLogData, formatLogId } from '../util.ts'
 
 import { Protocol } from './protocol.ts'
 
-import type { Input } from '../../rlp/index.ts'
+import type { Input } from '../../rlp'
 import type { Peer } from '../rlpx/peer.ts'
 import type { SendMethod } from '../types.ts'
 

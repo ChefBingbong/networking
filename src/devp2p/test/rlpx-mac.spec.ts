@@ -1,5 +1,5 @@
 import { assert, describe, it } from 'vitest'
-import { bytesToHex, hexToBytes } from '../../utils/index.ts'
+import { bytesToHex, hexToBytes } from '../../utils'
 
 import { MAC } from '../rlpx/mac.ts'
 

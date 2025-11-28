@@ -1,11 +1,11 @@
 import { assert, describe, it } from 'vitest'
-import { bytesToHex, equalsBytes } from '../../utils/index.ts'
+import { bytesToHex, equalsBytes } from '../../utils'
 
-import { createBlockchain } from '../../blockchain/index.ts'
+import { createBlockchain } from '../../blockchain'
 
 import { createTestDB, generateBlockchain, generateConsecutiveBlock } from './util.ts'
 
-import type { Block } from '../../block/index.ts'
+import type { Block } from '../../block'
 
 describe('blockchain test', () => {
   it('should iterate through 24 blocks without reorg', async () => {

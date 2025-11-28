@@ -5,9 +5,9 @@ import {
     hexToBytes,
     setLengthLeft,
     unpadBytes,
-} from '../../../utils/index.ts'
+} from '../../../utils'
 
-import type { Account, Address, PrefixedHexString } from '../../../utils/index.ts'
+import type { Account, Address, PrefixedHexString } from '../../../utils'
 import type { VM } from '../../vm.ts'
 import type { T8NAlloc } from './types.ts'
 

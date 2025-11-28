@@ -1,7 +1,7 @@
-import { utf8ToBytes } from '../utils/index.ts'
+import { utf8ToBytes } from '../utils'
 
-import type { DB, ValueEncoding } from '../utils/index.ts'
-import type { BranchMPTNode, ExtensionMPTNode, LeafMPTNode } from './node/index.ts'
+import type { DB, ValueEncoding } from '../utils'
+import type { BranchMPTNode, ExtensionMPTNode, LeafMPTNode } from './node'
 import type { WalkController } from './util/walkController.ts'
 
 export type MPTNode = BranchMPTNode | ExtensionMPTNode | LeafMPTNode

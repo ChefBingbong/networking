@@ -4,8 +4,8 @@ import {
   cliqueVerifySignature,
   createBlock,
   createSealedCliqueBlock,
-} from '../../../block/index.ts'
-import { EthashConsensus, createBlockchain } from '../../../blockchain/index.ts'
+} from '../../../block'
+import { EthashConsensus, createBlockchain } from '../../../blockchain'
 import {
   Common,
   ConsensusAlgorithm,
@@ -13,17 +13,17 @@ import {
   Hardfork,
   Mainnet,
   createCommonFromGethGenesis,
-} from '../../../chain-config/index.ts'
-import { Ethash } from '../../../eth-hash/index.ts'
-import { createFeeMarket1559Tx, createLegacyTx } from '../../../tx/index.ts'
-import { concatBytes, createAccount, createZeroAddress } from '../../../utils/index.ts'
+} from '../../../chain-config'
+import { Ethash } from '../../../eth-hash'
+import { createFeeMarket1559Tx, createLegacyTx } from '../../../tx'
+import { concatBytes, createAccount, createZeroAddress } from '../../../utils'
 
-import { buildBlock, createVM, runBlock } from '../../index.ts'
+import { buildBlock, createVM, runBlock } from '../..'
 
 import { setBalance } from './utils.ts'
 
-import type { Blockchain, ConsensusDict } from '../../../blockchain/index.ts'
-import { SIGNER_A } from '../../../testdata/index.ts'
+import type { Blockchain, ConsensusDict } from '../../../blockchain'
+import { SIGNER_A } from '../../../testdata'
 
 describe('BlockBuilder', () => {
   it('should build a valid block', async () => {

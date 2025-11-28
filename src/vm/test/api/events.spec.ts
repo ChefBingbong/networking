@@ -1,10 +1,10 @@
 import { assert, describe, it } from 'vitest'
-import { Block } from '../../../block/index.ts'
-import { createFeeMarket1559Tx } from '../../../tx/index.ts'
-import { Account, bytesToHex } from '../../../utils/index.ts'
+import { Block } from '../../../block'
+import { createFeeMarket1559Tx } from '../../../tx'
+import { Account, bytesToHex } from '../../../utils'
 
-import { SIGNER_A } from '../../../testdata/index.ts'
-import { createVM, runBlock, runTx } from '../../index.ts'
+import { createVM, runBlock, runTx } from '../..'
+import { SIGNER_A } from '../../../testdata'
 
 describe('VM events', () => {
   it('should emit the Block before running it', async () => {

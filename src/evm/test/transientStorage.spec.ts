@@ -8,7 +8,7 @@ import {
   unpadBytes,
 } from '../../utils'
 
-import { createEVM } from '../index.ts'
+import { createEVM } from '..'
 import { TransientStorage } from '../transientStorage.ts'
 
 describe('Transient Storage', () => {

@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { Common, Hardfork, Mainnet } from '../../../chain-config'
 
-import { createEVM, getActivePrecompiles } from '../../index.ts'
+import { createEVM, getActivePrecompiles } from '../..'
 
 describe('Precompiles: BN254MUL', () => {
   it('BN254MUL', async () => {

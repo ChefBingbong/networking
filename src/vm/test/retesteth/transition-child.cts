@@ -1,19 +1,19 @@
+import { keccak256 } from 'ethereum-cryptography/keccak'
 import { readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { Block, BlockHeader, createBlockFromBlockData } from '../../../../block/index.ts'
-import { createBlockchain } from '../../../../blockchain/index.ts'
-import * as RLP from '../../../../rlp/index.ts'
-import { createLegacyTxFromBytesArray, createTxFromSerializedData } from '../../../../tx/index.ts'
-import { Account, bytesToHex, unprefixedHexToBytes } from '../../../../utils/index.ts'
-import { keccak256 } from 'ethereum-cryptography/keccak'
+import { Block, BlockHeader, createBlockFromBlockData } from '../../../../block'
+import { createBlockchain } from '../../../../blockchain'
+import * as RLP from '../../../../rlp'
+import { createLegacyTxFromBytesArray, createTxFromSerializedData } from '../../../../tx'
+import { Account, bytesToHex, unprefixedHexToBytes } from '../../../../utils'
 
 import { BlockBuilder } from '../../dist/cjs/buildBlock.js'
 import { VM } from '../../dist/cjs/index.js'
 import { getCommon } from '../tester/config.ts'
 import { makeBlockFromEnv, setupPreConditions } from '../util.ts'
 
-import type { TypedTransaction } from '../../../../tx/index.ts'
-import type { NestedUint8Array } from '../../../../utils/index.ts'
+import type { TypedTransaction } from '../../../../tx'
+import type { NestedUint8Array } from '../../../../utils'
 import type { PostByzantiumTxReceipt } from '../../dist/cjs'
 
 const yargs = require('yargs/yargs')

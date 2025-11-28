@@ -1,9 +1,9 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createLegacyTx } from '../../../../tx/index.ts'
-import { createAddressFromString } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createLegacyTx } from '../../../../tx'
+import { createAddressFromString } from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 
 describe('EIP-3607 tests', () => {
   const common = new Common({ chain: Mainnet, hardfork: Hardfork.Berlin, eips: [3607] })

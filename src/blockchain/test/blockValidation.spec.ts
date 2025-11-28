@@ -1,16 +1,16 @@
 // import { Ethash } from '../../ethash'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import { assert, describe, expect, it } from 'vitest'
-import { createBlock, createBlockHeader } from '../../block/index.ts'
+import { createBlock, createBlockHeader } from '../../block'
 import {
   Common,
   Hardfork,
   Mainnet
-} from '../../chain-config/index.ts'
-import * as RLP from '../../rlp/index.ts'
-import { bytesToHex } from '../../utils/index.ts'
+} from '../../chain-config'
+import * as RLP from '../../rlp'
+import { bytesToHex } from '../../utils'
 
-import { createBlockchain } from '../../blockchain/index.ts'
+import { createBlockchain } from '../../blockchain'
 
 import { generateBlock } from './util.ts'
 

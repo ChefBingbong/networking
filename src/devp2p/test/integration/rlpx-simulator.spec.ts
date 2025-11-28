@@ -1,5 +1,5 @@
 import { assert, describe, it } from 'vitest'
-import { hexToBytes } from '../../../utils/index.ts'
+import { hexToBytes } from '../../../utils'
 
 import { DISCONNECT_REASON } from '../../types.ts'
 

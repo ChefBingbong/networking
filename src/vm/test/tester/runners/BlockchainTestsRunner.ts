@@ -1,12 +1,12 @@
 import { assert } from 'vitest'
-import { createBlock, createBlockFromRLP } from '../../../../block/index.ts'
-import { EthashConsensus, createBlockchain } from '../../../../blockchain/index.ts'
-import { ConsensusAlgorithm } from '../../../../chain-config/index.ts'
-import { Ethash } from '../../../../eth-hash/index.ts'
-import { MerklePatriciaTrie } from '../../../../mpt/index.ts'
-import * as RLP from '../../../../rlp/index.ts'
-import { Caches, MerkleStateManager } from '../../../../state-manager/index.ts'
-import { createTxFromRLP } from '../../../../tx/index.ts'
+import { createBlock, createBlockFromRLP } from '../../../../block'
+import { EthashConsensus, createBlockchain } from '../../../../blockchain'
+import { ConsensusAlgorithm } from '../../../../chain-config'
+import { Ethash } from '../../../../eth-hash'
+import { MerklePatriciaTrie } from '../../../../mpt'
+import * as RLP from '../../../../rlp'
+import { Caches, MerkleStateManager } from '../../../../state-manager'
+import { createTxFromRLP } from '../../../../tx'
 import {
     MapDB,
     bytesToBigInt,
@@ -14,15 +14,15 @@ import {
     hexToBytes,
     isHexString,
     stripHexPrefix,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { buildBlock, createVM, runBlock } from '../../../index.ts'
+import { buildBlock, createVM, runBlock } from '../../..'
 import { setupPreConditions, verifyPostConditions } from '../../util.ts'
 
-import type { Block } from '../../../../block/index.ts'
-import type { Blockchain, ConsensusDict } from '../../../../blockchain/index.ts'
-import type { Common, StateManagerInterface } from '../../../../chain-config/index.ts'
-import type { PrefixedHexString } from '../../../../utils/index.ts'
+import type { Block } from '../../../../block'
+import type { Blockchain, ConsensusDict } from '../../../../blockchain'
+import type { Common, StateManagerInterface } from '../../../../chain-config'
+import type { PrefixedHexString } from '../../../../utils'
 
 function logComment(t: typeof assert, message: string): void {
   console.log(`[TEST] ${message}`)

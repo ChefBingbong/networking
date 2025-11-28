@@ -9,7 +9,7 @@ import {
   privateToAddress,
 } from '../../../utils'
 
-import { createEVM } from '../../index.ts'
+import { createEVM } from '../..'
 
 const pkey = hexToBytes(`0x${'20'.repeat(32)}`)
 const sender = new Address(privateToAddress(pkey))

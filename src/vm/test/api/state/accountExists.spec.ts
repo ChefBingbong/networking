@@ -1,10 +1,10 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { Account, Address, hexToBytes, toBytes } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { Account, Address, hexToBytes, toBytes } from '../../../../utils'
 
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
 
-import type { MerkleStateManager } from '../../../../state-manager/index.ts'
+import type { MerkleStateManager } from '../../../../state-manager'
 
 describe('correctly apply new account gas fee on pre-Spurious Dragon hardforks', () => {
   it('should work', async () => {

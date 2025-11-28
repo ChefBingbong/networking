@@ -2,7 +2,7 @@ import { BIGINT_0, EthereumJSErrorWithoutCode, createZeroAddress } from '../util
 
 import type { BinaryTreeAccessWitnessInterface } from '../chain-config'
 import type { Address, PrefixedHexString } from '../utils'
-import type { PrecompileFunc } from './precompiles/index.ts'
+import type { PrecompileFunc } from './precompiles'
 import type { EOFEnv } from './types.ts'
 
 const defaults = {

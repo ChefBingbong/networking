@@ -1,12 +1,12 @@
-import { EthereumJSErrorWithoutCode, bytesToUnprefixedHex, hexToBytes } from '../../utils/index.ts'
 import { OrderedMap } from '@js-sdsl/ordered-map'
 import debugDefault from 'debug'
 import { LRUCache } from 'lru-cache'
+import { EthereumJSErrorWithoutCode, bytesToUnprefixedHex, hexToBytes } from '../../utils'
 
 import { Cache } from './cache.ts'
 import { CacheType } from './types.ts'
 
-import type { Address } from '../../utils/index.ts'
+import type { Address } from '../../utils'
 import type { CacheOpts } from './types.ts'
 
 /**

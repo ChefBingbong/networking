@@ -13,7 +13,7 @@ import {
     setLengthLeft,
 } from '../../utils'
 
-import { Caches } from '../index.ts'
+import { Caches } from '..'
 import { StatefulBinaryTreeStateManager } from '../statefulBinaryTreeStateManager.ts'
 
 import type { PrefixedHexString } from '../../utils'

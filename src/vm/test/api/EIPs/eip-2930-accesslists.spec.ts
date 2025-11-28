@@ -1,18 +1,18 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createAccessList2930Tx } from '../../../../tx/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createAccessList2930Tx } from '../../../../tx'
 import {
     Address,
     bytesToHex,
     createAccount,
     createAddressFromPrivateKey,
     hexToBytes,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { SIGNER_A } from '../../../../testdata/index.ts'
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
+import { SIGNER_A } from '../../../../testdata'
 
-import type { InterpreterStep } from '../../../../evm/index.ts'
+import type { InterpreterStep } from '../../../../evm'
 
 const common = new Common({
   eips: [2718, 2929, 2930],

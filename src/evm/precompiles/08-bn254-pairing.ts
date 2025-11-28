@@ -3,7 +3,7 @@ import { bytesToHex } from '../../utils'
 import { EVMError } from '../errors.ts'
 import { EVMErrorResult, OOGResult } from '../evm.ts'
 
-import { getPrecompileName } from './index.ts'
+import { getPrecompileName } from '.'
 import { gasLimitCheck, moduloLengthCheck } from './util.ts'
 
 import type { EVM } from '../evm.ts'

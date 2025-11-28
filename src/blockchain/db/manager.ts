@@ -1,5 +1,5 @@
-import { createBlockFromBytesArray, createBlockHeaderFromBytesArray } from '../../block/index.ts'
-import * as RLP from '../../rlp/index.ts'
+import { createBlockFromBytesArray, createBlockHeaderFromBytesArray } from '../../block'
+import * as RLP from '../../rlp'
 import {
   KECCAK256_RLP,
   KECCAK256_RLP_ARRAY,
@@ -7,14 +7,14 @@ import {
   bytesToHex,
   equalsBytes,
   unprefixedHexToBytes
-} from '../../utils/index.ts'
+} from '../../utils'
 
 import { Cache } from './cache.ts'
 import { DBOp, DBTarget } from './operation.ts'
 
-import type { Block, BlockBodyBytes, BlockBytes, BlockOptions } from '../../block/index.ts'
-import type { Common } from '../../chain-config/index.ts'
-import type { BatchDBOp, DB, DBObject, DelBatch, PutBatch } from '../../utils/index.ts'
+import type { Block, BlockBodyBytes, BlockBytes, BlockOptions } from '../../block'
+import type { Common } from '../../chain-config'
+import type { BatchDBOp, DB, DBObject, DelBatch, PutBatch } from '../../utils'
 import type { DatabaseKey } from './operation.ts'
 
 /**

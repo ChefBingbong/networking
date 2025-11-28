@@ -1,6 +1,6 @@
 import { assert, describe, it } from 'vitest'
 
-import { createEVM, paramsEVM } from '../index.ts'
+import { createEVM, paramsEVM } from '..'
 
 // TODO: This whole file was missing for quite some time and now (July 2024)
 // has been side introduced along another PR. We should add basic initialization

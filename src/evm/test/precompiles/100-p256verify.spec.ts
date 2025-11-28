@@ -3,7 +3,7 @@ import { assert, beforeAll, describe, it } from 'vitest'
 import { Common, Mainnet } from '../../../chain-config'
 import { Address, hexToBytes } from '../../../utils'
 
-import { createEVM } from '../../index.ts'
+import { createEVM } from '../..'
 import { precompile100 } from '../../precompiles/100-p256verify.ts'
 
 import type { PrecompileInput } from '../../precompiles/types.ts'

@@ -1,13 +1,13 @@
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../block/index.ts'
-import { Common, Hardfork } from '../../chain-config/index.ts'
-import { customChainConfig } from '../../testdata/index.ts'
-import { bytesToHex } from '../../utils/index.ts'
+import { createBlock } from '../../block'
+import { Common, Hardfork } from '../../chain-config'
+import { customChainConfig } from '../../testdata'
+import { bytesToHex } from '../../utils'
 
-import { createBlockchain } from '../../blockchain/index.ts'
+import { createBlockchain } from '../../blockchain'
 
-import type { Block, BlockHeader } from '../../block/index.ts'
-import type { Consensus, ConsensusDict } from '../../blockchain/index.ts'
+import type { Block, BlockHeader } from '../../block'
+import type { Consensus, ConsensusDict } from '../../blockchain'
 
 class fibonacciConsensus implements Consensus {
   algorithm: string

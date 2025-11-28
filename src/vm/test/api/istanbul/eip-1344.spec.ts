@@ -1,9 +1,9 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { EVMError } from '../../../../evm/index.ts'
-import { bytesToBigInt, hexToBytes } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { EVMError } from '../../../../evm'
+import { bytesToBigInt, hexToBytes } from '../../../../utils'
 
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
 
 const testCases = [
   { chain: Mainnet, hardfork: Hardfork.Istanbul, chainId: BigInt(1) },

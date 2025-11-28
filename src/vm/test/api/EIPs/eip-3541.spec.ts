@@ -1,12 +1,12 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createLegacyTx } from '../../../../tx/index.ts'
-import { hexToBytes } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createLegacyTx } from '../../../../tx'
+import { hexToBytes } from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 
-import type { InterpreterStep } from '../../../../evm/index.ts'
-import type { Address } from '../../../../utils/index.ts'
+import type { InterpreterStep } from '../../../../evm'
+import type { Address } from '../../../../utils'
 
 const pkey = hexToBytes(`0x${'20'.repeat(32)}`)
 

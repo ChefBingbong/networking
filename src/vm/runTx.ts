@@ -23,7 +23,7 @@ import {
   short,
 } from '../utils'
 
-import { Bloom } from './bloom/index.ts'
+import { Bloom } from './bloom'
 import { emitEVMProfile } from './emitEVMProfile.ts'
 
 import type { Block } from '../block'

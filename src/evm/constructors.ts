@@ -1,11 +1,11 @@
 import { Common, Mainnet } from '../chain-config'
 import { SimpleStateManager } from '../state-manager'
 
-import { EVM } from './index.ts'
-import { NobleBN254 } from './precompiles/index.ts'
+import { EVM } from '.'
+import { NobleBN254 } from './precompiles'
 import { EVMMockBlockchain } from './types.ts'
 
-import type { EVMOpts } from './index.ts'
+import type { EVMOpts } from '.'
 
 /**
  * Use this async static constructor for the initialization

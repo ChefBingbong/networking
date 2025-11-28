@@ -3,7 +3,7 @@ import { CodeCache } from './code.ts'
 import { StorageCache } from './storage.ts'
 import { type CacheOpts, CacheType, type CachesStateManagerOpts } from './types.ts'
 
-import type { Address } from '../../utils/index.ts'
+import type { Address } from '../../utils'
 
 export class Caches {
   account?: AccountCache

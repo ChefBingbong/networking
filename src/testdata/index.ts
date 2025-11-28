@@ -1,4 +1,5 @@
-export * from './blocks/index.ts'
-export * from './chainConfigs/index.ts'
-export * from './gethGenesis/index.ts'
+export * from './blocks'
+export * from './chainConfigs'
+export * from './gethGenesis'
 export * from './signers.ts'
+

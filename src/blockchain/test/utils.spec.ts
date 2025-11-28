@@ -3,14 +3,14 @@ import {
   type GethGenesis,
   createCommonFromGethGenesis,
   parseGethGenesisState,
-} from '../../chain-config/index.ts';
+} from '../../chain-config';
 import { genesisMPTStateRoot } from '../../mpt/util/genesisState.ts';
-import { postMergeGethGenesis } from '../../testdata/index.ts';
-import { bytesToHex } from '../../utils/index.ts';
+import { postMergeGethGenesis } from '../../testdata';
+import { bytesToHex } from '../../utils';
 
-import { createBlockchain } from '../../blockchain/index.ts';
+import { createBlockchain } from '../../blockchain';
 
-import type { Blockchain } from '../index.ts';
+import type { Blockchain } from '..';
 
 async function getBlockchain(gethGenesis: GethGenesis): Promise<Blockchain> {
   const common = createCommonFromGethGenesis(gethGenesis, { chain: 'kiln' })

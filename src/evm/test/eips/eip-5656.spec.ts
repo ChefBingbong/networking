@@ -2,7 +2,7 @@ import { assert, describe, it } from 'vitest'
 import { Common, Hardfork, Mainnet } from '../../../chain-config'
 import { bytesToHex, hexToBytes } from '../../../utils'
 
-import { createEVM } from '../../index.ts'
+import { createEVM } from '../..'
 
 import type { PrefixedHexString } from '../../../utils'
 

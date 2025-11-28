@@ -3,7 +3,7 @@ import { Chain, ChainNameFromNumber } from '../../chain-config'
 import { getGenesis } from '../../genesis'
 import { Account, Address, hexToBytes, utf8ToBytes } from '../../utils'
 
-import { MerkleStateManager } from '../index.ts'
+import { MerkleStateManager } from '..'
 
 export function createAccount(nonce = BigInt(0), balance = BigInt(0xfff384)) {
   return new Account(nonce, balance)

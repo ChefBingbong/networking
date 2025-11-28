@@ -1,8 +1,8 @@
 import debugDefault from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
-import { Common, Mainnet } from '../chain-config/index.ts'
-import { MerklePatriciaTrie } from '../mpt/index.ts'
-import * as RLP from '../rlp/index.ts'
+import { Common, Mainnet } from '../chain-config'
+import { MerklePatriciaTrie } from '../mpt'
+import * as RLP from '../rlp'
 import {
   Account,
   EthereumJSErrorWithoutCode,
@@ -18,10 +18,10 @@ import {
   unpadBytes,
   unprefixedHexToBytes,
   utf8ToBytes,
-} from '../utils/index.ts'
+} from '../utils'
 
-import { OriginalStorageCache } from './cache/index.ts'
-import type { Caches, MerkleStateManagerOpts } from './index.ts'
+import type { Caches, MerkleStateManagerOpts } from '.'
+import { OriginalStorageCache } from './cache'
 import { modifyAccountFields } from './util.ts'
 
 import type { Debugger } from 'debug'
@@ -30,8 +30,8 @@ import type {
   StateManagerInterface,
   StorageDump,
   StorageRange,
-} from '../chain-config/index.ts'
-import type { Address, DB } from '../utils/index.ts'
+} from '../chain-config'
+import type { Address, DB } from '../utils'
 
 /**
  * Prefix to distinguish between a contract deployed with code `0x80`

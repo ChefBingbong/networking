@@ -1,6 +1,6 @@
-import { bytesToUnprefixedHex } from '../../utils/index.ts'
+import { bytesToUnprefixedHex } from '../../utils'
 
-import type { Address } from '../../utils/index.ts'
+import type { Address } from '../../utils'
 
 type getStorage = (address: Address, key: Uint8Array) => Promise<Uint8Array>
 

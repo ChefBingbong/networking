@@ -1,9 +1,9 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { hexToBytes } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { hexToBytes } from '../../../../utils'
 
-import { EVMError, type InterpreterStep } from '../../../../evm/index.ts'
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
+import { EVMError, type InterpreterStep } from '../../../../evm'
 
 describe('EIP 3855 tests', () => {
   const common = new Common({ chain: Mainnet, hardfork: Hardfork.Chainstart, eips: [3855] })

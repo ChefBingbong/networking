@@ -1,8 +1,8 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { Address, bytesToHex, createZeroAddress, equalsBytes, hexToBytes } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { Address, bytesToHex, createZeroAddress, equalsBytes, hexToBytes } from '../../../../utils'
 
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
 
 // See https://github.com/holiman/go-ethereum/blob/2c99023b68c573ba24a5b01db13e000bd9b82417/core/vm/testdata/precompiles/modexp_eip2565.json
 import { eip2565Data } from '../testdata/eip-2565.ts'

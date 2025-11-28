@@ -4,30 +4,30 @@ import {
   createBlockFromRLP,
   createBlockHeader,
   createBlockHeaderFromBytesArray,
-} from '../../block/index.ts'
+} from '../../block'
 import {
   Common,
   Hardfork,
   Holesky,
   Mainnet,
   Sepolia,
-} from '../../chain-config/index.ts'
+} from '../../chain-config'
 import {
   goerliChainConfig,
   mainnetBlocks,
   preLondonTestDataBlocks1RLP,
-} from '../../testdata/index.ts'
-import { MapDB, bytesToHex, equalsBytes, hexToBytes, utf8ToBytes } from '../../utils/index.ts'
+} from '../../testdata'
+import { MapDB, bytesToHex, equalsBytes, hexToBytes, utf8ToBytes } from '../../utils'
 
 import {
   Blockchain,
   createBlockchain,
   createBlockchainFromBlocksData,
-} from '../../blockchain/index.ts'
+} from '../../blockchain'
 
 import { createTestDB, generateBlockchain, generateBlocks, isConsecutive } from './util.ts'
 
-import type { Block, BlockOptions } from '../../block/index.ts'
+import type { Block, BlockOptions } from '../../block'
 
 describe('blockchain test', () => {
   it('should not crash on getting head of a blockchain without a genesis', async () => {

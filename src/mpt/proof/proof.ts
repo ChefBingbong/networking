@@ -2,11 +2,11 @@ import {
   bytesToHex,
   concatBytes,
   equalsBytes,
-} from '../../utils/index.ts'
+} from '../../utils'
 
-import { type MPTOpts, MerklePatriciaTrie, type Proof, createMPTFromProof } from '../index.ts'
+import { type MPTOpts, MerklePatriciaTrie, type Proof, createMPTFromProof } from '..'
 
-import type { PutBatch } from '../../utils/index.ts'
+import type { PutBatch } from '../../utils'
 
 /**
  * An (EIP-1186)[https://eips.ethereum.org/EIPS/eip-1186] proof contains the encoded trie nodes

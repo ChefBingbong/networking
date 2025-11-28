@@ -2,7 +2,7 @@ import { assert, describe, it } from 'vitest'
 import { Common, Hardfork, Mainnet } from '../../../chain-config'
 import { Address, createZeroAddress, hexToBytes } from '../../../utils'
 
-import { createEVM, getActivePrecompiles } from '../../index.ts'
+import { createEVM, getActivePrecompiles } from '../..'
 
 describe('Precompiles: hardfork availability', () => {
   it('Test BN254PAIRING availability', async () => {

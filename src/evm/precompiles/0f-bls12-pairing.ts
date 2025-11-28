@@ -4,8 +4,8 @@ import { EVMError } from '../errors.ts'
 import type { EVM } from '../evm.ts'
 import { EVMErrorResult, OOGResult } from '../evm.ts'
 
-import { leading16ZeroBytesCheck } from './bls12_381/index.ts'
-import { getPrecompileName } from './index.ts'
+import { getPrecompileName } from '.'
+import { leading16ZeroBytesCheck } from './bls12_381'
 import { gasLimitCheck, moduloLengthCheck } from './util.ts'
 
 import type { ExecResult } from '../types.ts'

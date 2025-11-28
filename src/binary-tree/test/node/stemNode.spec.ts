@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { equalsBytes, hexToBytes } from '../../../utils'
 
-import { BinaryNodeType, decodeBinaryNode } from '../../index.ts'
+import { BinaryNodeType, decodeBinaryNode } from '../..'
 import { StemBinaryNode } from '../../node/stemNode.ts'
 
 describe('StemBinaryNode', () => {

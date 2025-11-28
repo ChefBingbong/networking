@@ -1,6 +1,6 @@
-import { PrioritizedTaskExecutor } from '../../utils/index.ts'
+import { PrioritizedTaskExecutor } from '../../utils'
 
-import { BranchMPTNode, ExtensionMPTNode, LeafMPTNode } from '../node/index.ts'
+import { BranchMPTNode, ExtensionMPTNode, LeafMPTNode } from '../node'
 
 import type { MerklePatriciaTrie } from '../mpt.ts'
 import type { FoundNodeFunction, MPTNode, Nibbles } from '../types.ts'

@@ -1,8 +1,8 @@
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { Common, Hardfork, Mainnet, getPresetChainConfig } from '../../../../chain-config/index.ts'
-import { createTx } from '../../../../tx/index.ts'
+import { createBlock } from '../../../../block'
+import { Common, Hardfork, Mainnet, getPresetChainConfig } from '../../../../chain-config'
+import { createTx } from '../../../../tx'
 import {
     CLRequestType,
     Units,
@@ -12,12 +12,12 @@ import {
     createAddressFromString,
     hexToBytes,
     randomBytes,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { buildBlock, runBlock } from '../../../index.ts'
+import { buildBlock, runBlock } from '../../..'
 import { setupVM } from '../utils.ts'
 
-import type { PrefixedHexString } from '../../../../utils/index.ts'
+import type { PrefixedHexString } from '../../../../utils'
 
 function parseDepositRequest(requestData: Uint8Array) {
   const pubkey = requestData.subarray(0, 48)

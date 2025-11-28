@@ -1,6 +1,6 @@
 import debugDefault from 'debug'
-import { createBlock } from '../block/index.ts'
-import { BIGINT_0, bytesToHex, equalsBytes } from '../utils/index.ts'
+import { createBlock } from '../block'
+import { BIGINT_0, bytesToHex, equalsBytes } from '../utils'
 
 import {
   Blockchain,
@@ -9,11 +9,11 @@ import {
   DBSetTD,
   genGenesisStateRoot,
   getGenesisStateRoot,
-} from './index.ts'
+} from '.'
 
-import type { BlockData } from '../block/index.ts'
-import type { Chain } from '../chain-config/index.ts'
-import type { BlockchainOptions, DBOp } from './index.ts'
+import type { BlockchainOptions, DBOp } from '.'
+import type { BlockData } from '../block'
+import type { Chain } from '../chain-config'
 
 const DEBUG =true
 const debug = debugDefault('blockchain:#')

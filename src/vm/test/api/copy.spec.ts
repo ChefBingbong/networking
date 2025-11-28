@@ -1,5 +1,5 @@
-import { createAccount, createAddressFromString } from '../../../utils/index.ts'
 import { assert, describe, it } from 'vitest'
+import { createAccount, createAddressFromString } from '../../../utils'
 
 import { setupVM } from './utils.ts'
 

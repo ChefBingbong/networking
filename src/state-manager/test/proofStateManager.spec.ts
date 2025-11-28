@@ -14,8 +14,8 @@ import {
     randomBytes,
 } from '../../utils'
 
-import { MerkleStateManager } from '../index.ts'
-import { getMerkleStateProof, verifyMerkleStateProof } from '../proof/index.ts'
+import { MerkleStateManager } from '..'
+import { getMerkleStateProof, verifyMerkleStateProof } from '../proof'
 
 import { ropstenContractWithStorageData } from './testdata/ropsten_contractWithStorage.ts'
 import { ropstenNonexistentAccountData } from './testdata/ropsten_nonexistentAccount.ts'

@@ -4,12 +4,12 @@ import { EVMError } from '../errors.ts'
 import type { EVM } from '../evm.ts'
 import { EVMErrorResult, OOGResult } from '../evm.ts'
 
+import { getPrecompileName } from '.'
 import {
     BLS_GAS_DISCOUNT_PAIRS_G2,
     leading16ZeroBytesCheck,
     msmGasUsed,
-} from './bls12_381/index.ts'
-import { getPrecompileName } from './index.ts'
+} from './bls12_381'
 import { gasLimitCheck, moduloLengthCheck } from './util.ts'
 
 import type { ExecResult } from '../types.ts'

@@ -15,12 +15,12 @@ import {
     utf8ToBytes,
 } from '../../utils'
 
-import { CacheType, Caches, MerkleStateManager } from '../index.ts'
+import { CacheType, Caches, MerkleStateManager } from '..'
 import {
     addMerkleStateProofData,
     fromMerkleStateProof,
     getMerkleStateProof,
-} from '../proof/index.ts'
+} from '../proof'
 
 import type { PrefixedHexString } from '../../utils'
 

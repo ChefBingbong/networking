@@ -1,7 +1,7 @@
-import { bytesToHex, fetchFromProvider } from '../../utils/index.ts'
+import { bytesToHex, fetchFromProvider } from '../../utils'
 
-import type { Address } from '../../utils/index.ts'
-import type { Proof, RPCStateManager } from '../index.ts'
+import type { Proof, RPCStateManager } from '..'
+import type { Address } from '../../utils'
 
 /**
  * Get an EIP-1186 proof from the provider

@@ -5,7 +5,7 @@
 // https://github.com/tristanls/k-bucket
 
 import { EventEmitter } from 'eventemitter3'
-import { equalsBytes, randomBytes } from '../utils/index.ts'
+import { equalsBytes, randomBytes } from '../utils'
 import type { Contact, KBucketEvent, KBucketOptions, PeerInfo } from './types.ts'
 
 function createNode(): KBucketNode {
@@ -432,4 +432,4 @@ export class KBucket {
 }
 
 // Import for the helper
-import { bytesToUnprefixedHex } from '../utils/index.ts'
+import { bytesToUnprefixedHex } from '../utils'

@@ -3,8 +3,8 @@
 
 import { secp256k1 } from 'ethereum-cryptography/secp256k1.js'
 import { EventEmitter } from 'eventemitter3'
-import type { Common } from '../chain-config/index.ts'
-import { bytesToInt, bytesToUnprefixedHex, randomBytes } from '../utils/index.ts'
+import type { Common } from '../chain-config'
+import { bytesToInt, bytesToUnprefixedHex, randomBytes } from '../utils'
 
 import { BanList } from './ban-list.ts'
 import { RoutingTable } from './routing-table.ts'

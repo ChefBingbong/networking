@@ -10,7 +10,7 @@ import {
 import { EVMError } from '../errors.ts'
 import { EVMErrorResult, OOGResult } from '../evm.ts'
 
-import { getPrecompileName } from './index.ts'
+import { getPrecompileName } from '.'
 import { gasLimitCheck } from './util.ts'
 
 import type { ExecResult } from '../types.ts'

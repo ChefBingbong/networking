@@ -1,12 +1,12 @@
 import type { EventEmitter } from 'eventemitter3'
-import type { Block, BlockHeader } from '../block/index.ts'
+import type { Blockchain } from '.'
+import type { Block, BlockHeader } from '../block'
 import type {
     Common,
     ConsensusAlgorithm,
     GenesisState,
-} from '../chain-config/index.ts'
-import type { DB, DBObject } from '../utils/index.ts'
-import type { Blockchain } from './index.ts'
+} from '../chain-config'
+import type { DB, DBObject } from '../utils'
 
 export type OnBlock = (block: Block, reorg: boolean) => Promise<void> | void
 

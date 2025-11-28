@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { Account, Address, hexToBytes } from '../../utils'
 
-import { MerkleStateManager, SimpleStateManager } from '../index.ts'
+import { MerkleStateManager, SimpleStateManager } from '..'
 
 import type { StateManagerInterface } from '../../chain-config'
 

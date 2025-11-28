@@ -3,7 +3,7 @@
 
 import debug from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
-import * as RLP from '../rlp/index.ts'
+import * as RLP from '../rlp'
 import {
   BIGINT_0,
   KeyEncoding,
@@ -17,7 +17,7 @@ import {
   bytesToUtf8,
   concatBytes,
   equalsBytes,
-} from '../utils/index.ts'
+} from '../utils'
 
 import { CheckpointDB } from './db/checkpointDB.ts'
 import {
@@ -27,14 +27,14 @@ import {
   decodeMPTNode,
   decodeRawMPTNode,
   isRawMPTNode,
-} from './node/index.ts'
+} from './node'
 import { ROOT_DB_KEY } from './types.ts'
 import { _walkTrie } from './util/asyncWalk.ts'
 import { bytesToNibbles, matchingNibbleLength, nibblesTypeToPackedBytes } from './util/nibbles.ts'
 import { WalkController } from './util/walkController.ts'
 
 import type { Debugger } from 'debug'
-import type { BatchDBOp, DB } from '../utils/index.ts'
+import type { BatchDBOp, DB } from '../utils'
 import type {
   BranchMPTNodeBranchValue,
   FoundNodeFunction,

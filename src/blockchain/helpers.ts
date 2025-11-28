@@ -1,7 +1,7 @@
-import { ChainGenesis } from '../chain-config/index.ts';
+import { ChainGenesis } from '../chain-config';
 import { genesisMPTStateRoot } from '../mpt/util/genesisState.ts';
 
-import type { Chain, Common, GenesisState } from '../chain-config/index.ts';
+import type { Chain, Common, GenesisState } from '../chain-config';
 
 /**
  * Safe creation of a new Blockchain object awaiting the initialization function,

@@ -1,13 +1,13 @@
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { FeeMarket1559Tx } from '../../../../tx/index.ts'
-import { Address, Units, hexToBytes, privateToAddress } from '../../../../utils/index.ts'
+import { createBlock } from '../../../../block'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { FeeMarket1559Tx } from '../../../../tx'
+import { Address, Units, hexToBytes, privateToAddress } from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 
-import type { InterpreterStep } from '../../../../evm/index.ts'
-import type { TypedTransaction } from '../../../../tx/index.ts'
+import type { InterpreterStep } from '../../../../evm'
+import type { TypedTransaction } from '../../../../tx'
 
 const common = new Common({
   eips: [1559, 2718, 2930, 3198],

@@ -1,8 +1,8 @@
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { createBlockchain } from '../../../../blockchain/index.ts'
-import { Hardfork, createCustomCommon } from '../../../../chain-config/index.ts'
-import { createLegacyTx } from '../../../../tx/index.ts'
+import { createBlock } from '../../../../block'
+import { createBlockchain } from '../../../../blockchain'
+import { Hardfork, createCustomCommon } from '../../../../chain-config'
+import { createLegacyTx } from '../../../../tx'
 import {
     Account,
     Address,
@@ -20,16 +20,16 @@ import {
     privateToAddress,
     setLengthLeft,
     toChecksumAddress,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { buildBlock, createVM, paramsVM, runBlock, runTx } from '../../../index.ts'
+import { buildBlock, createVM, paramsVM, runBlock, runTx } from '../../..'
 
-import type { Block } from '../../../../block/index.ts'
-import type { ChainConfig } from '../../../../chain-config/index.ts'
-import type { EVM } from '../../../../evm/index.ts'
-import type { LegacyTxData } from '../../../../tx/index.ts'
-import type { PrefixedHexString } from '../../../../utils/index.ts'
-import type { VM } from '../../../index.ts'
+import type { VM } from '../../..'
+import type { Block } from '../../../../block'
+import type { ChainConfig } from '../../../../chain-config'
+import type { EVM } from '../../../../evm'
+import type { LegacyTxData } from '../../../../tx'
+import type { PrefixedHexString } from '../../../../utils'
 
 function eip2935ActiveAtCommon(timestamp: number, address: bigint) {
   const hfs = [

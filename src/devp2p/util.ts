@@ -1,13 +1,13 @@
 import debug from 'debug'
 import { publicKeyConvert } from 'ethereum-cryptography/secp256k1-compat.js'
 import { secp256k1 } from 'ethereum-cryptography/secp256k1.js'
-import * as RLP from '../rlp/index.ts'
+import * as RLP from '../rlp'
 import {
   bytesToHex,
   bytesToUnprefixedHex,
   concatBytes,
   equalsBytes
-} from '../utils/index.ts'
+} from '../utils'
 
 import type { EthStatusMsg } from './protocol/eth.ts'
 

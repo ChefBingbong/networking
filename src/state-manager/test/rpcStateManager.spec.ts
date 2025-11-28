@@ -20,7 +20,7 @@
 // import { createVM, runBlock, runTx } from '../../vm'
 
 // import { MerkleStateManager } from '../merkleStateManager.ts'
-// import { getRPCStateProof } from '../proof/index.ts'
+// import { getRPCStateProof } from '../proof'
 // import { RPCBlockChain, RPCStateManager } from '../rpcStateManager.ts'
 
 // import { block as blockData } from './testdata/providerData/blocks/block0x7a120.ts'

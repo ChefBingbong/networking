@@ -1,5 +1,5 @@
 export { Blockchain } from './blockchain.ts'
-export { CasperConsensus, CliqueConsensus, EthashConsensus } from './consensus/index.ts'
+export { CasperConsensus, CliqueConsensus, EthashConsensus } from './consensus'
 export * from './constructors.ts'
 export {
 	DBOp,

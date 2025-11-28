@@ -1,6 +1,6 @@
 import * as snappy from 'snappyjs'
-import * as RLP from '../../rlp/index.ts'
-import { bytesToHex } from '../../utils/index.ts'
+import * as RLP from '../../rlp'
+import { bytesToHex } from '../../utils'
 
 import { ProtocolType } from '../types.ts'
 import { formatLogData } from '../util.ts'

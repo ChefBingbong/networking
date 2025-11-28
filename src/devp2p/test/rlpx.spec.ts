@@ -4,12 +4,12 @@ import assert from 'assert'
 import { secp256k1 } from 'ethereum-cryptography/secp256k1.js'
 import { EventEmitter } from 'eventemitter3'
 import { describe, expect, it, vi } from 'vitest'
-import { Common, Mainnet } from '../../chain-config/index.ts'
-import { equalsBytes, randomBytes } from '../../utils/index.ts'
+import { Common, Mainnet } from '../../chain-config'
+import { equalsBytes, randomBytes } from '../../utils'
 
-import { RLPx, pk2id } from '../index.ts'
+import { RLPx, pk2id } from '..'
 
-import type { RLPxOptions } from '../index.ts'
+import type { RLPxOptions } from '..'
 
 const privateKey = randomBytes(32)
 describe('RLPx', () => {

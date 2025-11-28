@@ -6,8 +6,8 @@ import {
   KademliaNode,
   type KademliaNodeConfig,
   type PeerInfo,
-} from '../../kademlia/index.ts'
-import { DNS } from '../dns/index.ts'
+} from '../../kademlia'
+import { DNS } from '../dns'
 import type { DPTEvent, DPTOptions } from '../types.ts'
 
 /**

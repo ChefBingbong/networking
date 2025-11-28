@@ -1,14 +1,14 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createLegacyTx } from '../../../../tx/index.ts'
-import { Account, Address, bytesToInt, hexToBytes, privateToAddress } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createLegacyTx } from '../../../../tx'
+import { Account, Address, bytesToInt, hexToBytes, privateToAddress } from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 
-import type { InterpreterStep } from '../../../../evm/index.ts'
-import { SIGNER_A } from '../../../../testdata/index.ts'
-import type { TypedTransaction } from '../../../../tx/index.ts'
-import type { PrefixedHexString } from '../../../../utils/index.ts'
+import type { InterpreterStep } from '../../../../evm'
+import { SIGNER_A } from '../../../../testdata'
+import type { TypedTransaction } from '../../../../tx'
+import type { PrefixedHexString } from '../../../../utils'
 
 interface Test {
   steps: { expectedOpcode: string; expectedGasUsed: number; expectedStack: bigint[] }[]

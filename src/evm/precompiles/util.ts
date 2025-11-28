@@ -1,6 +1,6 @@
 import { short } from '../../utils'
 
-import type { PrecompileInput } from './index.ts'
+import type { PrecompileInput } from '.'
 
 /**
  * Checks that the gas used remain under the gas limit.

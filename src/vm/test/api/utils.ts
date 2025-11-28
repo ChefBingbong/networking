@@ -1,16 +1,16 @@
 import { MemoryLevel } from 'memory-level'
-import { createBlockchain } from '../../../blockchain/index.ts'
-import { TransactionType, createTx } from '../../../tx/index.ts'
-import { Account, blobsToCommitments, computeVersionedHash, getBlobs } from '../../../utils/index.ts'
+import { createBlockchain } from '../../../blockchain'
+import { TransactionType, createTx } from '../../../tx'
+import { Account, blobsToCommitments, computeVersionedHash, getBlobs } from '../../../utils'
 
-import { createVM } from '../../index.ts'
+import { createVM } from '../..'
 
 import { LevelDB } from './level.ts'
 
-import type { Block } from '../../../block/index.ts'
-import type { Common } from '../../../chain-config/index.ts'
-import { SIGNER_G } from '../../../testdata/index.ts'
-import type { Address, PrefixedHexString } from '../../../utils/index.ts'
+import type { Block } from '../../../block'
+import type { Common } from '../../../chain-config'
+import { SIGNER_G } from '../../../testdata'
+import type { Address, PrefixedHexString } from '../../../utils'
 import type { VMOpts } from '../../types.ts'
 import type { VM } from '../../vm.ts'
 

@@ -1,7 +1,7 @@
 import debugDefault from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
-import { Common, Mainnet } from '../chain-config/index.ts'
-import * as RLP from '../rlp/index.ts'
+import { Common, Mainnet } from '../chain-config'
+import * as RLP from '../rlp'
 import {
   Account,
   EthereumJSErrorWithoutCode,
@@ -14,15 +14,15 @@ import {
   hexToBytes,
   intToHex,
   toBytes,
-} from '../utils/index.ts'
+} from '../utils'
 
-import { Caches, OriginalStorageCache } from './cache/index.ts'
+import { Caches, OriginalStorageCache } from './cache'
 import { modifyAccountFields } from './util.ts'
 
 import type { Debugger } from 'debug'
-import type { AccountFields, StateManagerInterface, StorageDump } from '../chain-config/index.ts'
-import type { Address } from '../utils/index.ts'
-import type { RPCStateManagerOpts } from './index.ts'
+import type { RPCStateManagerOpts } from '.'
+import type { AccountFields, StateManagerInterface, StorageDump } from '../chain-config'
+import type { Address } from '../utils'
 
 const KECCAK256_RLP_EMPTY_ACCOUNT = RLP.encode(new Account().serialize()).slice(2)
 

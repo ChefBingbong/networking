@@ -1,26 +1,26 @@
 import { encodeFunctionData } from 'viem'
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../block/index.ts'
-import { createBlockchain } from '../../../blockchain/index.ts'
-import { Hardfork, Mainnet, createCustomCommon } from '../../../chain-config/index.ts'
+import { createBlock } from '../../../block'
+import { createBlockchain } from '../../../blockchain'
+import { Hardfork, Mainnet, createCustomCommon } from '../../../chain-config'
 import {
-    SIGNER_A,
-    SIGNER_G,
-    customChainConfig,
-    testnetMergeChainConfig,
-} from '../../../testdata/index.ts'
-import { createTx } from '../../../tx/index.ts'
+  SIGNER_A,
+  SIGNER_G,
+  customChainConfig,
+  testnetMergeChainConfig,
+} from '../../../testdata'
+import { createTx } from '../../../tx'
 import {
-    bytesToHex,
-    createAddressFromPrivateKey,
-    createAddressFromString,
-    hexToBytes,
-} from '../../../utils/index.ts'
+  bytesToHex,
+  createAddressFromPrivateKey,
+  createAddressFromString,
+  hexToBytes,
+} from '../../../utils'
 
-import { createVM, runTx } from '../../index.ts'
+import { createVM, runTx } from '../..'
 
-import type { AccountState, GenesisState } from '../../../chain-config/index.ts'
-import type { PrefixedHexString } from '../../../utils/index.ts'
+import type { AccountState, GenesisState } from '../../../chain-config'
+import type { PrefixedHexString } from '../../../utils'
 
 const storage: Array<[PrefixedHexString, PrefixedHexString]> = [
   [

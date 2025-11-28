@@ -1,8 +1,8 @@
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import * as RLP from '../../../../rlp/index.ts'
-import { createEOACode7702Tx } from '../../../../tx/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import * as RLP from '../../../../rlp'
+import { createEOACode7702Tx } from '../../../../tx'
 import {
     Account,
     Address,
@@ -16,13 +16,13 @@ import {
     privateToAddress,
     setLengthRight,
     unpadBytes,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 
 import { secp256k1 } from 'ethereum-cryptography/secp256k1'
-import type { EOACode7702AuthorizationListBytesItem, PrefixedHexString } from '../../../../utils/index.ts'
-import type { VM } from '../../../index.ts'
+import type { VM } from '../../..'
+import type { EOACode7702AuthorizationListBytesItem, PrefixedHexString } from '../../../../utils'
 
 // EIP-7702 code designator. If code starts with these bytes, it is a 7702-delegated address
 const eip7702Designator = hexToBytes('0xef01')

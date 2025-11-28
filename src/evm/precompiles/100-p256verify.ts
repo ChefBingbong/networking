@@ -3,7 +3,7 @@ import { bytesToBigInt, bytesToHex, setLengthLeft } from '../../utils'
 
 import { OOGResult } from '../evm.ts'
 
-import { getPrecompileName } from './index.ts'
+import { getPrecompileName } from '.'
 import type { PrecompileInput } from './types.ts'
 import { gasLimitCheck } from './util.ts'
 

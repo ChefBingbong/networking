@@ -1,11 +1,11 @@
 import { trustedSetup } from '@paulmillr/trusted-setups'
 import { KZG as microEthKZG } from 'micro-eth-signer/kzg.js'
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { createBlockchain } from '../../../../blockchain/index.ts'
-import { Hardfork, createCommonFromGethGenesis } from '../../../../chain-config/index.ts'
-import { eip4844GethGenesis } from '../../../../testdata/index.ts'
-import { createBlob4844Tx } from '../../../../tx/index.ts'
+import { createBlock } from '../../../../block'
+import { createBlockchain } from '../../../../blockchain'
+import { Hardfork, createCommonFromGethGenesis } from '../../../../chain-config'
+import { eip4844GethGenesis } from '../../../../testdata'
+import { createBlob4844Tx } from '../../../../tx'
 import {
   Units,
   blobsToCommitments,
@@ -16,9 +16,9 @@ import {
   getBlobs,
   hexToBytes,
   privateToAddress,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { buildBlock, createVM, runBlock } from '../../../index.ts'
+import { buildBlock, createVM, runBlock } from '../../..'
 import { setBalance } from '../utils.ts'
 
 const pk = hexToBytes(`0x${'20'.repeat(32)}`)

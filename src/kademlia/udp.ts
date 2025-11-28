@@ -5,8 +5,8 @@ import debugDefault from 'debug'
 import * as dgram from 'dgram'
 import { EventEmitter } from 'eventemitter3'
 import { LRUCache } from 'lru-cache'
-import type { Common } from '../chain-config/index.ts'
-import { bytesToHex, bytesToUnprefixedHex } from '../utils/index.ts'
+import type { Common } from '../chain-config'
+import { bytesToHex, bytesToUnprefixedHex } from '../utils'
 
 import { decode, encode, type DecodedMessage, type MessageTypeName } from './message.ts'
 import {

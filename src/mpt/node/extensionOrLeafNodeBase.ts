@@ -1,4 +1,4 @@
-import * as RLP from '../../rlp/index.ts'
+import * as RLP from '../../rlp'
 
 import { addHexPrefix, removeHexPrefix } from '../util/hex.ts'
 import { nibblesTypeToPackedBytes } from '../util/nibbles.ts'

@@ -1,8 +1,8 @@
 import { blake3 } from '@noble/hashes/blake3.js'
 import { assert, describe, it } from 'vitest'
 
+import { decodeBinaryNode } from '..'
 import { createBinaryTree } from '../constructors.ts'
-import { decodeBinaryNode } from '../index.ts'
 import { binaryTreeFromProof, verifyBinaryProof } from '../proof.ts'
 
 import type { StemBinaryNode } from '../node/stemNode.ts'

@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { Account, Address, equalsBytes, hexToBytes } from '../../../utils'
 
-import { AccountCache, CacheType } from '../../cache/index.ts'
+import { AccountCache, CacheType } from '../../cache'
 import { createAccountWithDefaults } from '../util.ts'
 
 describe('Account Cache: initialization', () => {

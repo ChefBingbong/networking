@@ -29,8 +29,8 @@ import {
   toType,
 } from '../utils'
 
-import { Bloom } from './bloom/index.ts'
-import { runTx } from './index.ts'
+import { runTx } from '.'
+import { Bloom } from './bloom'
 import { accumulateRequests } from './requests.ts'
 import {
   accumulateParentBeaconBlockRoot,

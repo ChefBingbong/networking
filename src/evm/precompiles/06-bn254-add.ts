@@ -2,7 +2,7 @@ import { bytesToHex, setLengthRight } from '../../utils'
 
 import { EVMErrorResult, OOGResult } from '../evm.ts'
 
-import { getPrecompileName } from './index.ts'
+import { getPrecompileName } from '.'
 import { gasLimitCheck } from './util.ts'
 
 import type { EVM } from '../evm.ts'

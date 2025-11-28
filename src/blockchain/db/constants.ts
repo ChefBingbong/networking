@@ -1,4 +1,4 @@
-import { bigIntToBytes, concatBytes, utf8ToBytes } from '../../utils/index.ts'
+import { bigIntToBytes, concatBytes, utf8ToBytes } from '../../utils'
 
 // Geth compatible DB keys
 
@@ -61,13 +61,14 @@ const hashToNumberKey = (hash: Uint8Array) => concatBytes(BLOCK_HASH_PREFIX, has
  * @hidden
  */
 export {
-  bodyKey,
-  bytesBE8,
-  hashToNumberKey,
-  HEAD_BLOCK_KEY,
-  HEAD_HEADER_KEY,
-  headerKey,
-  HEADS_KEY,
-  numberToHashKey,
-  tdKey,
+    bodyKey,
+    bytesBE8,
+    hashToNumberKey,
+    HEAD_BLOCK_KEY,
+    HEAD_HEADER_KEY,
+    headerKey,
+    HEADS_KEY,
+    numberToHashKey,
+    tdKey
 }
+

@@ -1,9 +1,9 @@
 import { trustedSetup } from '@paulmillr/trusted-setups'
 import { KZG as microEthKZG } from 'micro-eth-signer/kzg.js'
 import { assert, describe, it } from 'vitest'
-import { createBlock, createBlockHeader } from '../../../block/index.ts'
-import { Blockchain, createBlockchain } from '../../../blockchain/index.ts'
-import { Common, Hardfork, Mainnet, createCommonFromGethGenesis } from '../../../chain-config/index.ts'
+import { createBlock, createBlockHeader } from '../../../block'
+import { Blockchain, createBlockchain } from '../../../blockchain'
+import { Common, Hardfork, Mainnet, createCommonFromGethGenesis } from '../../../chain-config'
 import {
   Blob4844Tx,
   EOACode7702Tx,
@@ -12,7 +12,7 @@ import {
   createFeeMarket1559Tx,
   createLegacyTx,
   createTx,
-} from '../../../tx/index.ts'
+} from '../../../tx'
 import {
   Account,
   Address,
@@ -25,14 +25,14 @@ import {
   createZeroAddress,
   equalsBytes,
   hexToBytes,
-} from '../../../utils/index.ts'
+} from '../../../utils'
 
-import { createVM, runTx } from '../../index.ts'
+import { createVM, runTx } from '../..'
 
-import { SIGNER_A, goerliChainConfig } from '../../../testdata/index.ts'
+import { SIGNER_A, goerliChainConfig } from '../../../testdata'
 import { createAccountWithDefaults, getTransaction, setBalance } from './utils.ts'
 
-import type { FeeMarketEIP1559TxData, LegacyTx, TypedTxData } from '../../../tx/index.ts'
+import type { FeeMarketEIP1559TxData, LegacyTx, TypedTxData } from '../../../tx'
 import type { VM } from '../../vm.ts'
 
 const TRANSACTION_TYPES = [
@@ -860,7 +860,7 @@ it('Validate SELFDESTRUCT does not charge new account gas when calling CALLER an
 describe('EIP 4844 transaction tests', () => {
   const kzg = new microEthKZG(trustedSetup)
   it('should work', async () => {
-    const { eip4844GethGenesis } = await import('../../../testdata/index.ts')
+    const { eip4844GethGenesis } = await import('../../../testdata')
     const common = createCommonFromGethGenesis(eip4844GethGenesis, {
       chain: 'customChain',
       hardfork: Hardfork.Cancun,

@@ -9,7 +9,7 @@ import {
   setLengthRight,
 } from '../../utils'
 
-import { createEVM } from '../index.ts'
+import { createEVM } from '..'
 import { Stack } from '../stack.ts'
 
 import { createAccount } from './utils.ts'

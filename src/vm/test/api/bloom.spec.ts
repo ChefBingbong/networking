@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
-import { bytesToHex, hexToBytes, utf8ToBytes } from '../../../utils/index.ts'
+import { bytesToHex, hexToBytes, utf8ToBytes } from '../../../utils'
 
-import { Bloom } from '../../bloom/index.ts'
+import { Bloom } from '../../bloom'
 
 const byteSize = 256
 

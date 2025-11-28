@@ -3,7 +3,7 @@ import * as dns from 'dns'
 
 import { ENR } from './enr.ts'
 
-import type { Common } from '../../chain-config/index.ts'
+import type { Common } from '../../chain-config'
 import type { DNSOptions, PeerInfo } from '../types.ts'
 
 const debug = debugDefault('devp2p:dns:dns')

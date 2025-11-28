@@ -4,7 +4,7 @@ import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import { getRandomBytesSync } from 'ethereum-cryptography/random.js'
 import { ecdh, ecdsaRecover } from 'ethereum-cryptography/secp256k1-compat.js'
 import { secp256k1 } from 'ethereum-cryptography/secp256k1.js'
-import * as RLP from '../../rlp/index.ts'
+import * as RLP from '../../rlp'
 import {
   bigIntToBytes,
   bytesToInt,
@@ -12,13 +12,13 @@ import {
   hexToBytes,
   intToBytes,
   setLengthLeft
-} from '../../utils/index.ts'
+} from '../../utils'
 
 import { assertEq, genPrivateKey, id2pk, pk2id, unstrictDecode, xor, zfill } from '../util.ts'
 
 import { MAC } from './mac.ts'
 
-import type { Common, CustomCrypto } from '../../chain-config/index.ts'
+import type { Common, CustomCrypto } from '../../chain-config'
 type Decipher = crypto.Decipher
 
 const debug = debugDefault('devp2p:rlpx:peer')

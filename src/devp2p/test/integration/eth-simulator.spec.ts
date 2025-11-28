@@ -1,13 +1,13 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet, Sepolia } from '../../../chain-config/index.ts'
-import { hexToBytes, intToBytes } from '../../../utils/index.ts'
+import { Common, Hardfork, Mainnet, Sepolia } from '../../../chain-config'
+import { hexToBytes, intToBytes } from '../../../utils'
 
-import * as devp2p from '../../index.ts'
-import { ETH, EthMessageCodes } from '../../index.ts'
+import * as devp2p from '../..'
+import { ETH, EthMessageCodes } from '../..'
 
 import * as util from './util.ts'
 
-import type { Peer } from '../../index.ts'
+import type { Peer } from '../..'
 
 const GENESIS_TD = 17179869184
 const GENESIS_HASH = hexToBytes(

@@ -1,9 +1,9 @@
 import { assert, describe, it } from 'vitest'
-import { createBlockchain } from '../../../blockchain/index.ts'
-import { Chain } from '../../../chain-config/index.ts'
-import { getGenesis } from '../../../genesis/index.ts'
+import { createBlockchain } from '../../../blockchain'
+import { Chain } from '../../../chain-config'
+import { getGenesis } from '../../../genesis'
 
-import { createVM } from '../../index.ts'
+import { createVM } from '../..'
 
 describe('genesis', () => {
   it('should initialize with predefined genesis states', async () => {

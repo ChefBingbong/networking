@@ -1,7 +1,7 @@
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
-import { Block, createBlock, createBlockHeader } from '../../block/index.ts'
-import { Common, Hardfork, Mainnet } from '../../chain-config/index.ts'
-import * as RLP from '../../rlp/index.ts'
+import { Block, createBlock, createBlockHeader } from '../../block'
+import { Common, Hardfork, Mainnet } from '../../chain-config'
+import * as RLP from '../../rlp'
 import {
   MapDB,
   bytesToUnprefixedHex,
@@ -9,12 +9,12 @@ import {
   hexToBytes,
   toBytes,
   utf8ToBytes,
-} from '../../utils/index.ts'
+} from '../../utils'
 
-import { createBlockchain } from '../../blockchain/index.ts'
+import { createBlockchain } from '../../blockchain'
 
-import type { BlockHeader } from '../../block/index.ts'
-import type { DB } from '../../utils/index.ts'
+import type { BlockHeader } from '../../block'
+import type { DB } from '../../utils'
 
 export const generateBlocks = (numberOfBlocks: number, existingBlocks?: Block[]): Block[] => {
   const blocks = existingBlocks ?? []

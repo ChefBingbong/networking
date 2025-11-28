@@ -46,7 +46,7 @@ export function validateSecp256k1PublicKey(key: Uint8Array): Uint8Array {
 }
 
 export function computeSecp256k1PublicKey(privateKey: Uint8Array): Uint8Array {
-	return secp.getPublicKey(privateKey, true);
+	return secp.getPublicKey(privateKey, false);
 }
 
 export function generateSecp256k1PrivateKey(): Uint8Array {

@@ -3,7 +3,7 @@ import { bytesToHex } from '../../utils'
 
 import { OOGResult } from '../evm.ts'
 
-import { getPrecompileName } from './index.ts'
+import { getPrecompileName } from '.'
 import { gasLimitCheck } from './util.ts'
 
 import type { ExecResult } from '../types.ts'

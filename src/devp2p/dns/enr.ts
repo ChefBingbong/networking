@@ -2,12 +2,12 @@ import { base32, base64url } from '@scure/base'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import { ecdsaVerify } from 'ethereum-cryptography/secp256k1-compat.js'
 import { sscanf } from 'scanf'
-import * as RLP from '../../rlp/index.ts'
-import { bytesToUtf8, utf8ToBytes } from '../../utils/index.ts'
+import * as RLP from '../../rlp'
+import { bytesToUtf8, utf8ToBytes } from '../../utils'
 
 import { ipToString } from '../util.ts'
 
-import type { Common } from '../../chain-config/index.ts'
+import type { Common } from '../../chain-config'
 import type { PeerInfo } from '../types.ts'
 
 type ENRRootValues = {

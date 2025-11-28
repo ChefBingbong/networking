@@ -9,7 +9,7 @@ import {
     setLengthLeft,
 } from '../../utils'
 
-import { createEVM, getActivePrecompiles } from '../index.ts'
+import { createEVM, getActivePrecompiles } from '..'
 
 describe('custom crypto', () => {
   it('should use custom sha256 function', async () => {

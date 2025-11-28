@@ -2,12 +2,12 @@ import { assert, beforeAll, describe, it } from 'vitest'
 import { Common, Mainnet } from '../../../chain-config'
 import { bytesToHex, hexToBytes } from '../../../utils'
 
-import { createEVM, getActivePrecompiles } from '../../index.ts'
+import { createEVM, getActivePrecompiles } from '../..'
 
 import { testData } from './modexp-testdata.ts'
 
+import type { EVM } from '../..'
 import type { PrefixedHexString } from '../../../utils'
-import type { EVM } from '../../index.ts'
 import type { PrecompileFunc } from '../../precompiles/types.ts'
 
 const fuzzerTests = testData.data as PrefixedHexString[][]

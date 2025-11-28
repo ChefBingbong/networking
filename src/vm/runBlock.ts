@@ -28,9 +28,9 @@ import {
   unprefixedHexToBytes,
 } from '../utils'
 
-import { Bloom } from './bloom/index.ts'
+import { runTx } from '.'
+import { Bloom } from './bloom'
 import { emitEVMProfile } from './emitEVMProfile.ts'
-import { runTx } from './index.ts'
 import { accumulateRequests } from './requests.ts'
 
 import type { Block } from '../block'

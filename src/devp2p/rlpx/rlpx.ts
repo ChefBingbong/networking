@@ -11,7 +11,7 @@ import {
   equalsBytes,
   unprefixedHexToBytes,
   utf8ToBytes
-} from '../../utils/index.ts'
+} from '../../utils'
 
 import { DISCONNECT_REASON, DisconnectReasonNames } from '../types.ts'
 import { createDeferred, devp2pDebug, formatLogId, pk2id } from '../util.ts'
@@ -19,8 +19,8 @@ import { createDeferred, devp2pDebug, formatLogId, pk2id } from '../util.ts'
 import { Peer } from './peer.ts'
 
 import type { Debugger } from 'debug'
-import type { Common } from '../../chain-config/index.ts'
-import type { DPT } from '../dpt/index.ts'
+import type { Common } from '../../chain-config'
+import type { DPT } from '../dpt'
 import type { Capabilities, PeerInfo, RLPxEvent, RLPxOptions } from '../types.ts'
 
 // note: relative path only valid in .js file in dist

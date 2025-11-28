@@ -1,9 +1,9 @@
-import { type PrefixedHexString } from '../utils/index.ts'
+import { type PrefixedHexString } from '../utils'
 
-import type { BinaryTree } from '../binary-tree/index.ts'
-import type { Common } from '../chain-config/index.ts'
-import type { MerklePatriciaTrie } from '../mpt/index.ts'
-import type { Caches } from './index.ts'
+import type { Caches } from '.'
+import type { BinaryTree } from '../binary-tree'
+import type { Common } from '../chain-config'
+import type { MerklePatriciaTrie } from '../mpt'
 /**
  * Basic state manager options (not to be used directly)
  */

@@ -1,5 +1,5 @@
 import { assert, describe, it } from 'vitest'
-import { Hardfork } from '../../../../chain-config/index.ts'
+import { Hardfork } from '../../../../chain-config'
 
 import { getCommon } from '../../tester/config.ts'
 

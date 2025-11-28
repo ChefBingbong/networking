@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { equalsBytes, hexToBytes } from '../../../utils'
 
-import { BinaryNodeType, decodeBinaryNode, InternalBinaryNode } from '../../index.ts'
+import { BinaryNodeType, decodeBinaryNode, InternalBinaryNode } from '../..'
 
 describe('InternalBinaryNode', () => {
   it('should round-trip encode and decode an internal node', () => {

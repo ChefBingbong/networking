@@ -1,6 +1,6 @@
 import { assert, describe, it } from 'vitest'
 
-import * as devp2p from '../../index.ts'
+import * as devp2p from '../..'
 
 import * as util from './util.ts'
 

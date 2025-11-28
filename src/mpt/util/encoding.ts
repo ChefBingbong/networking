@@ -1,4 +1,4 @@
-import { concatBytes, hexToBytes, unprefixedHexToBytes } from '../../utils/index.ts'
+import { concatBytes, hexToBytes, unprefixedHexToBytes } from '../../utils'
 
 import { nibblesTypeToPackedBytes } from './nibbles.ts'
 

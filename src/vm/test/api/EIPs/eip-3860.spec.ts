@@ -1,9 +1,9 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createFeeMarket1559Tx } from '../../../../tx/index.ts'
-import { Account, Address, Units, bytesToHex, hexToBytes, privateToAddress } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createFeeMarket1559Tx } from '../../../../tx'
+import { Account, Address, Units, bytesToHex, hexToBytes, privateToAddress } from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 const pkey = hexToBytes(`0x${'20'.repeat(32)}`)
 const GWEI = BigInt('1000000000')
 const sender = new Address(privateToAddress(pkey))

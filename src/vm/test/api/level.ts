@@ -1,7 +1,7 @@
 import { MemoryLevel } from 'memory-level'
 
-import type { BatchDBOp, DB } from '../../../utils/index.ts'
 import type { AbstractLevel } from 'abstract-level'
+import type { BatchDBOp, DB } from '../../../utils'
 
 export const ENCODING_OPTS = { keyEncoding: 'view', valueEncoding: 'view' }
 

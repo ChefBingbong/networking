@@ -1,13 +1,13 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createLegacyTx } from '../../../../tx/index.ts'
-import { Address, createAccount, createAddressFromPrivateKey, hexToBytes } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createLegacyTx } from '../../../../tx'
+import { Address, createAccount, createAddressFromPrivateKey, hexToBytes } from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 
-import type { InterpreterStep } from '../../../../evm/index.ts'
-import { SIGNER_A } from '../../../../testdata/index.ts'
-import type { PrefixedHexString } from '../../../../utils/index.ts'
+import type { InterpreterStep } from '../../../../evm'
+import { SIGNER_A } from '../../../../testdata'
+import type { PrefixedHexString } from '../../../../utils'
 
 // Test cases source: https://gist.github.com/holiman/174548cad102096858583c6fbbb0649a
 describe('EIP 2929: gas cost tests', () => {

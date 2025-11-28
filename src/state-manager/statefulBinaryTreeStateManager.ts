@@ -1,56 +1,56 @@
-import { BinaryTree } from '../binary-tree/index.ts'
-import { BinaryTreeAccessedStateType } from '../chain-config/index.ts'
-import * as RLP from '../rlp/index.ts'
-import type { Address, BinaryTreeExecutionWitness, PrefixedHexString } from '../utils/index.ts'
-import {
-  Account,
-  BINARY_TREE_CODE_CHUNK_SIZE,
-  BINARY_TREE_CODE_OFFSET,
-  BINARY_TREE_NODE_WIDTH,
-  BinaryTreeLeafType,
-  EthereumJSErrorWithoutCode,
-  KECCAK256_NULL,
-  MapDB,
-  bigIntToBytes,
-  bytesToBigInt,
-  bytesToHex,
-  chunkifyBinaryTreeCode,
-  createAddressFromString,
-  createPartialAccount,
-  createPartialAccountFromRLP,
-  decodeBinaryTreeLeafBasicData,
-  encodeBinaryTreeLeafBasicData,
-  equalsBytes,
-  generateBinaryTreeChunkSuffixes,
-  generateBinaryTreeCodeStems,
-  getBinaryTreeKeyForStorageSlot,
-  getBinaryTreeStem,
-  hexToBigInt,
-  hexToBytes,
-  padToEven,
-  setLengthLeft,
-  setLengthRight,
-  short,
-  unprefixedHexToBytes,
-} from '../utils/index.ts'
 import { blake3 } from '@noble/hashes/blake3.js'
 import debugDefault from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
+import { BinaryTree } from '../binary-tree'
+import { BinaryTreeAccessedStateType } from '../chain-config'
+import * as RLP from '../rlp'
+import type { Address, BinaryTreeExecutionWitness, PrefixedHexString } from '../utils'
+import {
+    Account,
+    BINARY_TREE_CODE_CHUNK_SIZE,
+    BINARY_TREE_CODE_OFFSET,
+    BINARY_TREE_NODE_WIDTH,
+    BinaryTreeLeafType,
+    EthereumJSErrorWithoutCode,
+    KECCAK256_NULL,
+    MapDB,
+    bigIntToBytes,
+    bytesToBigInt,
+    bytesToHex,
+    chunkifyBinaryTreeCode,
+    createAddressFromString,
+    createPartialAccount,
+    createPartialAccountFromRLP,
+    decodeBinaryTreeLeafBasicData,
+    encodeBinaryTreeLeafBasicData,
+    equalsBytes,
+    generateBinaryTreeChunkSuffixes,
+    generateBinaryTreeCodeStems,
+    getBinaryTreeKeyForStorageSlot,
+    getBinaryTreeStem,
+    hexToBigInt,
+    hexToBytes,
+    padToEven,
+    setLengthLeft,
+    setLengthRight,
+    short,
+    unprefixedHexToBytes,
+} from '../utils'
 
 import { OriginalStorageCache } from './cache/originalStorageCache.ts'
 import { modifyAccountFields } from './util.ts'
 
-import type {
-  AccountFields,
-  BinaryTreeAccessWitnessInterface,
-  BinaryTreeAccessedStateWithAddress,
-  GenesisState,
-  StateManagerInterface,
-  StorageDump,
-  StoragePair,
-  StorageRange,
-} from '../chain-config/index.ts'
 import type { Debugger } from 'debug'
+import type {
+    AccountFields,
+    BinaryTreeAccessWitnessInterface,
+    BinaryTreeAccessedStateWithAddress,
+    GenesisState,
+    StateManagerInterface,
+    StorageDump,
+    StoragePair,
+    StorageRange,
+} from '../chain-config'
 import type { Caches } from './cache/caches.ts'
 import type { BinaryTreeState, StatefulBinaryTreeStateManagerOpts } from './types.ts'
 

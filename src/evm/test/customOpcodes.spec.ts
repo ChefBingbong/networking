@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { equalsBytes, hexToBytes } from '../../utils'
 
-import { createEVM } from '../index.ts'
+import { createEVM } from '..'
 
 import type { RunState } from '../src/interpreter.ts'
 import type { AddOpcode } from '../src/types.ts'

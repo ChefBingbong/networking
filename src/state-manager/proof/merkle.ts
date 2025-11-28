@@ -1,31 +1,31 @@
 import {
-  createMPTFromProof,
-  createMerkleProof,
-  updateMPTFromMerkleProof,
-  verifyMerkleProof,
-} from '../../mpt/index.ts'
-import * as RLP from '../../rlp/index.ts'
+    createMPTFromProof,
+    createMerkleProof,
+    updateMPTFromMerkleProof,
+    verifyMerkleProof,
+} from '../../mpt'
+import * as RLP from '../../rlp'
 import {
-  EthereumJSErrorWithoutCode,
-  KECCAK256_NULL,
-  KECCAK256_NULL_S,
-  KECCAK256_RLP,
-  KECCAK256_RLP_S,
-  bigIntToHex,
-  bytesToHex,
-  createAccountFromRLP,
-  createAddressFromString,
-  equalsBytes,
-  hexToBytes,
-  setLengthLeft,
-  unpadBytes,
-} from '../../utils/index.ts'
+    EthereumJSErrorWithoutCode,
+    KECCAK256_NULL,
+    KECCAK256_NULL_S,
+    KECCAK256_RLP,
+    KECCAK256_RLP_S,
+    bigIntToHex,
+    bytesToHex,
+    createAccountFromRLP,
+    createAddressFromString,
+    equalsBytes,
+    hexToBytes,
+    setLengthLeft,
+    unpadBytes,
+} from '../../utils'
 
 import { MerkleStateManager } from '../merkleStateManager.ts'
 
-import type { Proof, StorageProof } from '../../chain-config/index.ts'
-import type { Address, PrefixedHexString } from '../../utils/index.ts'
-import type { MerkleStateManagerOpts } from '../index.ts'
+import type { MerkleStateManagerOpts } from '..'
+import type { Proof, StorageProof } from '../../chain-config'
+import type { Address, PrefixedHexString } from '../../utils'
 
 /**
  * Get an EIP-1186 proof

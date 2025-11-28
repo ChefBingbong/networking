@@ -1,4 +1,4 @@
-import type { Block } from '../index.ts'
+import type { Block } from '..'
 
 /**
  * Returns the canonical difficulty for this block.

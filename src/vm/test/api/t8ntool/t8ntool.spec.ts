@@ -3,19 +3,19 @@ import { assert, describe, it } from 'vitest'
 
 import { TransitionTool } from '../../t8n/t8ntool.ts'
 
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { MerkleStateManager } from '../../../../state-manager/index.ts'
-import { createTx } from '../../../../tx/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { MerkleStateManager } from '../../../../state-manager'
+import { createTx } from '../../../../tx'
 import {
   Account,
   type PrefixedHexString,
   createAddressFromPrivateKey,
   hexToBytes,
   randomBytes,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import type { InterpreterStep } from '../../../../evm/index.ts'
-import { type AfterTxEvent, createVM, runTx } from '../../../index.ts'
+import { type AfterTxEvent, createVM, runTx } from '../../..'
+import type { InterpreterStep } from '../../../../evm'
 import { stepTraceJSON, summaryTraceJSON } from '../../t8n/helpers.ts'
 import type { T8NOptions } from '../../t8n/types.ts'
 const t8nDir = 'test/t8n/testdata/'

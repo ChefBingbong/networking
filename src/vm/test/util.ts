@@ -1,43 +1,43 @@
-import { Block, createBlockHeader } from '../../block/index.ts'
-import { Common, Hardfork, Mainnet, createCustomCommon } from '../../chain-config/index.ts'
-import * as RLP from '../../rlp/index.ts'
-import {
-  createAccessList2930Tx,
-  createBlob4844Tx,
-  createEOACode7702Tx,
-  createFeeMarket1559Tx,
-  createLegacyTx,
-} from '../../tx/index.ts'
-import {
-  Account,
-  Address,
-  TypeOutput,
-  bigIntToBytes,
-  bytesToBigInt,
-  bytesToHex,
-  createAccountFromRLP,
-  createPartialAccount,
-  equalsBytes,
-  hexToBytes,
-  isHexString,
-  setLengthLeft,
-  toBytes,
-  toType,
-  unpadBytes,
-} from '../../utils/index.ts'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
+import { Block, createBlockHeader } from '../../block'
+import { Common, Hardfork, Mainnet, createCustomCommon } from '../../chain-config'
+import * as RLP from '../../rlp'
+import {
+    createAccessList2930Tx,
+    createBlob4844Tx,
+    createEOACode7702Tx,
+    createFeeMarket1559Tx,
+    createLegacyTx,
+} from '../../tx'
+import {
+    Account,
+    Address,
+    TypeOutput,
+    bigIntToBytes,
+    bytesToBigInt,
+    bytesToHex,
+    createAccountFromRLP,
+    createPartialAccount,
+    equalsBytes,
+    hexToBytes,
+    isHexString,
+    setLengthLeft,
+    toBytes,
+    toType,
+    unpadBytes,
+} from '../../utils'
 
-import type { BlockOptions } from '../../block/index.ts'
-import type { StateManagerInterface } from '../../chain-config/index.ts'
-import type {
-  AccessList2930Tx,
-  Blob4844Tx,
-  EOACode7702Tx,
-  FeeMarket1559Tx,
-  LegacyTx,
-  TxOptions,
-} from '../../tx/index.ts'
 import type { assert } from 'vitest'
+import type { BlockOptions } from '../../block'
+import type { StateManagerInterface } from '../../chain-config'
+import type {
+    AccessList2930Tx,
+    Blob4844Tx,
+    EOACode7702Tx,
+    FeeMarket1559Tx,
+    LegacyTx,
+    TxOptions,
+} from '../../tx'
 
 // Use Vitest assert type directly
 function logComment(t: typeof assert, message: string): void {

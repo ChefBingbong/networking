@@ -1,8 +1,8 @@
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
 
-import type { InterpreterStep } from '../../../evm/index.ts'
-import { bytesToHex } from '../../../utils/index.ts'
+import type { InterpreterStep } from '../../../evm'
+import { bytesToHex } from '../../../utils'
 import type { AfterTxEvent } from '../../types.ts'
 import type { VM } from '../../vm.ts'
 import type { T8NOptions } from './types.ts'

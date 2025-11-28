@@ -10,9 +10,9 @@
  */
 
 import { assert, describe, it } from 'vitest'
-import { createBlock, createBlockHeader } from '../../../../block/index.ts'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { type TransactionType, type TxData, createTx } from '../../../../tx/index.ts'
+import { createBlock, createBlockHeader } from '../../../../block'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { type TransactionType, type TxData, createTx } from '../../../../tx'
 import {
     bigIntToBytes,
     bytesToBigInt,
@@ -20,13 +20,13 @@ import {
     hexToBytes,
     setLengthLeft,
     setLengthRight,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { createVM, runBlock as runBlockVM } from '../../../index.ts'
+import { createVM, runBlock as runBlockVM } from '../../..'
 
-import type { Block } from '../../../../block/index.ts'
-import type { BigIntLike, PrefixedHexString } from '../../../../utils/index.ts'
-import type { VM } from '../../../index.ts'
+import type { VM } from '../../..'
+import type { Block } from '../../../../block'
+import type { BigIntLike, PrefixedHexString } from '../../../../utils'
 
 const common = new Common({
   chain: Mainnet,

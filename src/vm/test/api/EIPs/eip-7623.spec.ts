@@ -1,10 +1,10 @@
 import { assert, describe, expect, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createLegacyTx } from '../../../../tx/index.ts'
-import { Account, Address, createZeroAddress, hexToBytes, privateToAddress } from '../../../../utils/index.ts'
+import { createBlock } from '../../../../block'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createLegacyTx } from '../../../../tx'
+import { Account, Address, createZeroAddress, hexToBytes, privateToAddress } from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 
 const common = new Common({ chain: Mainnet, hardfork: Hardfork.Prague })
 

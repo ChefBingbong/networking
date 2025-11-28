@@ -1,13 +1,13 @@
 import type { assert } from 'vitest'
-import { Block } from '../../../../block/index.ts'
-import { createBlockchain } from '../../../../blockchain/index.ts'
-import { type InterpreterStep } from '../../../../evm/index.ts'
-import { MerklePatriciaTrie } from '../../../../mpt/index.ts'
-import { Caches, MerkleStateManager } from '../../../../state-manager/index.ts'
-import { Account, bytesToHex, createAddressFromString, toBytes } from '../../../../utils/index.ts'
+import { Block } from '../../../../block'
+import { createBlockchain } from '../../../../blockchain'
+import { type InterpreterStep } from '../../../../evm'
+import { MerklePatriciaTrie } from '../../../../mpt'
+import { Caches, MerkleStateManager } from '../../../../state-manager'
+import { Account, bytesToHex, createAddressFromString, toBytes } from '../../../../utils'
 
-import type { StateManagerInterface } from '../../../../chain-config/index.ts'
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
+import type { StateManagerInterface } from '../../../../chain-config'
 import { makeBlockFromEnv, makeTx, setupPreConditions } from '../../util.ts'
 
 function logComment(message: string): void {

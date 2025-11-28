@@ -1,29 +1,29 @@
-import { type Common, ConsensusAlgorithm } from '../../../../chain-config/index.ts'
+import { type Common, ConsensusAlgorithm } from '../../../../chain-config'
 
 import { trustedSetup } from '@paulmillr/trusted-setups/fast-peerdas.js'
 import * as mcl from 'mcl-wasm'
-import { assert, afterAll, describe, it } from 'vitest'
+import { afterAll, assert, describe, it } from 'vitest'
 
 import { KZG as microEthKZG } from 'micro-eth-signer/kzg.js'
 
 import path from 'path'
-import {
-  type EVMBLSInterface,
-  type EVMBN254Interface,
-  MCLBLS,
-  NobleBLS,
-  NobleBN254,
-  RustBN254,
-} from '../../../../evm/index.ts'
 import { initRustBN } from 'rustbn-wasm'
 import {
-  DEFAULT_FORK_CONFIG,
-  DEFAULT_TESTS_PATH,
-  getCommon,
-  getExpectedTests,
-  getRequiredForkConfigAlias,
-  getSkipTests,
-  getTestDirs,
+    type EVMBLSInterface,
+    type EVMBN254Interface,
+    MCLBLS,
+    NobleBLS,
+    NobleBN254,
+    RustBN254,
+} from '../../../../evm'
+import {
+    DEFAULT_FORK_CONFIG,
+    DEFAULT_TESTS_PATH,
+    getCommon,
+    getExpectedTests,
+    getRequiredForkConfigAlias,
+    getSkipTests,
+    getTestDirs,
 } from './config.ts'
 import { runBlockchainTest } from './runners/BlockchainTestsRunner.ts'
 import { getTestsFromArgs } from './testLoader.ts'

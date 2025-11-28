@@ -3,7 +3,7 @@ import { assert, describe, it } from 'vitest'
 import { Common, Hardfork, Mainnet } from '../../../chain-config'
 import { bytesToHex, bytesToUnprefixedHex, hexToBytes, utf8ToBytes } from '../../../utils'
 
-import { createEVM, getActivePrecompiles } from '../../index.ts'
+import { createEVM, getActivePrecompiles } from '../..'
 
 const prefix = bytesToUnprefixedHex(utf8ToBytes('\x19Ethereum Signed Message:\n32'))
 const _hash = '852daa74cc3c31fe64542bb9b8764cfb91cc30f9acf9389071ffb44a9eefde46'

@@ -12,7 +12,7 @@ import {
   type PutBatch,
 } from '../utils'
 
-import { CheckpointDB } from './db/index.ts'
+import { CheckpointDB } from './db'
 import { InternalBinaryNode } from './node/internalNode.ts'
 import { StemBinaryNode } from './node/stemNode.ts'
 import { decodeBinaryNode, isInternalBinaryNode, isStemBinaryNode } from './node/util.ts'

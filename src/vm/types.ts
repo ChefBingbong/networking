@@ -15,7 +15,7 @@ import type {
   PrefixedHexString,
   WithdrawalData,
 } from '../utils'
-import type { Bloom } from './bloom/index.ts'
+import type { Bloom } from './bloom'
 export type TxReceipt = PreByzantiumTxReceipt | PostByzantiumTxReceipt | EIP4844BlobTxReceipt
 
 /**

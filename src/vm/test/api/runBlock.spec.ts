@@ -6,12 +6,12 @@ import {
     createBlockFromBytesArray,
     createBlockFromRLP,
     createSealedCliqueBlock,
-} from '../../../block/index.ts'
-import { createBlockchain } from '../../../blockchain/index.ts'
-import { Common, Hardfork, Mainnet, createCustomCommon } from '../../../chain-config/index.ts'
-import * as RLP from '../../../rlp/index.ts'
-import { type MerkleStateManager } from '../../../state-manager/index.ts'
-import { SIGNER_A, SIGNER_B, customChainConfig, goerliChainConfig } from '../../../testdata/index.ts'
+} from '../../../block'
+import { createBlockchain } from '../../../blockchain'
+import { Common, Hardfork, Mainnet, createCustomCommon } from '../../../chain-config'
+import * as RLP from '../../../rlp'
+import { type MerkleStateManager } from '../../../state-manager'
+import { SIGNER_A, SIGNER_B, customChainConfig, goerliChainConfig } from '../../../testdata'
 import {
     Capability,
     LegacyTx,
@@ -19,7 +19,7 @@ import {
     createEOACode7702Tx,
     createFeeMarket1559Tx,
     createLegacyTx,
-} from '../../../tx/index.ts'
+} from '../../../tx'
 import {
     Account,
     Address,
@@ -34,22 +34,22 @@ import {
     privateToAddress,
     unpadBytes,
     utf8ToBytes,
-} from '../../../utils/index.ts'
+} from '../../../utils'
 
-import { createVM, runBlock } from '../../index.ts'
+import { createVM, runBlock } from '../..'
 import { getDAOCommon, setupPreConditions } from '../util.ts'
 
 import { blockchainData } from './testdata/blockchain.ts'
 import { createAccountWithDefaults, setBalance, setupVM } from './utils.ts'
 
-import type { Block, BlockBytes } from '../../../block/index.ts'
-import type { TypedTransaction } from '../../../tx/index.ts'
+import type { VM } from '../..'
+import type { Block, BlockBytes } from '../../../block'
+import type { TypedTransaction } from '../../../tx'
 import type {
     EOACode7702AuthorizationListBytesItem,
     NestedUint8Array,
     PrefixedHexString,
-} from '../../../utils/index.ts'
-import type { VM } from '../../index.ts'
+} from '../../../utils'
 import type {
     AfterBlockEvent,
     PostByzantiumTxReceipt,

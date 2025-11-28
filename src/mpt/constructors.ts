@@ -5,11 +5,11 @@ import {
   bytesToUnprefixedHex,
   concatBytes,
   unprefixedHexToBytes,
-} from '../utils/index.ts'
+} from '../utils'
 
-import { MerklePatriciaTrie, ROOT_DB_KEY, updateMPTFromMerkleProof } from './index.ts'
+import { MerklePatriciaTrie, ROOT_DB_KEY, updateMPTFromMerkleProof } from '.'
 
-import type { MPTOpts, Proof } from './index.ts'
+import type { MPTOpts, Proof } from '.'
 
 export async function createMPT(opts?: MPTOpts) {
   const keccakFunction =

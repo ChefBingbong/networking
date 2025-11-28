@@ -1,14 +1,14 @@
 import { sha256 } from 'ethereum-cryptography/sha256.js'
 import { assert, describe, expect, it } from 'vitest'
-import { createBlock, genRequestsRoot } from '../../../../block/index.ts'
-import { createBlockchain } from '../../../../blockchain/index.ts'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createCLRequest, equalsBytes, hexToBytes } from '../../../../utils/index.ts'
+import { createBlock, genRequestsRoot } from '../../../../block'
+import { createBlockchain } from '../../../../blockchain'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createCLRequest, equalsBytes, hexToBytes } from '../../../../utils'
 
-import { buildBlock, createVM, runBlock } from '../../../index.ts'
+import { buildBlock, createVM, runBlock } from '../../..'
 import { setupVM } from '../utils.ts'
 
-import type { CLRequest, CLRequestType } from '../../../../utils/index.ts'
+import type { CLRequest, CLRequestType } from '../../../../utils'
 
 const invalidRequestsRoot = hexToBytes(
   '0xc98048d6605eb79ecc08d90b8817f44911ec474acd8d11688453d2c6ef743bc5',

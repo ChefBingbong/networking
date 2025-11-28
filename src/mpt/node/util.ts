@@ -1,5 +1,5 @@
-import * as RLP from '../../rlp/index.ts'
-import { type NestedUint8Array } from '../../utils/index.ts'
+import * as RLP from '../../rlp'
+import { type NestedUint8Array } from '../../utils'
 
 import { isTerminator } from '../util/hex.ts'
 import { bytesToNibbles } from '../util/nibbles.ts'

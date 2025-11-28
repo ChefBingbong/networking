@@ -1,10 +1,10 @@
 import { equalsBytes } from '../utils'
 
 import { createBinaryTree } from './constructors.ts'
-import { decodeBinaryNode } from './node/index.ts'
+import { decodeBinaryNode } from './node'
 
 import type { BinaryTree } from './binaryTree.ts'
-import type { BinaryNode } from './node/index.ts'
+import type { BinaryNode } from './node'
 import type { StemBinaryNode } from './node/stemNode.ts'
 
 /**

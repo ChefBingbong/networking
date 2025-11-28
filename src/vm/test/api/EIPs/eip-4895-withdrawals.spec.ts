@@ -1,16 +1,16 @@
 import { assert, describe, it } from 'vitest'
-import { createBlock, genWithdrawalsTrieRoot } from '../../../../block/index.ts'
-import { createBlockchain } from '../../../../blockchain/index.ts'
+import { createBlock, genWithdrawalsTrieRoot } from '../../../../block'
+import { createBlockchain } from '../../../../blockchain'
 import {
     Common,
     Hardfork,
     Mainnet,
     createCommonFromGethGenesis,
     parseGethGenesisState,
-} from '../../../../chain-config/index.ts'
-import { decode } from '../../../../rlp/index.ts'
-import { withdrawalsGethGenesis } from '../../../../testdata/index.ts'
-import { createFeeMarket1559Tx } from '../../../../tx/index.ts'
+} from '../../../../chain-config'
+import { decode } from '../../../../rlp'
+import { withdrawalsGethGenesis } from '../../../../testdata'
+import { createFeeMarket1559Tx } from '../../../../tx'
 import {
     Account,
     Address,
@@ -19,12 +19,12 @@ import {
     bytesToHex,
     createWithdrawalFromBytesArray,
     hexToBytes,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { buildBlock, createVM, runBlock } from '../../../index.ts'
+import { buildBlock, createVM, runBlock } from '../../..'
 
-import type { Block } from '../../../../block/index.ts'
-import type { WithdrawalBytes, WithdrawalData } from '../../../../utils/index.ts'
+import type { Block } from '../../../../block'
+import type { WithdrawalBytes, WithdrawalData } from '../../../../utils'
 
 const common = new Common({
   chain: Mainnet,

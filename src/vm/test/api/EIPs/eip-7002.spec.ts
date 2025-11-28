@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { createLegacyTx } from '../../../../tx/index.ts'
+import { createBlock } from '../../../../block'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { createLegacyTx } from '../../../../tx'
 import {
     Account,
     CLRequestType,
@@ -13,12 +13,12 @@ import {
     equalsBytes,
     hexToBytes,
     setLengthLeft,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { runBlock } from '../../../index.ts'
+import { runBlock } from '../../..'
 import { setupVM } from '../utils.ts'
 
-import type { Block } from '../../../../block/index.ts'
+import type { Block } from '../../../../block'
 
 const pkey = hexToBytes(`0x${'20'.repeat(32)}`)
 const addr = createAddressFromPrivateKey(pkey)

@@ -1,11 +1,11 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { Address, bigIntToBytes, hexToBytes, setLengthLeft } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { Address, bigIntToBytes, hexToBytes, setLengthLeft } from '../../../../utils'
 
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
 import { createAccountWithDefaults } from '../utils.ts'
 
-import type { PrefixedHexString } from '../../../../utils/index.ts'
+import type { PrefixedHexString } from '../../../../utils'
 
 /**
  * Tests taken from https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1283.md

@@ -4,9 +4,9 @@ import {
   ValueEncoding,
   bytesToUnprefixedHex,
   unprefixedHexToBytes,
-} from '../../utils/index.ts'
+} from '../../utils'
 
-import type { BatchDBOp, DB, EncodingOpts } from '../../utils/index.ts'
+import type { BatchDBOp, DB, EncodingOpts } from '../../utils'
 import type { Checkpoint, CheckpointDBOpts } from '../types.ts'
 
 /**

@@ -3,22 +3,22 @@ import {
   cliqueEpochTransitionSigners,
   createBlock,
   createSealedCliqueBlock,
-} from '../../block/index.ts'
+} from '../../block'
 import {
   Common,
   ConsensusAlgorithm,
   ConsensusType,
   Hardfork,
   createCustomCommon,
-} from '../../chain-config/index.ts'
-import type { Address } from '../../utils/index.ts'
+} from '../../chain-config'
+import type { Address } from '../../utils'
 import {
   concatBytes,
   createAddressFromString,
   createZeroAddress,
-} from '../../utils/index.ts'
+} from '../../utils'
 
-import { createBlockchain } from '../../blockchain/index.ts'
+import { createBlockchain } from '../../blockchain'
 import {
   CLIQUE_NONCE_AUTH,
   CLIQUE_NONCE_DROP,
@@ -34,11 +34,11 @@ import {
   SIGNER_F,
   type Signer,
   goerliChainConfig,
-} from '../../testdata/index.ts'
+} from '../../testdata'
 
-import type { Block } from '../../block/index.ts'
-import type { Blockchain, ConsensusDict } from '../../blockchain/index.ts'
-import type { CliqueConfig } from '../../chain-config/index.ts'
+import type { Block } from '../../block'
+import type { Blockchain, ConsensusDict } from '../../blockchain'
+import type { CliqueConfig } from '../../chain-config'
 
 const COMMON = new Common({ chain: goerliChainConfig, hardfork: Hardfork.Chainstart })
 const EXTRA_DATA = new Uint8Array(97)

@@ -2,9 +2,9 @@ import { assert, beforeAll, describe, it } from 'vitest'
 import { Common, Hardfork, Mainnet } from '../../../chain-config'
 import { bytesToHex, createZeroAddress, hexToBytes } from '../../../utils'
 
-import { createEVM, getActivePrecompiles } from '../../index.ts'
+import { createEVM, getActivePrecompiles } from '../..'
 
-import type { EVM } from '../../index.ts'
+import type { EVM } from '../..'
 import type { PrecompileFunc } from '../../precompiles/types.ts'
 
 const validCases = [

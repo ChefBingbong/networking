@@ -1,5 +1,5 @@
-import { bytesToUnprefixedHex } from '../../utils/index.ts'
 import { LRUCache } from 'lru-cache'
+import { bytesToUnprefixedHex } from '../../utils'
 
 /**
  * Simple LRU Cache that allows for keys of type Uint8Array

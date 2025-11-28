@@ -1,10 +1,10 @@
 import { trustedSetup } from '@paulmillr/trusted-setups'
 import { KZG as microEthKZG } from 'micro-eth-signer/kzg.js'
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { createBlockchain } from '../../../../blockchain/index.ts'
-import { Common, Hardfork, Sepolia } from '../../../../chain-config/index.ts'
-import { createBlob4844Tx } from '../../../../tx/index.ts'
+import { createBlock } from '../../../../block'
+import { createBlockchain } from '../../../../blockchain'
+import { Common, Hardfork, Sepolia } from '../../../../chain-config'
+import { createBlob4844Tx } from '../../../../tx'
 import {
   blobsToCommitments,
   blobsToProofs,
@@ -15,9 +15,9 @@ import {
   hexToBytes,
   privateToAddress,
   randomBytes,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { buildBlock, createVM } from '../../../index.ts'
+import { buildBlock, createVM } from '../../..'
 import { setBalance } from '../utils.ts'
 
 const pk = hexToBytes(`0x${'20'.repeat(32)}`)

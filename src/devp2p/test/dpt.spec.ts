@@ -1,5 +1,5 @@
 import { afterEach, assert, describe, expect, it, vi } from 'vitest'
-import { hexToBytes } from '../../utils/index.ts'
+import { hexToBytes } from '../../utils'
 
 import { DPT } from '../dpt'
 

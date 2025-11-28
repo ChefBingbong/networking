@@ -4,9 +4,9 @@ import {
   cliqueIsEpochTransition,
   cliqueSigner,
   cliqueVerifySignature,
-} from '../../block/index.ts'
-import { ConsensusAlgorithm } from '../../chain-config/index.ts'
-import * as RLP from '../../rlp/index.ts'
+} from '../../block'
+import { ConsensusAlgorithm } from '../../chain-config'
+import * as RLP from '../../rlp'
 
 import {
   Address,
@@ -20,11 +20,11 @@ import {
   equalsBytes,
   hexToBytes,
   toType
-} from '../../utils/index.ts'
+} from '../../utils'
 
-import type { Block, BlockHeader } from '../../block/index.ts'
-import type { CliqueConfig } from '../../chain-config/index.ts'
-import type { Blockchain } from '../index.ts'
+import type { Blockchain } from '..'
+import type { Block, BlockHeader } from '../../block'
+import type { CliqueConfig } from '../../chain-config'
 import type { Consensus, ConsensusOptions } from '../types.ts'
 
 const debug = debugDefault('blockchain:clique')

@@ -1,12 +1,12 @@
 import { OrderedMap } from '@js-sdsl/ordered-map'
 import debugDefault from 'debug'
 import { LRUCache } from 'lru-cache'
-import { bytesToUnprefixedHex } from '../../utils/index.ts'
+import { bytesToUnprefixedHex } from '../../utils'
 
 import { Cache } from './cache.ts'
 import { CacheType } from './types.ts'
 
-import type { Account, Address } from '../../utils/index.ts'
+import type { Account, Address } from '../../utils'
 import type { CacheOpts } from './types.ts'
 
 /**

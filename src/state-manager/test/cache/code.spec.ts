@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { Address, equalsBytes, hexToBytes } from '../../../utils'
 
-import { CacheType, CodeCache } from '../../cache/index.ts'
+import { CacheType, CodeCache } from '../../cache'
 
 describe('Code Cache: initialization', () => {
   for (const type of [CacheType.LRU, CacheType.ORDERED_MAP]) {

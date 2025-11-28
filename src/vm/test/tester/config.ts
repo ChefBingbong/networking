@@ -1,8 +1,8 @@
 import * as path from 'path'
-import { Common, Hardfork, Mainnet, createCustomCommon } from '../../../../chain-config/index.ts'
+import { Common, Hardfork, Mainnet, createCustomCommon } from '../../../../chain-config'
 
-import type { HardforkTransitionConfig } from '../../../../chain-config/index.ts'
-import type { KZG } from '../../../../utils/index.ts'
+import type { HardforkTransitionConfig } from '../../../../chain-config'
+import type { KZG } from '../../../../utils'
 
 /**
  * Default tests path (git submodule: ethereum-tests)

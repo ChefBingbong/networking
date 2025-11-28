@@ -1,16 +1,16 @@
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
-import * as RLP from '../../rlp/index.ts'
+import * as RLP from '../../rlp'
 import {
   Account,
   hexToBytes,
   isHexString,
   unpadBytes,
   unprefixedHexToBytes,
-} from '../../utils/index.ts'
+} from '../../utils'
 
 import { MerklePatriciaTrie } from '../mpt.ts'
 
-import type { AccountState, GenesisState } from '../../chain-config/index.ts'
+import type { AccountState, GenesisState } from '../../chain-config'
 
 /**
  * Derives the stateRoot of the genesis block based on genesis allocations

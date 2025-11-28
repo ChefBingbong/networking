@@ -5,7 +5,7 @@ import debugDefault from 'debug'
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
 import { secp256k1 } from 'ethereum-cryptography/secp256k1'
 import { ecdsaRecover } from 'ethereum-cryptography/secp256k1-compat.js'
-import * as RLP from '../rlp/index.ts'
+import * as RLP from '../rlp'
 import {
     bigIntToBytes,
     bytesToHex,
@@ -15,9 +15,9 @@ import {
     equalsBytes,
     intToBytes,
     setLengthLeft
-} from '../utils/index.ts'
+} from '../utils'
 
-import type { Common } from '../chain-config/index.ts'
+import type { Common } from '../chain-config'
 import type { PeerInfo } from './types.ts'
 
 const debug = debugDefault('kad:message')

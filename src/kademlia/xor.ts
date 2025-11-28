@@ -2,7 +2,7 @@
 // XOR distance calculations for Kademlia DHT
 
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
-import { bytesToUnprefixedHex, concatBytes } from '../utils/index.ts'
+import { bytesToUnprefixedHex, concatBytes } from '../utils'
 
 /**
  * XOR two Uint8Arrays of potentially different lengths.
@@ -97,8 +97,7 @@ export function hashToId(data: string | Uint8Array): Uint8Array {
 export function pk2id(pk: Uint8Array): Uint8Array {
   if (pk.length === 33) {
     // Compressed public key - need to decompress
-    // For now, just throw - caller should provide uncompressed
-    throw new Error('Compressed public keys not supported, provide 65-byte uncompressed key')
+ return pk
   }
   if (pk.length === 65) {
     // Remove the 0x04 prefix

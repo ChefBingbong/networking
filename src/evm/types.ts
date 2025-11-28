@@ -11,9 +11,9 @@ import type { EOFContainer } from './eof/container.ts'
 import type { EVMError } from './errors.ts'
 import type { InterpreterStep, RunState } from './interpreter.ts'
 import type { Message } from './message.ts'
+import type { OpHandler } from './opcodes'
 import type { AsyncDynamicGasHandler, SyncDynamicGasHandler } from './opcodes/gas.ts'
-import type { OpHandler } from './opcodes/index.ts'
-import type { CustomPrecompile } from './precompiles/index.ts'
+import type { CustomPrecompile } from './precompiles'
 import type { PrecompileFunc } from './precompiles/types.ts'
 
 export type DeleteOpcode = {

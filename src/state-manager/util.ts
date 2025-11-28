@@ -1,7 +1,7 @@
-import { Account, bytesToHex } from '../utils/index.ts'
+import { Account, bytesToHex } from '../utils'
 
-import type { AccountFields, StateManagerInterface } from '../chain-config/index.ts'
-import type { Address } from '../utils/index.ts'
+import type { AccountFields, StateManagerInterface } from '../chain-config'
+import type { Address } from '../utils'
 
 export async function modifyAccountFields(
   stateManager: StateManagerInterface,

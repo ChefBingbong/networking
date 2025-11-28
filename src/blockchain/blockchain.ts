@@ -1,13 +1,13 @@
 import debugDefault from 'debug'
 import { EventEmitter } from 'eventemitter3'
-import { Block, BlockHeader, createBlock } from '../block/index.ts'
+import { Block, BlockHeader, createBlock } from '../block'
 import {
   Common,
   ConsensusAlgorithm,
   ConsensusType,
   Hardfork,
   Mainnet,
-} from '../chain-config/index.ts'
+} from '../chain-config'
 import {
   BIGINT_0,
   BIGINT_1,
@@ -21,7 +21,7 @@ import {
   bytesToUnprefixedHex,
   concatBytes,
   equalsBytes,
-} from '../utils/index.ts'
+} from '../utils'
 
 import { CasperConsensus } from './consensus/casper.ts'
 import {
@@ -35,9 +35,9 @@ import { DBManager } from './db/manager.ts'
 import { DBTarget } from './db/operation.ts'
 
 import type { Debugger } from 'debug'
-import type { HeaderData } from '../block/index.ts'
-import type { CliqueConfig, GenesisState } from '../chain-config/index.ts'
-import type { BigIntLike, DB, DBObject } from '../utils/index.ts'
+import type { HeaderData } from '../block'
+import type { CliqueConfig, GenesisState } from '../chain-config'
+import type { BigIntLike, DB, DBObject } from '../utils'
 import type {
   BlockchainEvent,
   BlockchainInterface,

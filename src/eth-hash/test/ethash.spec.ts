@@ -3,7 +3,7 @@ import { createBlockHeaderFromRLP } from '../../block'
 import { Common, Hardfork, Mainnet } from '../../chain-config'
 import { bytesToHex, hexToBytes } from '../../utils'
 
-import { Ethash } from '../index.ts'
+import { Ethash } from '..'
 import { getCacheSize, getEpoc, getFullSize } from '../util.ts'
 
 import { ethashTests } from './ethash_tests.ts'

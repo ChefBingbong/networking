@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { Common, Hardfork, Mainnet } from '../../chain-config'
 
-import { createEVM } from '../index.ts'
+import { createEVM } from '..'
 
 describe('EVM -> getActiveOpcodes()', () => {
   const DIFFICULTY_PREVRANDAO = 0x44

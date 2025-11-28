@@ -1,8 +1,8 @@
 import { assert, describe, it } from 'vitest'
 import { Account, createAddressFromString, hexToBytes } from '../../utils'
 
+import { createEVM } from '..'
 import { EVMErrorTypeString } from '../errors.ts'
-import { createEVM } from '../index.ts'
 
 const PUSH1 = '60'
 const STOP = '00'

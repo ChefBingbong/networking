@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
 import { Address, createZeroAddress, hexToBytes, utf8ToBytes } from '../../utils'
 
-import { type PrecompileInput, createEVM } from '../index.ts'
+import { type PrecompileInput, createEVM } from '..'
 
 import type { ExecResult } from '../types.ts'
 

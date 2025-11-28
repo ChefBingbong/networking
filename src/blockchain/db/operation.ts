@@ -1,4 +1,4 @@
-import { KeyEncoding, ValueEncoding } from '../../utils/index.ts'
+import { KeyEncoding, ValueEncoding } from '../../utils'
 
 import {
     HEADS_KEY,

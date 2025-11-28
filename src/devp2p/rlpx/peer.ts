@@ -1,7 +1,7 @@
 import debugDefault from 'debug'
 import { EventEmitter } from 'eventemitter3'
 import * as snappy from 'snappyjs'
-import * as RLP from '../../rlp/index.ts'
+import * as RLP from '../../rlp'
 import {
   bytesToHex,
   bytesToInt,
@@ -11,7 +11,7 @@ import {
   hexToBytes,
   intToBytes,
   utf8ToBytes
-} from '../../utils/index.ts'
+} from '../../utils'
 
 import { DISCONNECT_REASON, DisconnectReasonNames } from '../types.ts'
 import { devp2pDebug, formatLogData } from '../util.ts'
@@ -20,7 +20,7 @@ import { ECIES } from './ecies.ts'
 
 import type { Debugger } from 'debug'
 import type { Socket } from 'net'
-import type { Common } from '../../chain-config/index.ts'
+import type { Common } from '../../chain-config'
 import type { Protocol } from '../protocol/protocol.ts'
 import type { Capabilities, PeerOptions } from '../types.ts'
 

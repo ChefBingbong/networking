@@ -1,8 +1,8 @@
 import { assert, describe, it } from 'vitest'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { Address, hexToBytes, setLengthLeft } from '../../../../utils/index.ts'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { Address, hexToBytes, setLengthLeft } from '../../../../utils'
 
-import { createVM } from '../../../index.ts'
+import { createVM } from '../../..'
 import { createAccountWithDefaults } from '../utils.ts'
 
 const testCases = [

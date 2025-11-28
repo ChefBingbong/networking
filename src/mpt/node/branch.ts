@@ -1,4 +1,4 @@
-import * as RLP from '../../rlp/index.ts'
+import * as RLP from '../../rlp'
 
 import type { BranchMPTNodeBranchValue, NodeReferenceOrRawMPTNode } from '../types.ts'
 

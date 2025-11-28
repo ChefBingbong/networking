@@ -1,6 +1,6 @@
 import { publicKeyCreate } from 'ethereum-cryptography/secp256k1-compat.js'
 import { assert, describe, it } from 'vitest'
-import { hexToBytes } from '../../utils/index.ts'
+import { hexToBytes } from '../../utils'
 
 import * as message from '../../kademlia/message.ts'
 

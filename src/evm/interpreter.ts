@@ -22,7 +22,7 @@ import { EVMError, EVMErrorTypeString } from './errors.ts'
 import { type EVMPerformanceLogger, type Timer } from './logger.ts'
 import { Memory } from './memory.ts'
 import { Message } from './message.ts'
-import { trap } from './opcodes/index.ts'
+import { trap } from './opcodes'
 import { Stack } from './stack.ts'
 
 import type {
@@ -34,7 +34,7 @@ import type { Address, PrefixedHexString } from '../utils'
 import { stackDelta } from './eof/stackDelta.ts'
 import type { EVM } from './evm.ts'
 import type { Journal } from './journal.ts'
-import type { AsyncOpHandler, Opcode, OpcodeMapEntry } from './opcodes/index.ts'
+import type { AsyncOpHandler, Opcode, OpcodeMapEntry } from './opcodes'
 import type {
     Block,
     EOFEnv,

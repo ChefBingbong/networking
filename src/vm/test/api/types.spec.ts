@@ -1,10 +1,10 @@
-import { createBlock } from '../../../block/index.ts'
-import { Common, Hardfork, Mainnet } from '../../../chain-config/index.ts'
-import { createAccessList2930Tx, createLegacyTx } from '../../../tx/index.ts'
 import { assert, describe, it } from 'vitest'
+import { createBlock } from '../../../block'
+import { Common, Hardfork, Mainnet } from '../../../chain-config'
+import { createAccessList2930Tx, createLegacyTx } from '../../../tx'
 
-import type { BlockData } from '../../../block/index.ts'
-import type { AccessList2930TxData, TransactionType, TxData } from '../../../tx/index.ts'
+import type { BlockData } from '../../../block'
+import type { AccessList2930TxData, TransactionType, TxData } from '../../../tx'
 
 describe('[Types]', () => {
   it('should ensure that the actual objects can be safely used as their data types', () => {

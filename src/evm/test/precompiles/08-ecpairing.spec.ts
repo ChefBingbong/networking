@@ -2,7 +2,7 @@ import { assert, describe, it } from 'vitest'
 import { Common, Hardfork, Mainnet } from '../../../chain-config'
 import { hexToBytes } from '../../../utils'
 
-import { createEVM, getActivePrecompiles } from '../../index.ts'
+import { createEVM, getActivePrecompiles } from '../..'
 
 describe('Precompiles: BN254PAIRING', () => {
   it('BN254PAIRING', async () => {

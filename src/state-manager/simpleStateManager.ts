@@ -1,12 +1,12 @@
 import { keccak256 } from 'ethereum-cryptography/keccak.js'
-import { Account, EthereumJSErrorWithoutCode, bytesToHex } from '../utils/index.ts'
+import { Account, EthereumJSErrorWithoutCode, bytesToHex } from '../utils'
 
 import { OriginalStorageCache } from './cache/originalStorageCache.ts'
 import { modifyAccountFields } from './util.ts'
 
-import type { AccountFields, Common, StateManagerInterface } from '../chain-config/index.ts'
-import type { Address, PrefixedHexString } from '../utils/index.ts'
-import type { SimpleStateManagerOpts } from './index.ts'
+import type { SimpleStateManagerOpts } from '.'
+import type { AccountFields, Common, StateManagerInterface } from '../chain-config'
+import type { Address, PrefixedHexString } from '../utils'
 
 /**
  * Simple and dependency-free state manager for basic state access use cases

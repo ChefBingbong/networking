@@ -1,10 +1,10 @@
 import debugDefault from 'debug'
-import { ConsensusAlgorithm } from '../../chain-config/index.ts'
-import { bytesToHex } from '../../utils/index.ts'
+import { ConsensusAlgorithm } from '../../chain-config'
+import { bytesToHex } from '../../utils'
 
 import type { Debugger } from 'debug'
-import type { Block, BlockHeader } from '../../block/index.ts'
-import type { Blockchain } from '../index.ts'
+import type { Blockchain } from '..'
+import type { Block, BlockHeader } from '../../block'
 import type { Consensus, ConsensusOptions } from '../types.ts'
 
 export type MinimalEthashInterface = {

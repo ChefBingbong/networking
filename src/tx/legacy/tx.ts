@@ -12,8 +12,8 @@ import {
   unpadBytes,
 } from '../../utils'
 
+import { paramsTx } from '..'
 import * as Legacy from '../capabilities/legacy.ts'
-import { paramsTx } from '../index.ts'
 import { Capability, TransactionType } from '../types.ts'
 import { getBaseJSON, sharedConstructor, valueOverflowCheck } from '../util/internal.ts'
 

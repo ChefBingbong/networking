@@ -1,7 +1,7 @@
 import { assert, describe, it } from 'vitest'
-import { createBlock } from '../../../../block/index.ts'
-import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
-import { AccessList2930Tx, FeeMarket1559Tx, LegacyTx } from '../../../../tx/index.ts'
+import { createBlock } from '../../../../block'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config'
+import { AccessList2930Tx, FeeMarket1559Tx, LegacyTx } from '../../../../tx'
 import {
     Account,
     Address,
@@ -11,11 +11,11 @@ import {
     hexToBytes,
     privateToAddress,
     setLengthLeft,
-} from '../../../../utils/index.ts'
+} from '../../../../utils'
 
-import { createVM, runTx } from '../../../index.ts'
+import { createVM, runTx } from '../../..'
 
-import type { TransactionType, TypedTransaction } from '../../../../tx/index.ts'
+import type { TransactionType, TypedTransaction } from '../../../../tx'
 
 const common = new Common({
   eips: [1559, 2718, 2930],
