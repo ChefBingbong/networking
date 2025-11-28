@@ -41,7 +41,7 @@ export class SNAP extends Protocol {
   constructor(version: number, peer: Peer, send: SendMethod) {
     super(peer, send, ProtocolType.SNAP, version, SnapMessageCodes)
     this.DEBUG =
-      typeof window === 'undefined' ? (process?.env?.DEBUG?.includes('ethjs') ?? false) : false
+      typeof globalThis.window === 'undefined' ? (process?.env?.DEBUG?.includes('ethjs') ?? false) : false
   }
 
   static snap = { name: 'snap', version: 1, length: 8, constructor: SNAP }
@@ -91,7 +91,7 @@ export class SNAP extends Protocol {
         this.getMsgPrefix(code),
         `Send ${this.getMsgPrefix(code)} message to ${this._peer['_socket'].remoteAddress}:${
           this._peer['_socket'].remotePort
-        }: ${formatLogData(utils.bytesToHex(RLP.encode(payload)), this._verbose)}`,
+        }: ${formatLogData(bytesToHex(RLP.encode(payload)), this._verbose)}`,
       )
     }
 

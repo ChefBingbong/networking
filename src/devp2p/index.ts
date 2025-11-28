@@ -1,5 +1,5 @@
 export * from './dns'
-export * from './dpt'
+export * from './dpt/index.ts'
 export * from './protocol'
 export * from './rlpx'
 export * from './types.ts'

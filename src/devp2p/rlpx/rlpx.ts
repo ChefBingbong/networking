@@ -20,7 +20,7 @@ import { Peer } from './peer.ts'
 
 import type { Debugger } from 'debug'
 import type { Common } from '../../chain-config'
-import type { DPT } from '../dpt'
+import type { DPT } from '../dpt/index.ts'
 import type { Capabilities, PeerInfo, RLPxEvent, RLPxOptions } from '../types.ts'
 
 // note: relative path only valid in .js file in dist

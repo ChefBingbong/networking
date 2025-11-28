@@ -19,7 +19,7 @@ import { assertEq, genPrivateKey, id2pk, pk2id, unstrictDecode, xor, zfill } fro
 import { MAC } from './mac.ts'
 
 import type { Common, CustomCrypto } from '../../chain-config'
-type Decipher = crypto.Decipher
+type Decipher = crypto.Decipheriv
 
 const debug = debugDefault('devp2p:rlpx:peer')
 

@@ -1,7 +1,7 @@
 import { afterEach, assert, describe, expect, it, vi } from 'vitest'
 import { hexToBytes } from '../../utils'
 
-import { DPT } from '../dpt'
+import { DPT } from '../dpt/index.ts'
 
 import type { PeerInfo } from '../types.ts'
 
