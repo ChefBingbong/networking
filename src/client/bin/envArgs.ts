@@ -95,7 +95,7 @@ export function getEnvArgs(): ClientOpts {
     wsPort: numEnv('ETH_WS_PORT', 8546),
     wsAddr: strEnv('ETH_WS_ADDR', '127.0.0.1'),
 
-    rpcEngine: boolEnv('ETH_ENGINE', true),
+    rpcEngine: boolEnv('ETH_ENGINE', false),
     rpcEnginePort: numEnv('ETH_ENGINE_PORT', 8551),
     rpcEngineAddr: strEnv('ETH_ENGINE_ADDR', '127.0.0.1'),
     wsEnginePort: numEnv('ETH_WS_ENGINE_PORT', 8552),
@@ -146,7 +146,7 @@ export function getEnvArgs(): ClientOpts {
     execution: boolEnv('ETH_EXECUTION', Config.EXECUTION),
     numBlocksPerIteration: numEnv(
       'ETH_NUM_BLOCKS_PER_ITERATION',
-      5,
+      Config.NUM_BLOCKS_PER_ITERATION,
     ),
 
     accountCache: numEnv('ETH_ACCOUNT_CACHE', Config.ACCOUNT_CACHE),

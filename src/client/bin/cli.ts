@@ -159,7 +159,6 @@ function startTxBroadcaster(client: EthereumClient) {
   const sendOnce = async () => {
     try {
       // Lazy-init nonce from state
-      if (nextNonce === null) {
         const execution = fullService.execution
         if (!execution) {
           log?.warn('TX broadcaster: no execution service available, cannot fetch nonce.')
@@ -168,9 +167,8 @@ function startTxBroadcaster(client: EthereumClient) {
         const vm = execution.vm
         const account = await vm.stateManager.getAccount(fromAddress)
         const nonceBigInt = BigInt(account.nonce.toString())
-        nextNonce = nonceBigInt
+        nextNonce = nonceBigInt 
         log?.info(`TX broadcaster: starting nonce=${nextNonce.toString()}`)
-      }
 
       const nonce = nextNonce!
       const chainId = BigInt(common.chainId())
@@ -195,7 +193,6 @@ function startTxBroadcaster(client: EthereumClient) {
         `TX broadcaster: broadcasted tx hash=${hash} nonce=${nonce.toString()} value=${value.toString()} to=${toAddress}`,
       )
 
-      nextNonce = nonce + 1n
     } catch (err: any) {
       log?.error(`TX broadcaster error: ${err?.message ?? String(err)}`)
     }
@@ -384,9 +381,9 @@ async function run() {
       if (metricsServer !== undefined) servers.push(metricsServer)
 
       // Start tx broadcaster (only meaningful when not in executeBlocks debug mode)
-      if (args.executeBlocks === undefined) {
-        startTxBroadcaster(client)
-      }
+      // if (args.executeBlocks === undefined) {
+      //   startTxBroadcaster(client)
+      // }
 
       config.superMsg('Client started successfully')
       return { client, servers }
