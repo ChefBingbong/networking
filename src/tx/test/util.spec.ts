@@ -1,7 +1,7 @@
 import { assert, describe, it } from "vitest";
 
 import { MAX_INTEGER, MAX_UINT64 } from "../../utils/constants.ts";
-import { valueOverflowCheck } from "../util.ts";
+import { valueOverflowCheck } from "../util/internal.ts";
 
 describe("Helper methods should be correct", () => {
 	it("valueBoundaryCheck()", () => {

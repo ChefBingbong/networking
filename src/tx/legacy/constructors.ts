@@ -1,8 +1,10 @@
-import * as RLP from "../../rlp/index.ts";
-import { validateNoLeadingZeroes } from "../../utils/index.ts";
-import type { TxOptions } from "../types.ts";
-import type { TxData, TxValuesArray } from "./tx.ts";
-import { LegacyTx } from "./tx.ts";
+import * as RLP from '../../rlp'
+import { EthereumJSErrorWithoutCode, validateNoLeadingZeroes } from '../../utils'
+
+import { LegacyTx } from './tx.ts'
+
+import type { TxOptions } from '../types.ts'
+import type { TxData, TxValuesArray } from './tx.ts'
 
 /**
  * Instantiate a transaction from a data dictionary.
@@ -13,7 +15,7 @@ import { LegacyTx } from "./tx.ts";
  * - All parameters are optional and have some basic default values
  */
 export function createLegacyTx(txData: TxData, opts: TxOptions = {}) {
-	return new LegacyTx(txData, opts);
+  return new LegacyTx(txData, opts)
 }
 
 /**
@@ -21,36 +23,33 @@ export function createLegacyTx(txData: TxData, opts: TxOptions = {}) {
  *
  * Format: `[nonce, gasPrice, gasLimit, to, value, data, v, r, s]`
  */
-export function createLegacyTxFromBytesArray(
-	values: TxValuesArray,
-	opts: TxOptions = {},
-) {
-	// If length is not 6, it has length 9. If v/r/s are empty Uint8Arrays, it is still an unsigned transaction
-	// This happens if you get the RLP data from `raw()`
-	if (values.length !== 6 && values.length !== 9) {
-		throw new Error(
-			"Invalid transaction. Only expecting 6 values (for unsigned tx) or 9 values (for signed tx).",
-		);
-	}
+export function createLegacyTxFromBytesArray(values: TxValuesArray, opts: TxOptions = {}) {
+  // If length is not 6, it has length 9. If v/r/s are empty Uint8Arrays, it is still an unsigned transaction
+  // This happens if you get the RLP data from `raw()`
+  if (values.length !== 6 && values.length !== 9) {
+    throw EthereumJSErrorWithoutCode(
+      'Invalid transaction. Only expecting 6 values (for unsigned tx) or 9 values (for signed tx).',
+    )
+  }
 
-	const [nonce, gasPrice, gasLimit, to, value, data, v, r, s] = values;
+  const [nonce, gasPrice, gasLimit, to, value, data, v, r, s] = values
 
-	validateNoLeadingZeroes({ nonce, gasPrice, gasLimit, value, v, r, s });
+  validateNoLeadingZeroes({ nonce, gasPrice, gasLimit, value, v, r, s })
 
-	return new LegacyTx(
-		{
-			nonce,
-			gasPrice,
-			gasLimit,
-			to,
-			value,
-			data,
-			v,
-			r,
-			s,
-		},
-		opts,
-	);
+  return new LegacyTx(
+    {
+      nonce,
+      gasPrice,
+      gasLimit,
+      to,
+      value,
+      data,
+      v,
+      r,
+      s,
+    },
+    opts,
+  )
 }
 
 /**
@@ -59,15 +58,12 @@ export function createLegacyTxFromBytesArray(
  * Format: `rlp([nonce, gasPrice, gasLimit, to, value, data,
  * signatureV, signatureR, signatureS])`
  */
-export function createLegacyTxFromRLP(
-	serialized: Uint8Array,
-	opts: TxOptions = {},
-) {
-	const values = RLP.decode(serialized);
+export function createLegacyTxFromRLP(serialized: Uint8Array, opts: TxOptions = {}) {
+  const values = RLP.decode(serialized)
 
-	if (!Array.isArray(values)) {
-		throw new Error("Invalid serialized tx input. Must be array");
-	}
+  if (!Array.isArray(values)) {
+    throw EthereumJSErrorWithoutCode('Invalid serialized tx input. Must be array')
+  }
 
-	return createLegacyTxFromBytesArray(values as TxValuesArray, opts);
+  return createLegacyTxFromBytesArray(values as TxValuesArray, opts)
 }

@@ -68,3 +68,8 @@ export * from "./withdrawal.ts";
  * Provider
  */
 export * from "./provider.ts";
+
+/**
+ * Request type
+ */
+export * from "./request.ts";
