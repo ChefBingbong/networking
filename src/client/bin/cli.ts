@@ -2,11 +2,13 @@
 
 import { mkdirSync, readFileSync } from 'fs'
 import { Level } from 'level'
+import { createTx } from '../../tx/transactionFactory.ts'
+
 import { createBlockFromBytesArray } from '../../block/index.ts'
 import { CliqueConsensus, createBlockchain } from '../../blockchain/index.ts'
 import { ConsensusAlgorithm, Hardfork } from '../../chain-config/index.ts'
 import * as RLP from '../../rlp/index.ts'
-import { EthereumJSErrorWithoutCode, bytesToHex, short } from '../../utils/index.ts'
+import { bytesToHex, createAddressFromString, EthereumJSErrorWithoutCode, short } from '../../utils/index.ts'
 
 import { EthereumClient } from '../client.ts'
 import { Config, DataDirectory } from '../config.ts'
@@ -121,6 +123,94 @@ async function startBlock(client: EthereumClient) {
 }
 
 /**
+ * Periodically broadcasts simple value-transfer transactions from the first unlocked account.
+ *
+ * Controlled by ENV:
+ *   ETH_TX_INTERVAL_MS - interval between txs in ms (e.g. 10000 = 10s). If unset or invalid, disabled.
+ *   ETH_TX_TO          - optional hex address to send to, otherwise sends to self.
+ */
+function startTxBroadcaster(client: EthereumClient) {
+  const intervalEnv = process.env.ETH_TX_INTERVAL_MS
+  const intervalMs = intervalEnv ? Number(intervalEnv) : NaN
+  const log = client.config.logger
+
+  if (!intervalEnv || Number.isNaN(intervalMs) || intervalMs <= 0) {
+    log?.info('TX broadcaster disabled (set ETH_TX_INTERVAL_MS>0 to enable).')
+    return
+  }
+
+  const accounts = client.config.accounts ?? []
+  if (accounts.length === 0) {
+    log?.warn(
+      'TX broadcaster enabled but no unlocked account found (ETH_UNLOCK). Skipping.',
+    )
+    return
+  }
+
+  const [fromAddress, privKey] = accounts[0] // Account = [Address, Uint8Array]
+  const toEnv = process.env.ETH_TX_TO
+  const toAddress = toEnv ? toEnv : fromAddress.toString()
+
+  const common = client.config.chainCommon
+  const fullService = client.service as FullEthereumService
+
+  let nextNonce: bigint | null = null
+
+  const sendOnce = async () => {
+    try {
+      // Lazy-init nonce from state
+      if (nextNonce === null) {
+        const execution = fullService.execution
+        if (!execution) {
+          log?.warn('TX broadcaster: no execution service available, cannot fetch nonce.')
+          return
+        }
+        const vm = execution.vm
+        const account = await vm.stateManager.getAccount(fromAddress)
+        const nonceBigInt = BigInt(account.nonce.toString())
+        nextNonce = nonceBigInt
+        log?.info(`TX broadcaster: starting nonce=${nextNonce.toString()}`)
+      }
+
+      const nonce = nextNonce!
+      const chainId = BigInt(common.chainId())
+
+      const value = 1n // tiny value just to mutate state
+
+      // Use legacy gasPrice tx (works across HFs / devnets)
+      const txData = {
+        nonce,
+        gasPrice: 1_000_000_000n, // 1 gwei
+        gasLimit: 21000n,
+        to: createAddressFromString(toAddress),
+        value,
+        data: new Uint8Array([]),
+        chainId,
+      }
+
+      const tx = createTx(txData, { common }).sign(privKey)
+      await fullService.txPool?.add(tx)
+      const hash = bytesToHex(tx.hash())
+      log?.info(
+        `TX broadcaster: broadcasted tx hash=${hash} nonce=${nonce.toString()} value=${value.toString()} to=${toAddress}`,
+      )
+
+      nextNonce = nonce + 1n
+    } catch (err: any) {
+      log?.error(`TX broadcaster error: ${err?.message ?? String(err)}`)
+    }
+  }
+
+  log?.info(
+    `TX broadcaster enabled: interval=${intervalMs}ms, from=${fromAddress.toString()}, to=${toAddress}`,
+  )
+
+  setInterval(() => {
+    void sendOnce()
+  }, intervalMs)
+}
+
+/**
  * Starts and returns the {@link EthereumClient}
  */
 async function startClient(
@@ -202,20 +292,14 @@ async function startClient(
     await startBlock(client)
   }
 
-  // update client's sync status and start txpool if synchronized
+  // Update sync status (for logging/metrics)
   client.config.updateSynchronizedState(client.chain.headers.latest)
-  if (client.config.synchronized === true) {
-    const fullService = client.service
-    ;(fullService as FullEthereumService).txPool?.checkRunState()
-  }
 
-  if (args.executeBlocks !== undefined) {
-    // Special block execution debug mode (does not change any state)
-    await executeBlocks(client)
-  } else {
-    // Regular client start
-    await client.start()
-  }
+  // Always ensure txPool is running (critical for local/dev mining)
+  const fullService = client.service as FullEthereumService
+  fullService.txPool?.checkRunState()
+
+  await client.start()
 
   if (args.loadBlocksFromRlp !== undefined && client.chain.opened) {
     const service = client.service
@@ -298,6 +382,12 @@ async function run() {
         config.logger?.warn(`Engine RPC endpoint not activated on a post-Merge HF setup.`)
       }
       if (metricsServer !== undefined) servers.push(metricsServer)
+
+      // Start tx broadcaster (only meaningful when not in executeBlocks debug mode)
+      if (args.executeBlocks === undefined) {
+        startTxBroadcaster(client)
+      }
+
       config.superMsg('Client started successfully')
       return { client, servers }
     })
