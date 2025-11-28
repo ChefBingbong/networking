@@ -1,6 +1,6 @@
 // Utility helpers to convert access lists from the byte format and JSON format and vice versa
 
-import { bytesToHex, hexToBytes, setLengthLeft } from '@ethereumjs/util'
+import { bytesToHex, hexToBytes, setLengthLeft } from '../../utils'
 import type { AccessList, AccessListBytes } from '../types.ts'
 
 /**

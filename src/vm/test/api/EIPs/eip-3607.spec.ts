@@ -1,0 +1,42 @@
+import { assert, describe, it } from 'vitest'
+import { Common, Hardfork, Mainnet } from '../../../../chain-config/index.ts'
+import { createLegacyTx } from '../../../../tx/index.ts'
+import { createAddressFromString } from '../../../../utils/index.ts'
+
+import { createVM, runTx } from '../../../index.ts'
+
+describe('EIP-3607 tests', () => {
+  const common = new Common({ chain: Mainnet, hardfork: Hardfork.Berlin, eips: [3607] })
+  const commonNoEIP3607 = new Common({ chain: Mainnet, hardfork: Hardfork.Berlin, eips: [] })
+  const precompileAddr = createAddressFromString('0x0000000000000000000000000000000000000001')
+
+  it('should reject txs from senders with deployed code when EIP is enabled', async () => {
+    const vm = await createVM({ common })
+    await vm.stateManager.putCode(precompileAddr, new Uint8Array(32).fill(1))
+    const tx = createLegacyTx({ gasLimit: 100000 }, { freeze: false })
+    tx.getSenderAddress = () => precompileAddr
+    try {
+      await runTx(vm, { tx, skipHardForkValidation: true })
+      assert.fail('runTx should have thrown')
+    } catch (error: any) {
+      if ((error.message as string).includes('EIP-3607')) {
+        assert.isTrue(true, 'threw correct error')
+      } else {
+        assert.fail('did not throw correct error')
+      }
+    }
+  })
+
+  it('should not reject txs from senders with deployed code when EIP is not enabled', async () => {
+    const vm = await createVM({ common: commonNoEIP3607 })
+    await vm.stateManager.putCode(precompileAddr, new Uint8Array(32).fill(1))
+    const tx = createLegacyTx({ gasLimit: 100000 }, { freeze: false })
+    tx.getSenderAddress = () => precompileAddr
+    try {
+      await runTx(vm, { tx, skipHardForkValidation: true })
+      assert.isTrue(true, 'runTx successfully ran')
+    } catch {
+      assert.fail('threw an unexpected error')
+    }
+  })
+})

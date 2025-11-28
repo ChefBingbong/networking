@@ -1,6 +1,6 @@
 import { assert, describe, it } from 'vitest'
 
-import { Memory } from '../src/memory.ts'
+import { Memory } from '../memory.ts'
 
 const CONTAINER_SIZE = 8192
 
