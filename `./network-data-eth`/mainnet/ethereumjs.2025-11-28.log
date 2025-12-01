@@ -19,7 +19,7 @@
 [11-28|09:52:54] INFO Started rlpx server maxPeers=25
 [11-28|09:52:54] INFO Started discovery service discV4=true dns=false refreshInterval=30000
 [11-28|09:52:54] DEBUG Running execution startHeadBlock=0 canonicalHead=0 loop=true
-[11-28|09:52:54] INFO Server listener up transport=rlpx url=enode://c06a20197c5db9225bfcc528acf30fcaa4d2e24d99f5bc668c665cc30dfbf1e4d3b509631f99f9f14a47e5d8fcd35a0f95e967ae8cba6f2624dfa29fa5ab278a@0.0.0.0:30303
+[11-28|09:52:54] INFO Server listener up transport=rlpx url=enode://c06a20197c5db9225bfcc528acf30fcaa4d2e24d99f5bc668c665cc30dfbf1e4d3b509631f99f9f14a47e5d8fcd35a0f95e967ae8cba6f2624dfa29fa5ab278a@127.0.0.1:30303
 [11-28|09:52:55] INFO ---------------------------
 [11-28|09:52:55] INFO Client started successfully
 [11-28|09:52:55] INFO ---------------------------
@@ -41,7 +41,7 @@
 [11-28|09:53:54] INFO Stopped rlpx server.
 [11-28|09:53:54] INFO Started rlpx server maxPeers=25
 [11-28|09:53:54] INFO Started discovery service discV4=true dns=false refreshInterval=30000
-[11-28|09:53:54] INFO Server listener up transport=rlpx url=enode://c06a20197c5db9225bfcc528acf30fcaa4d2e24d99f5bc668c665cc30dfbf1e4d3b509631f99f9f14a47e5d8fcd35a0f95e967ae8cba6f2624dfa29fa5ab278a@0.0.0.0:30303
+[11-28|09:53:54] INFO Server listener up transport=rlpx url=enode://c06a20197c5db9225bfcc528acf30fcaa4d2e24d99f5bc668c665cc30dfbf1e4d3b509631f99f9f14a47e5d8fcd35a0f95e967ae8cba6f2624dfa29fa5ab278a@127.0.0.1:30303
 [11-28|09:53:54] INFO Reinitiating server bootstrap
 [11-28|09:53:54] DEBUG Memory stats usage=84 MB percentage=2%
 [11-28|09:53:55] DEBUG Waiting for best peer (attempt #13)

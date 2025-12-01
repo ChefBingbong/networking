@@ -19,7 +19,7 @@
 [11-28|09:55:19] INFO Started rlpx server maxPeers=25
 [11-28|09:55:19] INFO Started discovery service discV4=true dns=false refreshInterval=30000
 [11-28|09:55:19] DEBUG Running execution startHeadBlock=0 canonicalHead=0 loop=true
-[11-28|09:55:19] INFO Server listener up transport=rlpx url=enode://345993fa205ff0c491042d50c5d4fce47ab2c757f3426273193ffc44acc84d41cd0620039ce027c82eb670ce3e09f1dba772eac665fd1e0b9d68b85a7216b462@0.0.0.0:30303
+[11-28|09:55:19] INFO Server listener up transport=rlpx url=enode://345993fa205ff0c491042d50c5d4fce47ab2c757f3426273193ffc44acc84d41cd0620039ce027c82eb670ce3e09f1dba772eac665fd1e0b9d68b85a7216b462@127.0.0.1:30303
 [11-28|09:55:20] INFO ---------------------------
 [11-28|09:55:20] INFO Client started successfully
 [11-28|09:55:20] INFO ---------------------------
@@ -41,7 +41,7 @@
 [11-28|09:56:19] INFO Stopped rlpx server.
 [11-28|09:56:19] INFO Started rlpx server maxPeers=25
 [11-28|09:56:19] INFO Started discovery service discV4=true dns=false refreshInterval=30000
-[11-28|09:56:19] INFO Server listener up transport=rlpx url=enode://345993fa205ff0c491042d50c5d4fce47ab2c757f3426273193ffc44acc84d41cd0620039ce027c82eb670ce3e09f1dba772eac665fd1e0b9d68b85a7216b462@0.0.0.0:30303
+[11-28|09:56:19] INFO Server listener up transport=rlpx url=enode://345993fa205ff0c491042d50c5d4fce47ab2c757f3426273193ffc44acc84d41cd0620039ce027c82eb670ce3e09f1dba772eac665fd1e0b9d68b85a7216b462@127.0.0.1:30303
 [11-28|09:56:19] INFO Reinitiating server bootstrap
 [11-28|09:56:19] DEBUG Memory stats usage=130 MB percentage=3%
 [11-28|09:56:19] DEBUG Waiting for best peer (attempt #13)
@@ -63,7 +63,7 @@
 [11-28|09:57:19] INFO Stopped rlpx server.
 [11-28|09:57:19] INFO Started rlpx server maxPeers=25
 [11-28|09:57:19] INFO Started discovery service discV4=true dns=false refreshInterval=30000
-[11-28|09:57:19] INFO Server listener up transport=rlpx url=enode://345993fa205ff0c491042d50c5d4fce47ab2c757f3426273193ffc44acc84d41cd0620039ce027c82eb670ce3e09f1dba772eac665fd1e0b9d68b85a7216b462@0.0.0.0:30303
+[11-28|09:57:19] INFO Server listener up transport=rlpx url=enode://345993fa205ff0c491042d50c5d4fce47ab2c757f3426273193ffc44acc84d41cd0620039ce027c82eb670ce3e09f1dba772eac665fd1e0b9d68b85a7216b462@127.0.0.1:30303
 [11-28|09:57:19] INFO Reinitiating server bootstrap
 [11-28|09:57:19] DEBUG Memory stats usage=109 MB percentage=2%
 [11-28|09:57:19] DEBUG Waiting for best peer (attempt #25)
