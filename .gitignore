@@ -6,6 +6,14 @@ out
 dist
 *.tgz
 
+./test-network-data/
+./keys/
+.env.node1
+.env.node2
+.env.node3
+.env.send
+
+
 # code coverage
 coverage
 *.lcov
